@@ -143,33 +143,33 @@ struct RoutineTimelineTests {
     @Test func dailyStretchHasTwentyEightSegmentsOverTenMinutesFortyFive() {
         #expect(rows(of: .dailyStretch) == [
             Row("Cat-Cow", "Get ready", start: 0, duration: 8),
-            Row("Cat-Cow", "1 of 10", start: 8, duration: 50),
+            Row("Cat-Cow", "Stretch 1 of 10", start: 8, duration: 50),
             Row("Child's Pose", "Get ready", start: 58, duration: 8),
-            Row("Child's Pose", "2 of 10", start: 66, duration: 45),
+            Row("Child's Pose", "Stretch 2 of 10", start: 66, duration: 45),
             Row("Cobra", "Get ready", start: 111, duration: 8),
-            Row("Cobra", "3 of 10", start: 119, duration: 30),
+            Row("Cobra", "Stretch 3 of 10", start: 119, duration: 30),
             Row("Hip Flexor Couch Stretch", "Get ready · Left side", start: 149, duration: 8),
-            Row("Hip Flexor Couch Stretch", "Left side · 4 of 10", start: 157, duration: 45),
+            Row("Hip Flexor Couch Stretch", "Left side · Stretch 4 of 10", start: 157, duration: 45),
             Row("Hip Flexor Couch Stretch", "Switch sides · Right side next", start: 202, duration: 5),
-            Row("Hip Flexor Couch Stretch", "Right side · 4 of 10", start: 207, duration: 45),
+            Row("Hip Flexor Couch Stretch", "Right side · Stretch 4 of 10", start: 207, duration: 45),
             Row("Pigeon", "Get ready · Left side", start: 252, duration: 8),
-            Row("Pigeon", "Left side · 5 of 10", start: 260, duration: 45),
+            Row("Pigeon", "Left side · Stretch 5 of 10", start: 260, duration: 45),
             Row("Pigeon", "Switch sides · Right side next", start: 305, duration: 5),
-            Row("Pigeon", "Right side · 5 of 10", start: 310, duration: 45),
+            Row("Pigeon", "Right side · Stretch 5 of 10", start: 310, duration: 45),
             Row("Butterfly", "Get ready", start: 355, duration: 8),
-            Row("Butterfly", "6 of 10", start: 363, duration: 45),
+            Row("Butterfly", "Stretch 6 of 10", start: 363, duration: 45),
             Row("Standing Hamstring", "Get ready", start: 408, duration: 8),
-            Row("Standing Hamstring", "7 of 10", start: 416, duration: 45),
+            Row("Standing Hamstring", "Stretch 7 of 10", start: 416, duration: 45),
             Row("Doorway Pec", "Get ready · Left side", start: 461, duration: 8),
-            Row("Doorway Pec", "Left side · 8 of 10", start: 469, duration: 30),
+            Row("Doorway Pec", "Left side · Stretch 8 of 10", start: 469, duration: 30),
             Row("Doorway Pec", "Switch sides · Right side next", start: 499, duration: 5),
-            Row("Doorway Pec", "Right side · 8 of 10", start: 504, duration: 30),
+            Row("Doorway Pec", "Right side · Stretch 8 of 10", start: 504, duration: 30),
             Row("Thread the Needle", "Get ready · Left side", start: 534, duration: 8),
-            Row("Thread the Needle", "Left side · 9 of 10", start: 542, duration: 30),
+            Row("Thread the Needle", "Left side · Stretch 9 of 10", start: 542, duration: 30),
             Row("Thread the Needle", "Switch sides · Right side next", start: 572, duration: 5),
-            Row("Thread the Needle", "Right side · 9 of 10", start: 577, duration: 30),
+            Row("Thread the Needle", "Right side · Stretch 9 of 10", start: 577, duration: 30),
             Row("Passive Dead Hang", "Get ready", start: 607, duration: 8),
-            Row("Passive Dead Hang", "10 of 10", start: 615, duration: 30),
+            Row("Passive Dead Hang", "Stretch 10 of 10", start: 615, duration: 30),
         ])
         #expect(Workout.dailyStretch.totalDuration == 645)
         #expect(Workout.dailyStretch.outline.count == 28)
@@ -228,8 +228,8 @@ struct RoutinePhaseTests {
     @Test func captionsSayWhatToDoAndWhere() throws {
         let run = session(try workout())
         #expect(try [0, 10, 40, 50, 95, 100].map { try progress(run, at: $0).phase.caption } == [
-            "Get ready", "1 of 2", "Get ready · Left side", "Left side · 2 of 2",
-            "Switch sides · Right side next", "Right side · 2 of 2",
+            "Get ready", "Stretch 1 of 2", "Get ready · Left side", "Left side · Stretch 2 of 2",
+            "Switch sides · Right side next", "Right side · Stretch 2 of 2",
         ])
     }
 

@@ -1,9 +1,94 @@
 import IntervalCore
 import SwiftUI
 
-struct TimerDraft: Equatable {
+struct WorkoutDraft: Equatable {
     let id: UUID
     var name = ""
+    var plan: PlanDraft
+
+    init(new plan: PlanDraft) {
+        id = UUID()
+        self.plan = plan
+    }
+
+    init(_ workout: Workout) {
+        id = workout.id
+        name = workout.name
+        plan = PlanDraft(workout.plan)
+    }
+
+    /// The same values under a new identity, so editing a copy never touches the original.
+    init(copyOf workout: Workout) {
+        var copy = workout.forked()
+        copy.name = "\(workout.name) copy"
+        self.init(copy)
+    }
+
+    var problem: String? {
+        if trimmedName.isEmpty { return "Name the \(plan.noun) to save it." }
+        return plan.problem
+    }
+
+    var workout: Workout? {
+        trimmedName.isEmpty ? nil : workout(named: trimmedName)
+    }
+
+    /// The workout as it stands, for showing its total and strip before it has a name.
+    var preview: Workout? { workout(named: "") }
+
+    private var trimmedName: String { name.trimmingCharacters(in: .whitespacesAndNewlines) }
+
+    private func workout(named name: String) -> Workout? {
+        plan.plan.map { Workout(id: id, name: name, plan: $0) }
+    }
+}
+
+enum PlanDraft: Equatable {
+    case intervals(IntervalsDraft)
+    case routine(RoutineDraft)
+
+    init(_ plan: Plan) {
+        switch plan {
+        case .intervals(let intervals): self = .intervals(IntervalsDraft(intervals))
+        case .routine(let routine): self = .routine(RoutineDraft(routine))
+        }
+    }
+
+    var plan: Plan? {
+        switch self {
+        case .intervals(let draft): draft.intervals.map(Plan.intervals)
+        case .routine(let draft): draft.routine.map(Plan.routine)
+        }
+    }
+
+    var problem: String? {
+        switch self {
+        case .intervals(let draft): draft.problem
+        case .routine(let draft): draft.problem
+        }
+    }
+
+    var noun: String {
+        switch self {
+        case .intervals: "timer"
+        case .routine: "routine"
+        }
+    }
+
+    // A binding cannot reach into an enum case, so each kind's editor binds through one of these.
+    // The fallback is never shown, because an editor exists only for the case its draft is in.
+    var intervals: IntervalsDraft {
+        get { if case .intervals(let draft) = self { draft } else { IntervalsDraft() } }
+        set { self = .intervals(newValue) }
+    }
+
+    var routine: RoutineDraft {
+        get { if case .routine(let draft) = self { draft } else { RoutineDraft() } }
+        set { self = .routine(newValue) }
+    }
+}
+
+struct IntervalsDraft: Equatable {
     var hasWarmUp = true
     var warmUp = 300
     var work = 60
@@ -14,52 +99,34 @@ struct TimerDraft: Equatable {
     var hasCoolDown = true
     var coolDown = 300
 
-    init() { id = UUID() }
+    init() {}
 
-    init(_ timer: TimerDefinition) {
-        id = timer.id
-        name = timer.name
-        hasWarmUp = timer.warmUp != nil
-        warmUp = timer.warmUp?.seconds ?? warmUp
-        work = timer.work.seconds
-        hasRest = timer.rest != nil
-        rest = timer.rest?.seconds ?? rest
-        rounds = timer.rounds.value
-        restAfterLastRound = timer.restAfterLastRound
-        hasCoolDown = timer.coolDown != nil
-        coolDown = timer.coolDown?.seconds ?? coolDown
-    }
-
-    /// The same values under a new identity, so editing a copy never touches the original.
-    init(copyOf timer: TimerDefinition) {
-        self.init(TimerDefinition(
-            name: "\(timer.name) copy", warmUp: timer.warmUp, work: timer.work, rest: timer.rest,
-            rounds: timer.rounds, coolDown: timer.coolDown, restAfterLastRound: timer.restAfterLastRound))
+    init(_ intervals: Intervals) {
+        hasWarmUp = intervals.warmUp != nil
+        warmUp = intervals.warmUp?.seconds ?? warmUp
+        work = intervals.work.seconds
+        hasRest = intervals.rest != nil
+        rest = intervals.rest?.seconds ?? rest
+        rounds = intervals.rounds.value
+        restAfterLastRound = intervals.restAfterLastRound
+        hasCoolDown = intervals.coolDown != nil
+        coolDown = intervals.coolDown?.seconds ?? coolDown
     }
 
     var problem: String? {
-        if name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { return "Name the timer to save it." }
-        return definition == nil ? "Each phase that is switched on needs a length above 0:00." : nil
+        intervals == nil ? "Each phase that is switched on needs a length above 0:00." : nil
     }
 
-    var definition: TimerDefinition? {
-        let name = self.name.trimmingCharacters(in: .whitespacesAndNewlines)
-        return name.isEmpty ? nil : definition(named: name)
-    }
-
-    /// The workout as it stands, for showing its total and strip before the timer has a name.
-    var preview: TimerDefinition? { definition(named: "") }
-
-    private func definition(named name: String) -> TimerDefinition? {
+    var intervals: Intervals? {
         guard let work = Span(seconds: work),
-              let rounds = RoundCount(rounds),
+              let rounds = Count(rounds),
               let warmUp = Self.span(warmUp, enabled: hasWarmUp),
               let rest = Self.span(rest, enabled: hasRest),
               let coolDown = Self.span(coolDown, enabled: hasCoolDown)
         else { return nil }
-        return TimerDefinition(
-            id: id, name: name, warmUp: warmUp, work: work, rest: rest,
-            rounds: rounds, coolDown: coolDown, restAfterLastRound: restAfterLastRound)
+        return Intervals(
+            warmUp: warmUp, work: work, rest: rest, rounds: rounds, coolDown: coolDown,
+            restAfterLastRound: restAfterLastRound)
     }
 
     private static func span(_ seconds: Int, enabled: Bool) -> Span?? {
@@ -69,17 +136,15 @@ struct TimerDraft: Equatable {
 
 struct EditorScreen: View {
     let title: String
-    let save: (TimerDefinition) -> Void
+    let save: (Workout) -> Void
     let cancel: () -> Void
 
-    private let original: TimerDraft
-    @State private var draft: TimerDraft
-    @State private var expanded: SpanField?
+    private let original: WorkoutDraft
+    @State private var draft: WorkoutDraft
+    @State private var openStretch: StretchDraft.ID?
     @FocusState private var nameIsFocused: Bool
 
-    private enum SpanField { case warmUp, work, rest, coolDown }
-
-    init(draft: TimerDraft, title: String, save: @escaping (TimerDefinition) -> Void, cancel: @escaping () -> Void) {
+    init(draft: WorkoutDraft, title: String, save: @escaping (Workout) -> Void, cancel: @escaping () -> Void) {
         self.title = title
         self.save = save
         self.cancel = cancel
@@ -88,7 +153,8 @@ struct EditorScreen: View {
     }
 
     var body: some View {
-        let definition = draft.definition
+        let workout = draft.workout
+        let preview = draft.preview
         NavigationStack {
             Form {
                 Section {
@@ -101,12 +167,12 @@ struct EditorScreen: View {
                             Text("Total")
                                 .foregroundStyle(Color.secondary)
                             Spacer()
-                            Text(draft.preview.map { ClockText.remaining($0.totalDuration) } ?? "–")
+                            Text(preview.map { ClockText.remaining($0.totalDuration) } ?? "–")
                                 .font(.system(.title, design: .rounded, weight: .bold))
                                 .monospacedDigit()
                                 .accessibilityIdentifier("editorTotal")
                         }
-                        if let preview = draft.preview {
+                        if let preview {
                             TimelineStrip(spans: preview.outline)
                                 .frame(height: 10)
                         }
@@ -117,32 +183,14 @@ struct EditorScreen: View {
                         Text(problem).accessibilityIdentifier("editorProblem")
                     }
                 }
-                Section {
-                    Toggle(isOn: $draft.hasWarmUp) { phaseLabel("Warm-up", Theme.warmUp) }
-                        .tint(Theme.warmUp)
-                    if draft.hasWarmUp {
-                        durationRow("Length", $draft.warmUp, .warmUp)
-                    }
-                }
-                Section("Rounds") {
-                    durationRow("Work", $draft.work, .work, color: Theme.work)
-                    Toggle(isOn: $draft.hasRest) { phaseLabel("Rest", Theme.rest) }
-                        .tint(Theme.rest)
-                    if draft.hasRest {
-                        durationRow("Length", $draft.rest, .rest)
-                    }
-                    Stepper("Rounds: \(draft.rounds)", value: $draft.rounds, in: 1...99)
-                    if draft.hasRest {
-                        Toggle("Rest after last round", isOn: $draft.restAfterLastRound)
-                            .tint(Theme.rest)
-                    }
-                }
-                Section {
-                    Toggle(isOn: $draft.hasCoolDown) { phaseLabel("Cool-down", Theme.coolDown) }
-                        .tint(Theme.coolDown)
-                    if draft.hasCoolDown {
-                        durationRow("Length", $draft.coolDown, .coolDown)
-                    }
+                switch draft.plan {
+                case .intervals:
+                    IntervalSections(draft: $draft.plan.intervals, willShowWheel: { nameIsFocused = false })
+                case .routine:
+                    RoutineSections(
+                        draft: $draft.plan.routine,
+                        willShowWheel: { nameIsFocused = false },
+                        open: { openStretch = $0 })
                 }
             }
             .scrollDismissesKeyboard(.immediately)
@@ -156,30 +204,70 @@ struct EditorScreen: View {
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Save") {
-                        if let definition { save(definition) }
+                        if let workout { save(workout) }
                     }
-                    .disabled(definition == nil)
+                    .disabled(workout == nil)
                     .accessibilityIdentifier("saveButton")
                 }
+            }
+            .navigationDestination(item: $openStretch) { id in
+                StretchEditor(
+                    stretch: $draft.plan.routine[stretch: id],
+                    number: draft.plan.routine.number(of: id))
             }
         }
         .interactiveDismissDisabled(draft != original)
         .presentationBackground(Theme.background)
     }
+}
 
-    private func durationRow(_ label: String, _ seconds: Binding<Int>, _ field: SpanField, color: Color? = nil) -> some View {
-        DurationRow(label: label, color: color, identifier: "duration-\(field)", seconds: seconds, isExpanded: expanded == field) {
-            nameIsFocused = false
-            withAnimation { expanded = expanded == field ? nil : field }
+struct IntervalSections: View {
+    @Binding var draft: IntervalsDraft
+    let willShowWheel: () -> Void
+
+    @State private var expanded: SpanField?
+
+    private enum SpanField { case warmUp, work, rest, coolDown }
+
+    var body: some View {
+        Section {
+            Toggle(isOn: $draft.hasWarmUp) { PhaseLabel(title: "Warm-up", color: Tone.prepare.tint) }
+                .tint(Tone.prepare.tint)
+            if draft.hasWarmUp {
+                durationRow("Length", $draft.warmUp, .warmUp)
+            }
+        }
+        Section("Rounds") {
+            durationRow("Work", $draft.work, .work, color: Tone.effort.tint)
+            Toggle(isOn: $draft.hasRest) { PhaseLabel(title: "Rest", color: Tone.recover.tint) }
+                .tint(Tone.recover.tint)
+            if draft.hasRest {
+                durationRow("Length", $draft.rest, .rest)
+            }
+            Stepper("Rounds: \(draft.rounds)", value: $draft.rounds, in: 1...99)
+            if draft.hasRest {
+                Toggle("Rest after last round", isOn: $draft.restAfterLastRound)
+                    .tint(Tone.recover.tint)
+            }
+        }
+        Section {
+            Toggle(isOn: $draft.hasCoolDown) { PhaseLabel(title: "Cool-down", color: Tone.cool.tint) }
+                .tint(Tone.cool.tint)
+            if draft.hasCoolDown {
+                durationRow("Length", $draft.coolDown, .coolDown)
+            }
         }
     }
 
-    private func phaseLabel(_ title: String, _ color: Color) -> some View {
-        PhaseLabel(title: title, color: color)
+    private func durationRow(_ label: String, _ seconds: Binding<Int>, _ field: SpanField, color: Color? = nil) -> some View {
+        DurationRow(label: label, color: color, identifier: "duration-\(field)", seconds: seconds, isExpanded: expanded == field) {
+            willShowWheel()
+            withAnimation { expanded = expanded == field ? nil : field }
+        }
     }
 }
 
-private struct PhaseLabel: View {
+struct PhaseLabel: View {
     let title: String
     let color: Color
 
@@ -193,9 +281,9 @@ private struct PhaseLabel: View {
     }
 }
 
-private struct DurationRow: View {
+struct DurationRow: View {
     let label: String
-    let color: Color?
+    var color: Color?
     let identifier: String
     @Binding var seconds: Int
     let isExpanded: Bool

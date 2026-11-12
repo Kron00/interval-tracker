@@ -19,9 +19,9 @@ final class LibraryStore {
             let aside = fileURL.deletingLastPathComponent().appendingPathComponent("library.corrupt-\(stamp).json")
             do {
                 try FileManager.default.moveItem(at: fileURL, to: aside)
-                problem = "Your saved timers could not be read. The file was kept as \(aside.lastPathComponent)."
+                problem = "Your saved workouts could not be read. The file was kept as \(aside.lastPathComponent)."
             } catch {
-                problem = "Your saved timers could not be read, and the file could not be set aside."
+                problem = "Your saved workouts could not be read, and the file could not be set aside."
             }
         }
     }

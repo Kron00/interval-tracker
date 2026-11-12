@@ -14,33 +14,58 @@ final class SoundBankTests: XCTestCase {
         }
     }
 
+    func testTheRepBeatIsSofterThanTheCountdownTick() throws {
+        let bank = SoundBank(log: AudioLog())
+        let beat = try XCTUnwrap(bank[.beat])
+        let tick = try XCTUnwrap(bank[.tick])
+        XCTAssertEqual(seconds(of: beat), Sound.beat.slot, accuracy: 0.01)
+        XCTAssertGreaterThan(peak(of: beat), 0.1, "the beat is silent")
+        XCTAssertLessThan(peak(of: beat), peak(of: tick) * 0.6)
+    }
+
     func testVoicePhrasesRenderWithinTheirSlots() async throws {
+        let phrases = try await rendered(.norwegian4x4)
+        XCTAssertEqual(phrases.count, 8, "warm-up, rounds one to three, last round, rest, cool-down, complete")
+        for phrase in phrases {
+            XCTAssertLessThanOrEqual(seconds(of: phrase.buffer), phrase.sound.slot + 0.001, "\(phrase.sound)")
+            XCTAssertGreaterThan(seconds(of: phrase.buffer), 0.15, "\(phrase.sound)")
+        }
+    }
+
+    /// A stretch name is free text, and the schedule gives it a slot worked out from its length alone.
+    /// A buffer that fills its slot to the last sample was cut, so part of the name would go unheard.
+    func testEveryDailyStretchNameIsSpokenInFull() async throws {
+        let phrases = try await rendered(.dailyStretch)
+        XCTAssertEqual(phrases.count, 12, "ten stretch names, switch sides, complete")
+        XCTAssertEqual(phrases.first?.sound, .voice(Utterance("Cat-Cow")), "the first name a run needs is rendered first")
+        for phrase in phrases {
+            let slot = Int(phrase.sound.slot * phrase.buffer.format.sampleRate)
+            XCTAssertLessThan(Int(phrase.buffer.frameLength), slot, "\(phrase.sound) ran to \(phrase.sound.slot) s and was cut")
+            XCTAssertGreaterThan(seconds(of: phrase.buffer), 0.15, "\(phrase.sound)")
+        }
+    }
+
+    private func rendered(_ workout: Workout) async throws -> [(sound: Sound, buffer: AVAudioPCMBuffer)] {
         guard AVSpeechSynthesisVoice(language: "en-US") != nil else {
             throw XCTSkip("This simulator has no en-US speech voice.")
         }
         let log = AudioLog()
         let bank = SoundBank(log: log)
-        let schedule = try XCTUnwrap(
-            Session(.norwegian4x4, cues: CuePreferences(), startingAt: .now).cueSchedule)
-        let phrases = schedule.vocabulary.filter { if case .voice = $0 { true } else { false } }
-        XCTAssertEqual(phrases.count, 8, "warm-up, rounds one to three, last round, rest, cool-down, complete")
+        let schedule = try XCTUnwrap(Session(workout, cues: CuePreferences(), startingAt: .now).cueSchedule)
+        let voices = schedule.vocabulary.filter { if case .voice = $0 { true } else { false } }
 
         let started = Date.now
         await bank.prepare(schedule.vocabulary)
         let elapsed = Date.now.timeIntervalSince(started)
 
-        let rendered = phrases.filter { bank[$0] != nil }
-        if rendered.isEmpty {
+        let phrases = voices.compactMap { sound in bank[sound].map { (sound: sound, buffer: $0) } }
+        if phrases.isEmpty {
             throw XCTSkip("Speech synthesis produced no audio in this simulator: \(log.lines)")
         }
-        XCTAssertEqual(rendered.count, phrases.count, log.lines.joined(separator: "\n"))
-        for phrase in rendered {
-            let buffer = try XCTUnwrap(bank[phrase])
-            XCTAssertLessThanOrEqual(seconds(of: buffer), phrase.slot + 0.001, "\(phrase)")
-            XCTAssertGreaterThan(seconds(of: buffer), 0.15, "\(phrase)")
-        }
-        XCTAssertLessThan(elapsed, 30, "Rendering 8 phrases took \(elapsed) s, so most renders are hitting the timeout.")
-        print("voice render: \(rendered.count) phrases in \(elapsed) s, log: \(log.lines)")
+        XCTAssertEqual(phrases.count, voices.count, log.lines.joined(separator: "\n"))
+        XCTAssertLessThan(elapsed, 30, "Rendering \(voices.count) phrases took \(elapsed) s, so most renders are hitting the timeout.")
+        print("voice render: \(workout.name), \(phrases.count) phrases in \(elapsed) s, lengths \(phrases.map { "\($0.sound): \(seconds(of: $0.buffer)) of \($0.sound.slot)" }), log: \(log.lines)")
+        return phrases
     }
 
     private func seconds(of buffer: AVAudioPCMBuffer) -> Double {

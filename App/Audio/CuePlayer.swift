@@ -7,16 +7,42 @@ enum DuckingStrategy: String, CaseIterable, Sendable {
     case wholeRun
 }
 
+enum Sharing: Equatable {
+    case mixing(DuckingStrategy)
+    /// Other audio stops. iOS sends headphone presses only to an app whose audio does not mix.
+    case exclusive
+}
+
+enum CueDemand: Equatable {
+    case none
+    case paused
+    case playing(CueSchedule)
+}
+
 @MainActor
 final class CuePlayer {
-    var strategy: DuckingStrategy = .toggleOption
+    var sharing = Sharing.mixing(.toggleOption) {
+        didSet {
+            // A session cannot change between mixing and exclusive while it is live.
+            if (sharing == .exclusive) != (oldValue == .exclusive) { teardown() }
+        }
+    }
+    /// Called in exclusive mode when a call or another app takes the audio.
+    var onInterrupted: () -> Void = {}
+    /// Called in exclusive mode when that interruption is over and the system says playback may carry on.
+    var onInterruptionEnded: () -> Void = {}
+
+    /// A paused exclusive run holds the audio this long so a press can resume it from a locked phone.
+    /// After that the audio is released, and iOS may suspend the app.
+    static let standbyLimit: TimeInterval = 15 * 60
 
     private let bank: SoundBank
     private let log: AudioLog
 
     private var graph: Graph?
     private var scheduled: CueSchedule?
-    private var appliedDuck: Bool?
+    private var applied: Mix?
+    private var hold = Hold.none
     private var voiceStale = false
     private var sessionActive = false
     private var retryAfter = Date.distantPast
@@ -26,34 +52,57 @@ final class CuePlayer {
         self.bank = bank
         self.log = log
         for disturbance in Disturbance.allCases {
-            _ = NotificationCenter.default.addObserver(forName: disturbance.notification, object: nil, queue: .main) { [weak self] _ in
-                Task { @MainActor in self?.disturbed(by: disturbance) }
+            _ = NotificationCenter.default.addObserver(forName: disturbance.notification, object: nil, queue: .main) { [weak self] note in
+                let interruption = Interruption(note)
+                Task { @MainActor in self?.disturbed(by: disturbance, interruption) }
             }
         }
     }
 
-    func reconcile(_ schedule: CueSchedule?, at now: Date) {
-        guard let schedule, let end = schedule.end, end > now else {
-            teardown()
-            if log.cuesAreSilent { log.cuesAreSilent = false }
-            return
+    func reconcile(_ demand: CueDemand, at now: Date) {
+        switch demand {
+        case .playing(let schedule):
+            hold = .none
+            if let end = schedule.end, end > now { play(schedule, at: now) } else { rest() }
+        case .paused where sharing == .exclusive:
+            switch hold {
+            case .yielded:
+                rest()
+            case .none:
+                hold = .standby(since: now)
+                standBy(at: now)
+            case .standby(let since):
+                if now.timeIntervalSince(since) < Self.standbyLimit { standBy(at: now) } else { rest() }
+            }
+        case .paused, .none:
+            hold = .none
+            rest()
         }
+    }
+
+    func prepare(_ vocabulary: [Sound]) {
+        Task {
+            if await bank.prepare(vocabulary) { voiceStale = true }
+        }
+    }
+
+    private func play(_ schedule: CueSchedule, at now: Date) {
         guard now >= retryAfter else { return }
-        let wantDuck = strategy == .wholeRun || schedule.isDucked(at: now)
+        let want = mix(for: schedule, at: now)
 
         // Nine ticks in ten change nothing. Comparing a schedule with the copy stored from it is a
         // pointer check, so this path allocates nothing.
-        if graph?.engine.isRunning == true, appliedDuck == wantDuck, scheduled == schedule, !voiceStale {
+        if graph?.engine.isRunning == true, applied == want, scheduled == schedule, !voiceStale {
             return
         }
         let todo = schedule.remaining(after: now)
 
         do {
             if graph?.engine.isRunning != true {
-                try bringUp(ducked: wantDuck)
+                try bringUp(want)
             }
-            if appliedDuck != wantDuck {
-                try setDucked(wantDuck)
+            if applied != want {
+                try apply(want)
             }
             guard let graph else { return }
 
@@ -66,54 +115,100 @@ final class CuePlayer {
                 queue(todo, on: graph, voiceOnly: true)
                 voiceStale = false
             }
-            lastFailure = nil
-            if log.cuesAreSilent { log.cuesAreSilent = false }
+            succeeded()
         } catch {
-            let line = "audio failed: \(error.localizedDescription)"
-            if line != lastFailure { log.note(line) }
-            lastFailure = line
-            log.cuesAreSilent = true
-            retryAfter = now.addingTimeInterval(1)
+            failed(error, at: now)
         }
     }
 
-    func prepare(_ vocabulary: Set<Sound>) {
-        Task {
-            if await bank.prepare(vocabulary) { voiceStale = true }
+    /// Keeps the session, the engine and the silent bed, with no cue queued. The app stays awake and
+    /// stays the Now Playing app, so a press on a locked phone still reaches it.
+    private func standBy(at now: Date) {
+        guard now >= retryAfter else { return }
+        if graph?.engine.isRunning == true, applied == .exclusive, scheduled == nil { return }
+
+        do {
+            if graph?.engine.isRunning != true {
+                try bringUp(.exclusive)
+            } else if applied != .exclusive {
+                try apply(.exclusive)
+            }
+            if scheduled != nil, let graph {
+                graph.beeper.stop()
+                graph.speaker.stop()
+                scheduled = nil
+                voiceStale = false
+                log.note("standby, cues stopped")
+            }
+            succeeded()
+        } catch {
+            failed(error, at: now)
         }
     }
 
-    private func bringUp(ducked: Bool) throws {
+    private func rest() {
+        teardown()
+        if log.cuesAreSilent { log.cuesAreSilent = false }
+    }
+
+    private func succeeded() {
+        lastFailure = nil
+        if log.cuesAreSilent { log.cuesAreSilent = false }
+    }
+
+    private func failed(_ error: any Error, at now: Date) {
+        let line = "audio failed: \(error.localizedDescription)"
+        if line != lastFailure { log.note(line) }
+        lastFailure = line
+        log.cuesAreSilent = true
+        retryAfter = now.addingTimeInterval(1)
+    }
+
+    private func mix(for schedule: CueSchedule, at now: Date) -> Mix {
+        switch sharing {
+        case .exclusive: .exclusive
+        case .mixing(let strategy): .mixing(ducked: strategy == .wholeRun || schedule.isDucked(at: now))
+        }
+    }
+
+    private func bringUp(_ mix: Mix) throws {
         graph = nil
         scheduled = nil
         let session = AVAudioSession.sharedInstance()
-        try session.setCategory(.playback, mode: .default, options: Self.options(ducked: ducked))
+        try session.setCategory(.playback, mode: .default, options: mix.options)
         try session.setActive(true)
         sessionActive = true
-        appliedDuck = ducked
+        applied = mix
 
         let fresh = try Graph(format: bank.format)
         try fresh.engine.start()
         fresh.bed.scheduleBuffer(bank.silence, at: nil, options: .loops, completionHandler: nil)
         fresh.bed.play()
         graph = fresh
-        log.note("audio up, \(ducked ? "ducked" : "not ducked"), \(strategy.rawValue)")
+        log.note("audio up, \(describe(mix))")
     }
 
-    private func setDucked(_ ducked: Bool) throws {
+    private func apply(_ mix: Mix) throws {
         let session = AVAudioSession.sharedInstance()
-        if strategy == .cycleSession, !ducked {
+        if mix == .mixing(ducked: false), sharing == .mixing(.cycleSession) {
             graph?.engine.stop()
             graph = nil
             scheduled = nil
-            appliedDuck = nil
+            applied = nil
             try session.setActive(false, options: .notifyOthersOnDeactivation)
         } else {
-            try session.setCategory(.playback, mode: .default, options: Self.options(ducked: ducked))
+            try session.setCategory(.playback, mode: .default, options: mix.options)
             try session.setActive(true)
-            appliedDuck = ducked
+            applied = mix
         }
-        log.note("duck \(ducked ? "on" : "off") via \(strategy.rawValue)")
+        log.note("audio set to \(describe(mix))")
+    }
+
+    private func describe(_ mix: Mix) -> String {
+        switch (mix, sharing) {
+        case (.mixing(let ducked), .mixing(let strategy)): "\(ducked ? "ducked" : "not ducked"), \(strategy.rawValue)"
+        default: "exclusive"
+        }
     }
 
     private func teardown() {
@@ -121,7 +216,7 @@ final class CuePlayer {
         graph?.engine.stop()
         graph = nil
         scheduled = nil
-        appliedDuck = nil
+        applied = nil
         voiceStale = false
         sessionActive = false
 
@@ -130,7 +225,7 @@ final class CuePlayer {
             try session.setActive(false, options: .notifyOthersOnDeactivation)
             log.note("audio down, music released")
         } catch {
-            try? session.setCategory(.playback, mode: .default, options: Self.options(ducked: false))
+            try? session.setCategory(.playback, mode: .default, options: Mix.mixing(ducked: false).options)
             log.note("release failed, duck option removed instead: \(error.localizedDescription)")
         }
     }
@@ -158,7 +253,11 @@ final class CuePlayer {
         log.note("queued \(count) \(voiceOnly ? "voice cues" : "cues")")
     }
 
-    private func disturbed(by disturbance: Disturbance) {
+    private func disturbed(by disturbance: Disturbance, _ interruption: Interruption?) {
+        if sharing == .exclusive, let interruption {
+            yield(to: interruption)
+            return
+        }
         let running = graph?.engine.isRunning == true
         // Our own duck toggle posts a route change. Resetting then would cut the cue that is sounding.
         guard disturbance.alwaysResets || !running else { return }
@@ -166,11 +265,25 @@ final class CuePlayer {
         log.note("\(disturbance.rawValue), engine \(running ? "running" : "stopped"), rebuilding")
         if disturbance == .mediaServicesReset { graph = nil }
         scheduled = nil
-        appliedDuck = nil
+        applied = nil
     }
 
-    private static func options(ducked: Bool) -> AVAudioSession.CategoryOptions {
-        ducked ? [.mixWithOthers, .duckOthers] : [.mixWithOthers]
+    /// Mixing rebuilds its audio after an interruption. Exclusive must not, because starting again
+    /// would stop the call, or the music the user just started in another app.
+    private func yield(to interruption: Interruption) {
+        switch interruption {
+        case .began:
+            guard sessionActive else { return }
+            log.note("interrupted, audio given up until resumed")
+            hold = .yielded
+            onInterrupted()
+        case .ended(let shouldResume):
+            guard hold == .yielded else { return }
+            log.note("interruption ended, \(shouldResume ? "resuming" : "waiting for resume")")
+            guard shouldResume else { return }
+            hold = .none
+            onInterruptionEnded()
+        }
     }
 
     private static let hostTicksPerSecond: Double = {
@@ -178,6 +291,45 @@ final class CuePlayer {
         mach_timebase_info(&timebase)
         return 1_000_000_000 * Double(timebase.denom) / Double(timebase.numer)
     }()
+}
+
+private enum Mix: Equatable {
+    case mixing(ducked: Bool)
+    case exclusive
+
+    var options: AVAudioSession.CategoryOptions {
+        switch self {
+        case .mixing(ducked: true): [.mixWithOthers, .duckOthers]
+        case .mixing(ducked: false): [.mixWithOthers]
+        case .exclusive: []
+        }
+    }
+}
+
+private enum Hold: Equatable {
+    case none
+    case standby(since: Date)
+    /// Interrupted. Audio stays down until the run plays again.
+    case yielded
+}
+
+private enum Interruption: Sendable {
+    case began
+    case ended(shouldResume: Bool)
+
+    init?(_ note: Notification) {
+        guard let raw = note.userInfo?[AVAudioSessionInterruptionTypeKey] as? UInt,
+              let type = AVAudioSession.InterruptionType(rawValue: raw) else { return nil }
+        switch type {
+        case .began:
+            self = .began
+        case .ended:
+            let options = note.userInfo?[AVAudioSessionInterruptionOptionKey] as? UInt ?? 0
+            self = .ended(shouldResume: AVAudioSession.InterruptionOptions(rawValue: options).contains(.shouldResume))
+        @unknown default:
+            return nil
+        }
+    }
 }
 
 private enum Disturbance: String, CaseIterable {

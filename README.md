@@ -2,39 +2,60 @@
 
 # Interval Tracker
 
-An interval timer for iPhone. You build timers from a warm-up, work and rest rounds, and a cool-down. The app beeps, counts down, and speaks at each phase change. It keeps doing that with the screen locked, and it lowers your music for each cue without stopping it. Every screen is dark.
+A workout timer for iPhone. It runs two kinds of workout from one library:
 
-Two presets are built in:
+- An **interval timer** has a warm-up, work and rest rounds, and a cool-down.
+- A **stretch routine** is a list of stretches. Each stretch is a timed hold or a number of timed reps, on one side or on each side, with an optional link to a how-to video.
 
-| Preset | Warm-up | Rounds | Cool-down | Total |
-| --- | --- | --- | --- | --- |
-| Norwegian 4x4 | 5:00 | 4 × 4:00 work, 3:00 rest | 5:00 | 38:00 |
-| 20/20 HIIT | 5:00 | 9 × 0:20 work, 0:20 rest | 3:00 | 14:00 |
+The app beeps, counts down, and speaks at each change. It keeps doing that with the screen locked, and it lowers your music for each cue without stopping it. Every screen is dark.
 
-Both presets rest after every round, including the last. To drop the last rest, tap the preset, tap **Duplicate**, and turn off **Rest after last round**.
+Three presets are built in:
 
-## Install the app on your iPhone
+| Preset | What it is | Total |
+| --- | --- | --- |
+| Norwegian 4x4 | 5:00 warm-up, 4 × 4:00 work with 3:00 rest, 5:00 cool-down | 38:00 |
+| 20/20 HIIT | 5:00 warm-up, 9 × 0:20 work with 0:20 rest, 3:00 cool-down | 14:00 |
+| Daily Stretch | 10 stretches, 4 of them on each side, each with a video link | 10:45 |
 
-You do these steps once. You need a Mac with Xcode 27 or later, an Apple Account, and a cable. An iPhone on iOS 27 needs Xcode 27.
+You cannot edit a preset. To change one, tap it, tap **Duplicate**, and edit the copy.
 
-1. If the Mac has no Xcode, install it from the Mac App Store. Open it, accept the license, and let it install the iOS platform when it offers.
-2. In Xcode, open **Settings**, then **Accounts**. Click **+** and sign in with your Apple Account.
-3. Get the code and open the project.
+## Install the app with AltStore
+
+AltStore installs the app without Xcode and tells you when a new version is out.
+
+1. Install AltStore on the iPhone. [altstore.io](https://altstore.io) has the steps. They need a Mac or a PC.
+2. In AltStore, open **Sources** and tap **+**.
+3. Enter this address and add the source.
+
+	```
+	https://github.com/Kron00/interval-tracker/releases/latest/download/altstore.json
+	```
+
+4. Open the **Intervals** source and install **Intervals**.
+
+The app is named **Intervals** on the home screen.
+
+With a free Apple Account the app stops opening after 7 days unless AltStore refreshes it. Your saved workouts stay on the phone.
+
+## Install the app with Xcode
+
+Use this path to run your own changes. You need a Mac with Xcode 27 or later, an Apple Account, and a cable. An iPhone on iOS 27 needs Xcode 27.
+
+1. In Xcode, open **Settings**, then **Accounts**. Click **+** and sign in with your Apple Account.
+2. Get the code and open the project.
 
 	```sh
 	git clone https://github.com/Kron00/interval-tracker.git
 	open interval-tracker/IntervalTracker.xcodeproj
 	```
 
-4. In the project navigator, click **IntervalTracker**, then the **IntervalTracker** target, then **Signing & Capabilities**. Set **Team** to your name. If Xcode says the bundle identifier is not available, change `com.kron00.IntervalTracker` to any identifier of your own.
-5. Connect the iPhone with the cable and unlock it. Tap **Trust** on the phone.
-6. On the iPhone, open **Settings**, then **Privacy & Security**, then **Developer Mode**. Turn it on and restart the phone when asked.
-7. In the Xcode toolbar, choose your iPhone as the run destination. Press Cmd-R.
-8. If the phone refuses to open the app, open **Settings**, then **General**, then **VPN & Device Management** on the phone. Tap your developer certificate, then **Trust**.
+3. In the project navigator, click **IntervalTracker**, then the **IntervalTracker** target, then **Signing & Capabilities**. Set **Team** to your name. If Xcode says the bundle identifier is not available, change `com.kron00.IntervalTracker` to any identifier of your own.
+4. Connect the iPhone with the cable and unlock it. Tap **Trust** on the phone.
+5. On the iPhone, open **Settings**, then **Privacy & Security**, then **Developer Mode**. Turn it on and restart the phone when asked.
+6. In the Xcode toolbar, choose your iPhone as the run destination. Press Cmd-R.
+7. If the phone refuses to open the app, open **Settings**, then **General**, then **VPN & Device Management** on the phone. Tap your developer certificate, then **Trust**.
 
-The app is named **Intervals** on the home screen.
-
-With a free Apple Account the app stops opening after 7 days. Connect the phone and press Cmd-R again to renew it. Your saved timers stay on the phone. A paid Apple Developer membership extends the 7 days to one year.
+With a free Apple Account the app stops opening after 7 days. Connect the phone and press Cmd-R again to renew it.
 
 ## Check the audio on your phone
 
@@ -56,11 +77,54 @@ If the run screen ever shows **No sound**, the app could not start its audio. It
 
 ## Run a workout
 
-- Tap a timer, then **Start**.
-- **Skip** ends the current phase. **Undo skip** appears for 6 seconds, also on the finish screen.
-- **Pause** stops the clock and releases your music. The screen turns grey and reads PAUSED.
+- Tap a workout, then **Start**.
+- The forward button skips the current phase. The back button restarts it. From a stretch, the back button goes to the get-ready gap before the stretch, so the app names the stretch again.
+- **Undo** appears for 6 seconds after a skip or a restart, also on the finish screen.
+- **Pause** stops the clock. The screen turns grey and reads PAUSED. With headphone controls off, it also releases your music.
+- **How to** appears while you get ready for a stretch that has a link. It pauses the workout and opens the link.
 - The X asks before it ends the workout.
-- The finish screen shows the time you worked. Skipped time and paused time do not count.
+- The finish screen shows the time you worked. Skipped time and paused time do not count. Restarted time counts twice.
+
+## Build a stretch routine
+
+1. Tap **+**, then **Stretch routine**.
+2. Name the routine.
+3. Tap **Add stretch**. Name the stretch, then choose **Hold** and a length, or **Reps** with a count and the seconds for each rep.
+4. To do the stretch on the left side and then the right side, turn on **Each side**.
+5. To add a video, paste its address under **How-to link**.
+6. Tap **Done**, add the other stretches, then tap **Save**.
+
+Hold and drag a stretch to move it. Swipe a stretch left to delete it.
+
+**Get ready** is the gap before every stretch. The voice names the stretch in that gap, so the gap must be 0:05 or longer. **Switch sides** is the gap between the left side and the right side.
+
+## Control a workout from your headphones
+
+Headphone controls are off until you turn them on. In **Settings**, turn on **Headphone controls**. The same switch is on the screen of every stretch routine, above **Start**.
+
+| Press | What it does |
+| --- | --- |
+| One press | Pause or resume |
+| Two presses | Skip the current phase |
+| Three presses | Restart the current phase |
+
+The lock screen shows the current phase with the same three controls.
+
+iOS sends headphone presses only to an app that plays audio alone. So while headphone controls are on, music from other apps stops for the whole workout. With headphone controls off, your music keeps playing and dips for each cue.
+
+A paused workout keeps its audio for 15 minutes so that a press can resume it from a locked phone. After 15 minutes it lets go, and you resume in the app.
+
+While headphone controls are on, a phone call pauses the workout, and so does another app that starts to play.
+
+### What is not proven about headphone controls
+
+Nobody has pressed a headphone button with this app on a real iPhone. The simulator has no headphones and no lock screen. Three things are untested:
+
+- Whether iOS shows the app on the lock screen when the app plays only silence between cues.
+- Whether a press reaches the app while the workout is paused and the phone is locked.
+- Whether the workout resumes by itself after a phone call ends.
+
+Everything after the press is tested. To check the rest on your phone, follow **Headphone check** in **Settings**. If a press does nothing, open **Troubleshooting**, tap **Copy log**, and report it. The log has a line for every press that arrived.
 
 ## Run the tests
 
@@ -73,10 +137,20 @@ xcodebuild test -project IntervalTracker.xcodeproj -scheme IntervalTracker \
 	-destination 'platform=iOS Simulator,name=iPhone 16 Pro Max' CODE_SIGNING_ALLOWED=NO
 ```
 
-CI runs both on every push, plus a build for the device architecture. The UI test attaches a screenshot of each screen, and CI uploads the screenshots as the `test-results` artifact.
+CI runs both on every push, plus a build for the device architecture. The UI tests attach a screenshot of each screen, and CI uploads the screenshots as the `test-results` artifact.
 
 ## Change the project
 
 `project.yml` is the source of the Xcode project. After you add or remove a file outside Xcode, run `xcodegen generate` and commit the result.
 
-[docs/design.md](docs/design.md) explains how the timer keeps time and how the cues are scheduled.
+[About the design](docs/design.md) explains how the timer keeps time, how the cues are scheduled, and how the two audio modes differ.
+
+## Release a version
+
+Push the commit you want to release, then run `Scripts/release.sh` with the version and a line about what changed:
+
+```sh
+Scripts/release.sh 1.1 "Stretch routines and headphone controls"
+```
+
+The script builds the app from the pushed commit, creates the GitHub release, and updates the AltStore source. AltStore then offers the new version on every phone that has the source.

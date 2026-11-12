@@ -47,7 +47,7 @@ public enum Phase: Hashable, Sendable {
         case .getReady(let pose):
             caption("Get ready", pose.side?.label)
         case .hold(let pose):
-            caption(pose.side?.label, "\(pose.position.number) of \(pose.position.total)")
+            caption(pose.side?.label, "Stretch \(pose.position.number) of \(pose.position.total)")
         case .switchSides(let pose):
             caption("Switch sides", pose.side.map { "\($0.label) next" })
         }

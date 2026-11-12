@@ -2,13 +2,13 @@ import IntervalCore
 import SwiftUI
 
 private enum LibrarySheet: Identifiable {
-    case detail(TimerDefinition)
-    case editor(TimerDraft)
+    case detail(Workout)
+    case editor(WorkoutDraft)
     case settings
 
     var id: String {
         switch self {
-        case .detail(let timer): "detail-\(timer.id)"
+        case .detail(let workout): "detail-\(workout.id)"
         case .editor(let draft): "editor-\(draft.id)"
         case .settings: "settings"
         }
@@ -21,37 +21,37 @@ struct LibraryScreen: View {
     let log: AudioLog
 
     @State private var sheet: LibrarySheet?
-    @State private var pendingDelete: TimerDefinition?
+    @State private var pendingDelete: Workout?
 
     var body: some View {
         NavigationStack {
             List {
                 Section("Presets") {
-                    ForEach(TimerDefinition.builtIn) { timer in
-                        row(timer)
-                            .swipeActions { duplicateButton(timer).tint(.accentColor) }
-                            .contextMenu { duplicateButton(timer) }
+                    ForEach(Workout.builtIn) { workout in
+                        row(workout)
+                            .swipeActions { duplicateButton(workout).tint(.accentColor) }
+                            .contextMenu { duplicateButton(workout) }
                     }
                 }
-                Section("My timers") {
-                    if store.library.timers.isEmpty {
+                Section("My workouts") {
+                    if store.library.workouts.isEmpty {
                         Text("Tap + to build your own, or duplicate a preset.")
                             .foregroundStyle(.secondary)
                             .listRowSeparator(.hidden)
                             .listRowBackground(Color.clear)
                     }
-                    ForEach(store.library.timers) { timer in
-                        row(timer)
-                            .swipeActions { deleteButton(timer) }
+                    ForEach(store.library.workouts) { workout in
+                        row(workout)
+                            .swipeActions { deleteButton(workout) }
                             .contextMenu {
                                 Button {
-                                    sheet = .editor(TimerDraft(timer))
+                                    sheet = .editor(WorkoutDraft(workout))
                                 } label: {
                                     Label("Edit", systemImage: "pencil")
                                 }
-                                duplicateButton(timer)
+                                duplicateButton(workout)
                                 Button(role: .destructive) {
-                                    pendingDelete = timer
+                                    pendingDelete = workout
                                 } label: {
                                     Label("Delete", systemImage: "trash")
                                 }
@@ -74,21 +74,32 @@ struct LibraryScreen: View {
                     .accessibilityIdentifier("settingsButton")
                 }
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button {
-                        sheet = .editor(TimerDraft())
+                    Menu {
+                        Button {
+                            sheet = .editor(WorkoutDraft(new: .intervals(IntervalsDraft())))
+                        } label: {
+                            Label("Interval timer", systemImage: "timer")
+                        }
+                        .accessibilityIdentifier("newIntervalTimer")
+                        Button {
+                            sheet = .editor(WorkoutDraft(new: .routine(RoutineDraft())))
+                        } label: {
+                            Label("Stretch routine", systemImage: "figure.flexibility")
+                        }
+                        .accessibilityIdentifier("newStretchRoutine")
                     } label: {
                         Image(systemName: "plus")
                     }
-                    .accessibilityLabel("New timer")
+                    .accessibilityLabel("New workout")
                     .accessibilityIdentifier("addTimerButton")
                 }
             }
             .sheet(item: $sheet, content: content)
-            .alert("Delete \"\(pendingDelete?.name ?? "")\"?", isPresented: deleteIsPending, presenting: pendingDelete) { timer in
-                Button("Delete", role: .destructive) { store.update { $0.delete(timer.id) } }
+            .alert("Delete \"\(pendingDelete?.name ?? "")\"?", isPresented: deleteIsPending, presenting: pendingDelete) { workout in
+                Button("Delete", role: .destructive) { store.update { $0.delete(workout.id) } }
                 Button("Keep", role: .cancel) {}
             }
-            .alert("Timer library", isPresented: problemIsShown) {
+            .alert("Library", isPresented: problemIsShown) {
                 Button("OK", role: .cancel) {}
             } message: {
                 Text(store.problem ?? "")
@@ -99,21 +110,21 @@ struct LibraryScreen: View {
     @ViewBuilder
     private func content(for sheet: LibrarySheet) -> some View {
         switch sheet {
-        case .detail(let timer):
-            TimerDetailSheet(
-                timer: timer,
-                isPreset: isPreset(timer),
-                start: { start(timer, cues: store.library.cues) },
-                edit: { self.sheet = .editor(TimerDraft(timer)) },
-                duplicate: { self.sheet = .editor(TimerDraft(copyOf: timer)) },
+        case .detail(let workout):
+            WorkoutDetailSheet(
+                workout: workout,
+                isPreset: isPreset(workout),
+                start: { start(workout, cues: store.library.cues) },
+                edit: { self.sheet = .editor(WorkoutDraft(workout)) },
+                duplicate: { self.sheet = .editor(WorkoutDraft(copyOf: workout)) },
                 close: { self.sheet = nil })
-                .task { run.prepare(timer, cues: store.library.cues) }
+                .task { run.prepare(workout, cues: store.library.cues) }
         case .editor(let draft):
             EditorScreen(
                 draft: draft,
-                title: store.library.timers.contains { $0.id == draft.id } ? "Edit timer" : "New timer",
-                save: { timer in
-                    store.update { $0.save(timer) }
+                title: "\(store.library.workouts.contains { $0.id == draft.id } ? "Edit" : "New") \(draft.plan.noun)",
+                save: { workout in
+                    store.update { $0.save(workout) }
                     self.sheet = nil
                 },
                 cancel: { self.sheet = nil })
@@ -127,30 +138,30 @@ struct LibraryScreen: View {
         }
     }
 
-    private func row(_ timer: TimerDefinition) -> some View {
+    private func row(_ workout: Workout) -> some View {
         Button {
-            sheet = .detail(timer)
+            sheet = .detail(workout)
         } label: {
-            TimerCard(timer: timer)
+            WorkoutCard(workout: workout)
         }
         .buttonStyle(.plain)
         .listRowInsets(EdgeInsets(top: 6, leading: 16, bottom: 6, trailing: 16))
         .listRowSeparator(.hidden)
         .listRowBackground(Color.clear)
-        .accessibilityIdentifier("timerRow-\(timer.name)")
+        .accessibilityIdentifier("timerRow-\(workout.name)")
     }
 
-    private func duplicateButton(_ timer: TimerDefinition) -> some View {
+    private func duplicateButton(_ workout: Workout) -> some View {
         Button {
-            sheet = .editor(TimerDraft(copyOf: timer))
+            sheet = .editor(WorkoutDraft(copyOf: workout))
         } label: {
             Label("Duplicate", systemImage: "plus.square.on.square")
         }
     }
 
-    private func deleteButton(_ timer: TimerDefinition) -> some View {
+    private func deleteButton(_ workout: Workout) -> some View {
         Button(role: .destructive) {
-            store.update { $0.delete(timer.id) }
+            store.update { $0.delete(workout.id) }
         } label: {
             Label("Delete", systemImage: "trash")
         }
@@ -164,33 +175,33 @@ struct LibraryScreen: View {
         Binding(get: { store.problem != nil }, set: { if !$0 { store.problem = nil } })
     }
 
-    private func isPreset(_ timer: TimerDefinition) -> Bool {
-        TimerDefinition.builtIn.contains { $0.id == timer.id }
+    private func isPreset(_ workout: Workout) -> Bool {
+        Workout.builtIn.contains { $0.id == workout.id }
     }
 
-    private func start(_ timer: TimerDefinition, cues: CuePreferences) {
+    private func start(_ workout: Workout, cues: CuePreferences) {
         sheet = nil
-        run.start(timer, cues: cues)
+        run.start(workout, cues: cues)
     }
 }
 
-struct TimerCard: View {
-    let timer: TimerDefinition
+struct WorkoutCard: View {
+    let workout: Workout
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(alignment: .firstTextBaseline) {
-                Text(timer.name)
+                Text(workout.name)
                     .font(.system(.title3, design: .rounded, weight: .bold))
                     .lineLimit(1)
                 Spacer()
-                Text(ClockText.remaining(timer.totalDuration))
+                Text(ClockText.remaining(workout.totalDuration))
                     .font(.system(.title2, design: .rounded, weight: .bold))
                     .monospacedDigit()
             }
-            TimelineStrip(spans: timer.outline)
+            TimelineStrip(spans: workout.outline)
                 .frame(height: 10)
-            Text(timer.summary)
+            Text(workout.plan.summary)
                 .font(.subheadline)
                 .foregroundStyle(Color.secondary)
         }
@@ -200,8 +211,8 @@ struct TimerCard: View {
     }
 }
 
-struct TimerDetailSheet: View {
-    let timer: TimerDefinition
+struct WorkoutDetailSheet: View {
+    let workout: Workout
     let isPreset: Bool
     let start: () -> Void
     let edit: () -> Void
@@ -213,28 +224,19 @@ struct TimerDetailSheet: View {
             ScrollView {
                 VStack(spacing: 22) {
                     VStack(spacing: 2) {
-                        Text(ClockText.remaining(timer.totalDuration))
+                        Text(ClockText.remaining(workout.totalDuration))
                             .font(.system(size: 64, weight: .bold, design: .rounded))
                             .monospacedDigit()
                         Text("total")
                             .font(.headline)
                             .foregroundStyle(Color.secondary)
                     }
-                    TimelineStrip(spans: timer.outline)
+                    TimelineStrip(spans: workout.outline)
                         .frame(height: 14)
-                    VStack(spacing: 0) {
-                        if let warmUp = timer.warmUp {
-                            phaseRow("Warm-up", warmUp.clockText, Theme.warmUp)
-                            Divider()
-                        }
-                        phaseRow("Work", "\(timer.rounds.value) × \(timer.work.clockText)", Theme.work)
-                        if let rest = timer.rest {
-                            Divider()
-                            phaseRow("Rest", "\(restCount) × \(rest.clockText)", Theme.rest)
-                        }
-                        if let coolDown = timer.coolDown {
-                            Divider()
-                            phaseRow("Cool-down", coolDown.clockText, Theme.coolDown)
+                    Group {
+                        switch workout.plan {
+                        case .intervals(let intervals): IntervalRows(intervals: intervals)
+                        case .routine(let routine): StretchRows(routine: routine)
                         }
                     }
                     .padding(.horizontal, 16)
@@ -243,7 +245,7 @@ struct TimerDetailSheet: View {
                 .padding(20)
             }
             .background(Theme.background)
-            .navigationTitle(timer.name)
+            .navigationTitle(workout.name)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -258,28 +260,61 @@ struct TimerDetailSheet: View {
                 }
             }
             .safeAreaInset(edge: .bottom) {
-                Button(action: start) {
-                    Label("Start", systemImage: "play.fill")
-                        .font(.system(.title2, design: .rounded, weight: .bold))
-                        .frame(maxWidth: .infinity, minHeight: 64)
+                VStack(spacing: 12) {
+                    if case .routine = workout.plan {
+                        HeadphoneControlsCard()
+                    }
+                    Button(action: start) {
+                        Label("Start", systemImage: "play.fill")
+                            .font(.system(.title2, design: .rounded, weight: .bold))
+                            .frame(maxWidth: .infinity, minHeight: 64)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .accessibilityIdentifier("startButton")
                 }
-                .buttonStyle(.borderedProminent)
-                .accessibilityIdentifier("startButton")
                 .padding()
+                .background(Theme.background)
+                .background(alignment: .top) {
+                    LinearGradient(colors: [Theme.background.opacity(0), Theme.background], startPoint: .top, endPoint: .bottom)
+                        .frame(height: 28)
+                        .offset(y: -28)
+                }
             }
         }
         .presentationDetents([.large])
         .presentationBackground(Theme.background)
     }
+}
 
-    private var restCount: Int {
-        timer.restAfterLastRound ? timer.rounds.value : timer.rounds.value - 1
+private struct IntervalRows: View {
+    let intervals: Intervals
+
+    var body: some View {
+        VStack(spacing: 0) {
+            if let warmUp = intervals.warmUp {
+                row("Warm-up", warmUp.clockText, .prepare)
+                Divider()
+            }
+            row("Work", "\(intervals.rounds.value) × \(intervals.work.clockText)", .effort)
+            if let rest = intervals.rest {
+                Divider()
+                row("Rest", "\(restCount) × \(rest.clockText)", .recover)
+            }
+            if let coolDown = intervals.coolDown {
+                Divider()
+                row("Cool-down", coolDown.clockText, .cool)
+            }
+        }
     }
 
-    private func phaseRow(_ label: String, _ value: String, _ color: Color) -> some View {
+    private var restCount: Int {
+        intervals.restAfterLastRound ? intervals.rounds.value : intervals.rounds.value - 1
+    }
+
+    private func row(_ label: String, _ value: String, _ tone: Tone) -> some View {
         HStack(spacing: 12) {
             Circle()
-                .fill(color)
+                .fill(tone.tint)
                 .frame(width: 12, height: 12)
             Text(label)
             Spacer()
@@ -292,19 +327,97 @@ struct TimerDetailSheet: View {
     }
 }
 
+private struct StretchRows: View {
+    let routine: Routine
+
+    @Environment(\.openURL) private var openURL
+
+    var body: some View {
+        VStack(spacing: 0) {
+            ForEach(Array(routine.stretches.enumerated()), id: \.element.id) { index, stretch in
+                if index > 0 { Divider() }
+                HStack(spacing: 14) {
+                    Text("\(index + 1)")
+                        .font(.system(.headline, design: .rounded))
+                        .monospacedDigit()
+                        .foregroundStyle(Tone.stretch.tint)
+                        .frame(minWidth: 22)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(stretch.name)
+                            .font(.title3)
+                            .lineLimit(2)
+                        Text(stretch.amount.text(stretch.sides))
+                            .font(.subheadline)
+                            .monospacedDigit()
+                            .foregroundStyle(Color.secondary)
+                    }
+                    Spacer(minLength: 8)
+                    if let howTo = stretch.howTo {
+                        Button {
+                            openURL(howTo)
+                        } label: {
+                            Image(systemName: "play.circle.fill")
+                                .font(.system(size: 32))
+                                .symbolRenderingMode(.hierarchical)
+                                .foregroundStyle(Tone.stretch.tint)
+                                .frame(width: 44, height: 44)
+                        }
+                        .accessibilityLabel("How to do \(stretch.name)")
+                        .accessibilityIdentifier("howTo-\(stretch.name)")
+                    }
+                }
+                .padding(.vertical, 12)
+            }
+        }
+    }
+}
+
+private struct HeadphoneControlsCard: View {
+    @AppStorage(SettingsKey.headphoneControls) private var isOn = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Toggle(isOn: $isOn) {
+                Label("Headphone controls", systemImage: "headphones")
+                    .font(.headline)
+            }
+            .accessibilityIdentifier("headphoneControlsToggle")
+            Text("Other audio stops while this is on.")
+                .font(.footnote)
+                .foregroundStyle(Color.secondary)
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 12)
+        .background(Theme.card, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+    }
+}
+
 extension Span {
     var clockText: String { ClockText.remaining(TimeInterval(seconds)) }
 }
 
-extension TimerDefinition {
+extension Plan {
     var summary: String {
-        let intervals = "\(rounds.value) × \(work.clockText)" + (rest.map { " / \($0.clockText)" } ?? "")
-        return [
-            warmUp.map { "\($0.clockText) warm-up" },
-            intervals,
-            coolDown.map { "\($0.clockText) cool-down" },
-        ]
-        .compactMap { $0 }
-        .joined(separator: " · ")
+        switch self {
+        case .intervals(let intervals):
+            let rounds = "\(intervals.rounds.value) × \(intervals.work.clockText)"
+                + (intervals.rest.map { " / \($0.clockText)" } ?? "")
+            return [
+                intervals.warmUp.map { "\($0.clockText) warm-up" },
+                rounds,
+                intervals.coolDown.map { "\($0.clockText) cool-down" },
+            ]
+            .compactMap { $0 }
+            .joined(separator: " · ")
+        case .routine(let routine):
+            let count = routine.stretches.count
+            let eachSide = routine.stretches.filter { $0.sides == .each }.count
+            return [
+                count == 1 ? "1 stretch" : "\(count) stretches",
+                eachSide > 0 ? "\(eachSide) each side" : nil,
+            ]
+            .compactMap { $0 }
+            .joined(separator: " · ")
+        }
     }
 }

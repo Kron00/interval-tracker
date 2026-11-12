@@ -13,6 +13,7 @@ struct SettingsScreen: View {
 
     @AppStorage(SettingsKey.keepScreenOn) private var keepScreenOn = true
     @AppStorage(SettingsKey.duckingStrategy) private var strategy = DuckingStrategy.toggleOption
+    @AppStorage(SettingsKey.headphoneControls) private var headphoneControls = false
 
     var body: some View {
         NavigationStack {
@@ -27,6 +28,15 @@ struct SettingsScreen: View {
                     Toggle("Voice cues", isOn: cue(\.voice))
                 }
 
+                Section {
+                    Toggle("Headphone controls", isOn: $headphoneControls)
+                        .accessibilityIdentifier("headphoneControlsSetting")
+                } header: {
+                    Text("Headphones")
+                } footer: {
+                    Text("Music from other apps stops during a workout. Press to pause or resume, double-press to skip, triple-press to restart the stretch.")
+                }
+
                 Section("Screen") {
                     Toggle("Keep screen on during a run", isOn: $keepScreenOn)
                 }
@@ -34,8 +44,12 @@ struct SettingsScreen: View {
                 Section {
                     Text("Start your music, run the check, then lock the phone.")
                     Label("At 0:27 you hear three beeps, a tone and \"Round one\". Silence means the app was suspended while locked.", systemImage: "1.circle")
-                    Label(strategy.checkExpectation, systemImage: "2.circle")
-                    Label("After \"Workout complete\" at 1:02 the music plays at full volume.", systemImage: "3.circle")
+                    if headphoneControls {
+                        Label("The music stops when the check starts, because Headphone controls is on.", systemImage: "2.circle")
+                    } else {
+                        Label(strategy.checkExpectation, systemImage: "2.circle")
+                        Label("After \"Workout complete\" at 1:02 the music plays at full volume.", systemImage: "3.circle")
+                    }
                     Button("Run 1-minute audio check", action: startAudioCheck)
                         .fontWeight(.semibold)
                         .accessibilityIdentifier("audioCheckButton")
@@ -43,6 +57,17 @@ struct SettingsScreen: View {
                     Text("Audio check")
                 } footer: {
                     Text("The check always uses a 3-second countdown and voice cues, whatever is set above.")
+                }
+
+                Section {
+                    Text("Turn on Headphone controls, run the audio check, then lock the phone.")
+                    Label("The lock screen shows \"Warm-up\" and \"Audio check\" with pause, back and forward buttons.", systemImage: "1.circle")
+                    Label("Press pause, wait 10 seconds, then press play. The countdown carries on from where it stopped.", systemImage: "2.circle")
+                    Label("Now press the headphones. One press pauses, two skip, three restart.", systemImage: "3.circle")
+                } header: {
+                    Text("Headphone check")
+                } footer: {
+                    Text("If the lock screen shows nothing, or a press does nothing, open Troubleshooting, tap Copy log, and report it.")
                 }
 
                 Section {

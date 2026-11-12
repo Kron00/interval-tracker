@@ -303,7 +303,7 @@ struct UpNextTests {
     @Test func upNextReadsAsTheStretchAndItsSide() throws {
         let upNext = try #require(try progress(session(.dailyStretch), at: 280).upNext)
         #expect(upNext.phase.title == "Pigeon")
-        #expect(upNext.phase.caption == "Right side · 5 of 10")
+        #expect(upNext.phase.caption == "Right side · Stretch 5 of 10")
     }
 
     @Test func nothingIsUpNextInTheLastHold() throws {

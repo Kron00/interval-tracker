@@ -5,21 +5,28 @@ enum Theme {
     static let background = Color.black
     static let card = Color(white: 0.11)
     static let cardShape = RoundedRectangle(cornerRadius: 22, style: .continuous)
-
-    static let warmUp = Color(red: 1.00, green: 0.72, blue: 0.22)
-    static let work = Color(red: 1.00, green: 0.33, blue: 0.33)
-    static let rest = Color(red: 0.33, green: 0.63, blue: 1.00)
-    static let coolDown = Color(red: 0.70, green: 0.52, blue: 1.00)
 }
 
-extension Phase {
+extension Tone {
     /// Vivid, for small marks on black.
     var tint: Color {
         switch self {
-        case .warmUp: Theme.warmUp
-        case .work: Theme.work
-        case .rest: Theme.rest
-        case .coolDown: Theme.coolDown
+        case .prepare: Color(red: 1.00, green: 0.72, blue: 0.22)
+        case .effort: Color(red: 1.00, green: 0.33, blue: 0.33)
+        case .recover: Color(red: 0.33, green: 0.63, blue: 1.00)
+        case .stretch: Color(red: 0.20, green: 0.84, blue: 0.72)
+        case .cool: Color(red: 0.70, green: 0.52, blue: 1.00)
+        }
+    }
+
+    /// Deep, so white text stays readable on a full-screen fill.
+    var runColor: Color {
+        switch self {
+        case .prepare: Color(red: 0.68, green: 0.47, blue: 0.00)
+        case .effort: Color(red: 0.76, green: 0.11, blue: 0.13)
+        case .recover: Color(red: 0.09, green: 0.33, blue: 0.75)
+        case .stretch: Color(red: 0.00, green: 0.46, blue: 0.50)
+        case .cool: Color(red: 0.42, green: 0.26, blue: 0.64)
         }
     }
 }
@@ -50,7 +57,7 @@ struct TimelineStrip: View, Equatable {
                         context.fill(Path(roundedRect: filled, cornerRadius: radius), with: .color(.white))
                     }
                 } else {
-                    context.fill(Path(roundedRect: block, cornerRadius: radius), with: .color(span.phase.tint))
+                    context.fill(Path(roundedRect: block, cornerRadius: radius), with: .color(span.phase.tone.tint))
                 }
                 start += span.duration
             }

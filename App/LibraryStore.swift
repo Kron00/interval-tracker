@@ -2,11 +2,9 @@ import Foundation
 import IntervalCore
 import Observation
 
-/// The only reader and writer of the library file.
 @MainActor @Observable
 final class LibraryStore {
     private(set) var library = Library()
-    /// Set when the file could not be read or written. The library screen shows it once.
     var problem: String?
 
     @ObservationIgnored private let fileURL: URL

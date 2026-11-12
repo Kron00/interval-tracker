@@ -48,7 +48,7 @@ public enum Sound: Hashable, Sendable {
     case voice(Phrase)
 
     /// The longest this sound may last. The schedule reserves exactly this much time for it, and the
-    /// app's SoundBank must deliver a buffer no longer than this. One number, owned here.
+    /// app's SoundBank must deliver a buffer no longer than this.
     public var slot: TimeInterval {
         switch self {
         case .tick: 0.12
@@ -125,7 +125,7 @@ public struct CueSchedule: Equatable, Sendable {
 
     /// What is still to do at `now`: drops windows that have closed and sounds more than `lateGrace` old,
     /// and clamps a window in progress to start at `now`. A sound within the grace keeps its (past) time;
-    /// the caller plays it immediately. This is what makes a skip announce its new phase at once.
+    /// the caller plays it immediately.
     public func remaining(after now: Date) -> CueSchedule {
         let oldestPlayable = now - CueTiming.lateGrace
         return CueSchedule(windows: windows.compactMap { window in

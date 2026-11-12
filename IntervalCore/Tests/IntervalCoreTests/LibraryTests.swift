@@ -7,7 +7,7 @@ private func libraryJSON(version: Int = 1, timers: String) -> Data {
 }
 
 private func timerJSON(_ fields: String) -> String {
-    #"{"id": "0B8E7C52-6A1D-4F0E-9B33-5D2C4A7E9F10", "name": "Hills", \#(fields)}"#
+    #"{"id": "0B8E7C52-6A1D-4F0E-9B33-5D2C4A7E9F10", "name": "Hills", "restAfterLastRound": true, \#(fields)}"#
 }
 
 struct LibraryTests {
@@ -35,7 +35,8 @@ struct LibraryTests {
                 {
                   "id": "0B8E7C52-6A1D-4F0E-9B33-5D2C4A7E9F10",
                   "name": "Hills",
-                  "warmUp": 600, "work": 90, "rest": 60, "rounds": 8, "coolDown": 300
+                  "warmUp": 600, "work": 90, "rest": 60, "rounds": 8, "coolDown": 300,
+                  "restAfterLastRound": true
                 },
                 {
                   "id": "7D4F2A91-3C5E-4B6A-8F01-9E2D3C4B5A6F",
@@ -64,12 +65,6 @@ struct LibraryTests {
         #expect(tabata.warmUp == nil)
         #expect(tabata.coolDown == nil)
         #expect(!tabata.restAfterLastRound)
-    }
-
-    @Test func aMissingRestAfterLastRoundDecodesAsTrue() throws {
-        let library = try Library(json: libraryJSON(timers: timerJSON(#""work": 90, "rest": 60, "rounds": 8"#)))
-        #expect(library.timers.first?.restAfterLastRound == true)
-        #expect(library.timers.first?.totalDuration == 1200)
     }
 
     @Test func anUnknownVersionThrows() {

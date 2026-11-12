@@ -1,8 +1,6 @@
 import IntervalCore
 import SwiftUI
 
-/// One sheet at a time. Moving from the detail to the editor swaps the item, which SwiftUI turns
-/// into a dismiss followed by a present.
 private enum LibrarySheet: Identifiable {
     case detail(TimerDefinition)
     case editor(TimerDraft)
@@ -238,7 +236,6 @@ extension Span {
 }
 
 extension TimerDefinition {
-    /// "5:00 warm-up · 4 × 4:00 / 3:00 · 5:00 cool-down"
     var summary: String {
         let intervals = "\(rounds.value) × \(work.clockText)" + (rest.map { " / \($0.clockText)" } ?? "")
         return [

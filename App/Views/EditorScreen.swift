@@ -1,8 +1,6 @@
 import IntervalCore
 import SwiftUI
 
-/// What the editor holds while the user types. Any combination of values is allowed here.
-/// `definition` is the one place a draft becomes a timer, or fails to.
 struct TimerDraft: Equatable {
     let id: UUID
     var name = ""
@@ -32,7 +30,6 @@ struct TimerDraft: Equatable {
         coolDown = timer.coolDown?.seconds ?? coolDown
     }
 
-    /// nil while the name is blank or an enabled span is 0:00.
     var definition: TimerDefinition? {
         let name = self.name.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !name.isEmpty,
@@ -47,7 +44,6 @@ struct TimerDraft: Equatable {
             rounds: rounds, coolDown: coolDown, restAfterLastRound: restAfterLastRound)
     }
 
-    /// Outer nil means invalid. Inner nil means the phase is switched off.
     private static func span(_ seconds: Int, enabled: Bool) -> Span?? {
         enabled ? Span(seconds: seconds).map(Optional.some) : .some(nil)
     }
@@ -134,7 +130,6 @@ struct EditorScreen: View {
     }
 }
 
-/// A m:ss value that opens two wheels inline when tapped.
 private struct DurationRow: View {
     let label: String
     @Binding var seconds: Int

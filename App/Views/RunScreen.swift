@@ -32,7 +32,6 @@ struct RunScreen: View {
     }
 }
 
-/// The background of the run screen. It is what tells the phases apart from across the room.
 private enum RunTone: Hashable {
     case warmUp, work, rest, coolDown, paused, finished
 
@@ -125,8 +124,6 @@ struct ActiveRunView: View {
         }
     }
 
-    /// The hidden text is the phase's full length, so the digits keep one size for the whole phase
-    /// instead of growing when "10:00" becomes "9:59".
     private var clock: some View {
         Text(ClockText.remaining(progress.phaseDuration))
             .hidden()

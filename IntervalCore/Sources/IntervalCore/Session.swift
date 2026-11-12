@@ -27,8 +27,7 @@ public struct Session: Equatable, Sendable {
         clock = .running(zeroAt: now - elapsed)
     }
 
-    /// Ends `segment` now. No-op unless `segment` is the one in progress at `now`, so a tap that lands
-    /// just after a natural phase change (or arrives twice) cannot skip the wrong phase.
+    /// Ends `segment` now. No-op unless `segment` is the one in progress at `now`.
     public mutating func skip(_ segment: SegmentID, at now: Date) {
         guard let current = timeline.segment(at: elapsed(at: now)), current.id == segment else { return }
         switch clock {
@@ -49,7 +48,7 @@ public struct Session: Equatable, Sendable {
             upNext: timeline.segment(after: current.id)?.phase, isPaused: isPaused))
     }
 
-    /// Every cue of this run at its wall-clock time. nil while paused (nothing may sound, nothing may duck).
+    /// Every cue of this run at its wall-clock time. nil while paused.
     public var cueSchedule: CueSchedule? {
         switch clock {
         case .running(let zeroAt): CueSchedule(timeline, cues, zeroAt: zeroAt)

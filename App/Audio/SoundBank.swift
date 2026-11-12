@@ -1,7 +1,6 @@
 import AVFoundation
 import IntervalCore
 
-/// Every buffer is in `format` and no longer than its sound's `slot`.
 @MainActor
 final class SoundBank {
     let format: AVAudioFormat
@@ -29,10 +28,8 @@ final class SoundBank {
         }
     }
 
-    /// nil only for a voice phrase that has not been rendered, or failed to render.
     subscript(sound: Sound) -> AVAudioPCMBuffer? { buffers[sound] }
 
-    /// Renders the voice phrases in `sounds` that were never attempted. Returns true when it added a buffer.
     @discardableResult
     func prepare(_ sounds: Set<Sound>) async -> Bool {
         var added = false
@@ -86,8 +83,6 @@ final class SoundBank {
     }
 }
 
-/// One utterance rendered to mono samples in `target`. The synthesizer calls back off the main thread,
-/// so everything it touches sits behind the lock.
 private final class SpeechRender: @unchecked Sendable {
     private let target: AVAudioFormat
     private let synthesizer = AVSpeechSynthesizer()
@@ -100,7 +95,6 @@ private final class SpeechRender: @unchecked Sendable {
 
     init(target: AVAudioFormat) { self.target = target }
 
-    /// Empty when the synthesizer produced nothing before the timeout.
     func samples(for text: String) async -> [Float] {
         await withCheckedContinuation { continuation in
             lock.withLock { self.continuation = continuation }
@@ -110,7 +104,6 @@ private final class SpeechRender: @unchecked Sendable {
                 guard let chunk = buffer as? AVAudioPCMBuffer else { return }
                 if chunk.frameLength == 0 { finish() } else { append(chunk) }
             }
-            // This closure also keeps the synthesizer alive until the render is over.
             DispatchQueue.main.asyncAfter(deadline: .now() + Self.timeout) { [self] in finish() }
         }
     }

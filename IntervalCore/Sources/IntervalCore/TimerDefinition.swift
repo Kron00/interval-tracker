@@ -70,18 +70,6 @@ public struct TimerDefinition: Identifiable, Hashable, Sendable, Codable {
         self.restAfterLastRound = restAfterLastRound
     }
 
-    public init(from decoder: any Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        id = try container.decode(UUID.self, forKey: .id)
-        name = try container.decode(String.self, forKey: .name)
-        warmUp = try container.decodeIfPresent(Span.self, forKey: .warmUp)
-        work = try container.decode(Span.self, forKey: .work)
-        rest = try container.decodeIfPresent(Span.self, forKey: .rest)
-        rounds = try container.decode(RoundCount.self, forKey: .rounds)
-        coolDown = try container.decodeIfPresent(Span.self, forKey: .coolDown)
-        restAfterLastRound = try container.decodeIfPresent(Bool.self, forKey: .restAfterLastRound) ?? true
-    }
-
     public var totalDuration: TimeInterval { Timeline(self).total }
 
     public static let norwegian4x4 = TimerDefinition(

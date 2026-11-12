@@ -7,9 +7,6 @@ enum DuckingStrategy: String, CaseIterable, Sendable {
     case wholeRun
 }
 
-/// Makes the audio world match a `CueSchedule`. It keeps what it last did (`graph`, `scheduled`,
-/// `appliedDuck`) and `reconcile` repairs any difference, so every start, skip, pause and recovery
-/// is the same code path.
 @MainActor
 final class CuePlayer {
     var strategy: DuckingStrategy = .toggleOption
@@ -35,7 +32,6 @@ final class CuePlayer {
         }
     }
 
-    /// Idempotent, and cheap when nothing changed. nil or a schedule with nothing left means go quiet.
     func reconcile(_ schedule: CueSchedule?, at now: Date) {
         guard let schedule, case let todo = schedule.remaining(after: now), !todo.isEmpty else {
             teardown()
@@ -71,7 +67,6 @@ final class CuePlayer {
         }
     }
 
-    /// Renders the voice phrases ahead of need. Late arrivals are queued by the next `reconcile`.
     func prepare(_ vocabulary: Set<Sound>) {
         Task {
             if await bank.prepare(vocabulary) { voiceStale = true }
@@ -95,9 +90,6 @@ final class CuePlayer {
         log.note("audio up, \(ducked ? "ducked" : "not ducked"), \(strategy.rawValue)")
     }
 
-    // The one function that cannot be proven off a phone: whether changing `.duckOthers` on a live
-    // session lowers and restores other apps' music. `cycleSession` releases the only way iOS
-    // guarantees, by deactivating with I/O stopped, and the next reconcile brings audio back up.
     private func setDucked(_ ducked: Bool) throws {
         let session = AVAudioSession.sharedInstance()
         if strategy == .cycleSession, !ducked {
@@ -201,8 +193,6 @@ private enum Disturbance: String, CaseIterable {
     }
 }
 
-/// One engine and its three players. Never restarted: a stopped engine is replaced by a fresh graph,
-/// so a hardware format change cannot leave a stale connection behind.
 private struct Graph {
     let engine = AVAudioEngine()
     let beeper = AVAudioPlayerNode()

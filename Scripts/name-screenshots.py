@@ -1,4 +1,3 @@
-"""Renames the files `xcresulttool export attachments` wrote to the names the UI tests gave them."""
 import json
 import pathlib
 import sys

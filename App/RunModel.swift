@@ -7,8 +7,6 @@ enum SettingsKey {
     static let duckingStrategy = "duckingStrategy"
 }
 
-/// The only writer of the session. Audio and the idle timer are derived from it on every intent
-/// and ten times a second, so nothing has to remember to notify anything.
 @MainActor @Observable
 final class RunModel {
     private(set) var session: Session?
@@ -26,7 +24,6 @@ final class RunModel {
     func skip(_ segment: SegmentID) { change { $0?.skip(segment, at: .now) } }
     func end() { change { $0 = nil } }
 
-    /// Renders a timer's voice phrases before Start is tapped, so the first announcement is ready.
     func prepare(_ timer: TimerDefinition, cues: CuePreferences) {
         let schedule = Session(timer, cues: cues, startingAt: .now).cueSchedule
         player.prepare(schedule?.vocabulary ?? [])

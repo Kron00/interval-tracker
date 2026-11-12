@@ -20,8 +20,6 @@ struct IntervalTrackerApp: App {
         }
     }
 
-    /// UI tests get a throwaway file. `-uiTesting` starts it empty, `-uiTestingKeepLibrary` reuses it
-    /// so a test can relaunch and see what the previous launch saved.
     private static func libraryURL() -> URL {
         let arguments = ProcessInfo.processInfo.arguments
         let fresh = arguments.contains("-uiTesting")

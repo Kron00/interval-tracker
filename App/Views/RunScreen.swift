@@ -37,7 +37,7 @@ struct RunScreen: View {
                         undoSkip: undoSkip,
                         end: run.end)
                 case .finished(let worked):
-                    FinishedView(name: session.definition.name, worked: worked, close: run.end)
+                    FinishedView(name: session.definition.name, worked: worked, undoSkip: undoSkip, close: run.end)
                 }
             }
         }
@@ -121,7 +121,7 @@ struct ActiveRunView: View {
             }
         }
         .padding(20)
-        .confirmationDialog("End this workout?", isPresented: $confirmingEnd, titleVisibility: .visible) {
+        .alert("End this workout?", isPresented: $confirmingEnd) {
             Button("End workout", role: .destructive, action: end)
             Button("Keep going", role: .cancel) {}
         }
@@ -242,6 +242,7 @@ struct ActiveRunView: View {
 struct FinishedView: View {
     let name: String
     let worked: TimeInterval
+    let undoSkip: (() -> Void)?
     let close: () -> Void
 
     @Environment(\.verticalSizeClass) private var verticalSizeClass
@@ -266,7 +267,17 @@ struct FinishedView: View {
                 .font(.system(size: 64, weight: .bold, design: .rounded))
                 .monospacedDigit()
                 .accessibilityIdentifier("timeWorked")
+            Text("worked")
+                .font(.headline)
+                .opacity(0.8)
             Spacer(minLength: 0)
+            if let undoSkip {
+                Button(action: undoSkip) {
+                    Label("Undo skip", systemImage: "arrow.uturn.backward")
+                }
+                .buttonStyle(RunButtonStyle(isProminent: false, minHeight: 52))
+                .accessibilityIdentifier("undoSkipButton")
+            }
             Button("Done", action: close)
                 .buttonStyle(RunButtonStyle(isProminent: true))
                 .accessibilityIdentifier("doneButton")

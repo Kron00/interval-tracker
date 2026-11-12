@@ -69,6 +69,11 @@ final class RunFlowUITests: XCTestCase {
         }
         XCTAssertTrue(done.waitForExistence(timeout: 5))
         XCTAssertEqual(taps, 8, "rest 1, then work and rest for rounds 2 to 4, then cool-down")
+        XCTAssertTrue(undo.exists, "a skip that ends the workout can still be taken back")
+        undo.tap()
+        waitFor(phase, toRead: "COOL-DOWN")
+        skip.tap()
+        XCTAssertTrue(done.waitForExistence(timeout: 5))
         let worked = app.staticTexts["timeWorked"].label
         XCTAssertTrue(worked.hasPrefix("0:"), "nearly everything was skipped, yet time worked read \(worked)")
         snap(app, "07-finished")
@@ -91,6 +96,10 @@ final class RunFlowUITests: XCTestCase {
         name.tap()
         name.typeText("Test timer")
         snap(app, "08-editor")
+        app.buttons["duration-work"].tap()
+        XCTAssertTrue(app.pickerWheels.firstMatch.waitForExistence(timeout: 5))
+        XCTAssertEqual(app.keyboards.count, 0, "the keyboard must not cover the duration wheels")
+        snap(app, "08a-editor-wheels")
         app.buttons["saveButton"].tap()
 
         let row = app.buttons["timerRow-Test timer"]

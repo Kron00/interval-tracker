@@ -69,6 +69,7 @@ struct EditorScreen: View {
     private let original: TimerDraft
     @State private var draft: TimerDraft
     @State private var expanded: SpanField?
+    @FocusState private var nameIsFocused: Bool
 
     private enum SpanField { case warmUp, work, rest, coolDown }
 
@@ -86,45 +87,61 @@ struct EditorScreen: View {
             Form {
                 Section {
                     TextField("Name", text: $draft.name)
+                        .font(.system(.title3, design: .rounded, weight: .semibold))
+                        .focused($nameIsFocused)
                         .accessibilityIdentifier("nameField")
+                    VStack(alignment: .leading, spacing: 10) {
+                        HStack(alignment: .firstTextBaseline) {
+                            Text("Total")
+                                .foregroundStyle(Color.secondary)
+                            Spacer()
+                            Text(definition.map { ClockText.remaining($0.totalDuration) } ?? "–")
+                                .font(.system(.title, design: .rounded, weight: .bold))
+                                .monospacedDigit()
+                                .accessibilityIdentifier("editorTotal")
+                        }
+                        if let definition {
+                            TimelineStrip(spans: definition.outline)
+                                .frame(height: 10)
+                        }
+                    }
+                    .padding(.vertical, 4)
                 } footer: {
                     if let problem = draft.problem {
                         Text(problem).accessibilityIdentifier("editorProblem")
                     }
                 }
                 Section {
-                    Toggle("Warm-up", isOn: $draft.hasWarmUp)
+                    Toggle(isOn: $draft.hasWarmUp) { phaseLabel("Warm-up", Theme.warmUp) }
+                        .tint(Theme.warmUp)
                     if draft.hasWarmUp {
                         durationRow("Length", $draft.warmUp, .warmUp)
                     }
                 }
                 Section("Rounds") {
-                    durationRow("Work", $draft.work, .work)
-                    Toggle("Rest", isOn: $draft.hasRest)
+                    durationRow("Work", $draft.work, .work, color: Theme.work)
+                    Toggle(isOn: $draft.hasRest) { phaseLabel("Rest", Theme.rest) }
+                        .tint(Theme.rest)
                     if draft.hasRest {
                         durationRow("Length", $draft.rest, .rest)
                     }
                     Stepper("Rounds: \(draft.rounds)", value: $draft.rounds, in: 1...99)
                     if draft.hasRest {
                         Toggle("Rest after last round", isOn: $draft.restAfterLastRound)
+                            .tint(Theme.rest)
                     }
                 }
                 Section {
-                    Toggle("Cool-down", isOn: $draft.hasCoolDown)
+                    Toggle(isOn: $draft.hasCoolDown) { phaseLabel("Cool-down", Theme.coolDown) }
+                        .tint(Theme.coolDown)
                     if draft.hasCoolDown {
                         durationRow("Length", $draft.coolDown, .coolDown)
                     }
                 }
-                Section {
-                    LabeledContent("Total", value: definition.map { ClockText.remaining($0.totalDuration) } ?? "–")
-                        .fontWeight(.semibold)
-                        .monospacedDigit()
-                    if let definition {
-                        TimelineStrip(spans: definition.outline)
-                            .frame(height: 10)
-                    }
-                }
             }
+            .scrollDismissesKeyboard(.immediately)
+            .scrollContentBackground(.hidden)
+            .background(Theme.background)
             .navigationTitle(title)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -141,17 +158,39 @@ struct EditorScreen: View {
             }
         }
         .interactiveDismissDisabled(draft != original)
+        .presentationBackground(Theme.background)
     }
 
-    private func durationRow(_ label: String, _ seconds: Binding<Int>, _ field: SpanField) -> some View {
-        DurationRow(label: label, seconds: seconds, isExpanded: expanded == field) {
+    private func durationRow(_ label: String, _ seconds: Binding<Int>, _ field: SpanField, color: Color? = nil) -> some View {
+        DurationRow(label: label, color: color, identifier: "duration-\(field)", seconds: seconds, isExpanded: expanded == field) {
+            nameIsFocused = false
             withAnimation { expanded = expanded == field ? nil : field }
+        }
+    }
+
+    private func phaseLabel(_ title: String, _ color: Color) -> some View {
+        PhaseLabel(title: title, color: color)
+    }
+}
+
+private struct PhaseLabel: View {
+    let title: String
+    let color: Color
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Circle()
+                .fill(color)
+                .frame(width: 12, height: 12)
+            Text(title)
         }
     }
 }
 
 private struct DurationRow: View {
     let label: String
+    let color: Color?
+    let identifier: String
     @Binding var seconds: Int
     let isExpanded: Bool
     let toggle: () -> Void
@@ -163,9 +202,14 @@ private struct DurationRow: View {
                     .monospacedDigit()
                     .foregroundStyle(isExpanded ? Color.accentColor : Color.secondary)
             } label: {
-                Text(label).foregroundStyle(Color.primary)
+                if let color {
+                    PhaseLabel(title: label, color: color).foregroundStyle(Color.primary)
+                } else {
+                    Text(label).foregroundStyle(Color.primary)
+                }
             }
         }
+        .accessibilityIdentifier(identifier)
         if isExpanded {
             HStack(spacing: 0) {
                 wheel("Minutes", 0..<100, unit: "min", get: { seconds / 60 }, set: { seconds = $0 * 60 + seconds % 60 })

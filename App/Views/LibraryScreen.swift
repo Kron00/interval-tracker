@@ -21,6 +21,7 @@ struct LibraryScreen: View {
     let log: AudioLog
 
     @State private var sheet: LibrarySheet?
+    @State private var pendingDelete: TimerDefinition?
 
     var body: some View {
         NavigationStack {
@@ -49,7 +50,11 @@ struct LibraryScreen: View {
                                     Label("Edit", systemImage: "pencil")
                                 }
                                 duplicateButton(timer)
-                                deleteButton(timer)
+                                Button(role: .destructive) {
+                                    pendingDelete = timer
+                                } label: {
+                                    Label("Delete", systemImage: "trash")
+                                }
                             }
                     }
                 }
@@ -79,6 +84,10 @@ struct LibraryScreen: View {
                 }
             }
             .sheet(item: $sheet, content: content)
+            .alert("Delete \"\(pendingDelete?.name ?? "")\"?", isPresented: deleteIsPending, presenting: pendingDelete) { timer in
+                Button("Delete", role: .destructive) { store.update { $0.delete(timer.id) } }
+                Button("Keep", role: .cancel) {}
+            }
             .alert("Timer library", isPresented: problemIsShown) {
                 Button("OK", role: .cancel) {}
             } message: {
@@ -145,6 +154,10 @@ struct LibraryScreen: View {
         } label: {
             Label("Delete", systemImage: "trash")
         }
+    }
+
+    private var deleteIsPending: Binding<Bool> {
+        Binding(get: { pendingDelete != nil }, set: { if !$0 { pendingDelete = nil } })
     }
 
     private var problemIsShown: Binding<Bool> {

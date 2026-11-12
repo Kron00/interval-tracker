@@ -20,7 +20,7 @@ struct SettingsScreen: View {
                             Text(countdown.label).tag(countdown)
                         }
                     }
-                    .pickerStyle(.segmented)
+                    .pickerStyle(.menu)
                     Toggle("Voice cues", isOn: cue(\.voice))
                 }
 

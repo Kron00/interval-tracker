@@ -115,7 +115,8 @@ final class RunFlowUITests: XCTestCase {
         XCTAssertLessThan(clock.maxX, pause.minX, "the clock sits left of the controls in landscape")
         XCTAssertTrue(window.frame.contains(clock) && window.frame.contains(pause))
         XCTAssertTrue(app.buttons["skipButton"].isHittable)
-        snap(app, "11-landscape")
+        attach(XCUIScreen.main.screenshot(), "11-landscape")
+        attach(window.screenshot(), "11-landscape-window")
         XCUIDevice.shared.orientation = .portrait
         let isTall = expectation(for: NSPredicate { _, _ in window.frame.height > window.frame.width }, evaluatedWith: nil)
         wait(for: [isTall], timeout: 10)
@@ -140,7 +141,11 @@ final class RunFlowUITests: XCTestCase {
     }
 
     private func snap(_ app: XCUIApplication, _ name: String) {
-        let attachment = XCTAttachment(screenshot: app.screenshot())
+        attach(app.screenshot(), name)
+    }
+
+    private func attach(_ screenshot: XCUIScreenshot, _ name: String) {
+        let attachment = XCTAttachment(screenshot: screenshot)
         attachment.name = name
         attachment.lifetime = .keepAlways
         add(attachment)

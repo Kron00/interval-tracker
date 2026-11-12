@@ -44,8 +44,14 @@ struct TimerDraft: Equatable {
 
     var definition: TimerDefinition? {
         let name = self.name.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !name.isEmpty,
-              let work = Span(seconds: work),
+        return name.isEmpty ? nil : definition(named: name)
+    }
+
+    /// The workout as it stands, for showing its total and strip before the timer has a name.
+    var preview: TimerDefinition? { definition(named: "") }
+
+    private func definition(named name: String) -> TimerDefinition? {
+        guard let work = Span(seconds: work),
               let rounds = RoundCount(rounds),
               let warmUp = Self.span(warmUp, enabled: hasWarmUp),
               let rest = Self.span(rest, enabled: hasRest),
@@ -95,13 +101,13 @@ struct EditorScreen: View {
                             Text("Total")
                                 .foregroundStyle(Color.secondary)
                             Spacer()
-                            Text(definition.map { ClockText.remaining($0.totalDuration) } ?? "–")
+                            Text(draft.preview.map { ClockText.remaining($0.totalDuration) } ?? "–")
                                 .font(.system(.title, design: .rounded, weight: .bold))
                                 .monospacedDigit()
                                 .accessibilityIdentifier("editorTotal")
                         }
-                        if let definition {
-                            TimelineStrip(spans: definition.outline)
+                        if let preview = draft.preview {
+                            TimelineStrip(spans: preview.outline)
                                 .frame(height: 10)
                         }
                     }

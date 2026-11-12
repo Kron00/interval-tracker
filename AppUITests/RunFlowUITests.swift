@@ -93,6 +93,7 @@ final class RunFlowUITests: XCTestCase {
         XCTAssertTrue(name.waitForExistence(timeout: 5))
         XCTAssertFalse(app.buttons["saveButton"].isEnabled)
         XCTAssertTrue(app.staticTexts["editorProblem"].exists)
+        XCTAssertEqual(app.staticTexts["editorTotal"].label, "20:00", "the total shows before the timer has a name")
         name.tap()
         name.typeText("Test timer")
         snap(app, "08-editor")

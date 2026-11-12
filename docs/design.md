@@ -32,11 +32,21 @@ Three things have to hold.
 - **Beeps do not depend on timers.** `CuePlayer` queues every remaining sound on an `AVAudioPlayerNode` at an exact host time. The audio thread plays them. Voice phrases are rendered to buffers before the run starts, so a voice cue is queued the same way as a beep.
 - **Recovery is one code path.** `RunModel` calls `CuePlayer.reconcile` ten times a second with the current schedule. `reconcile` compares the schedule with what it last queued and repairs any difference. A phone call, a route change, or a skip only marks the queued state as unknown, and the next call rebuilds it.
 
+## What a running timer costs
+
+The digits change once a second, so the run screen redraws once a second. `Session.zeroDate` is the instant elapsed time was zero, and the screen redraws on the whole seconds after it, which is exactly when a digit changes.
+
+The ten audio checks a second do almost nothing. `RunModel` builds the schedule once per change, and `reconcile` returns before it allocates when the schedule, the engine, and the ducking state are all as it left them.
+
+Speech never runs on the main thread. Looking up a voice waits on the system speech service, and on the main thread that froze the app for minutes on a cold simulator.
+
+Measured on an iPhone 16 Pro Max simulator with iOS 27.2 and a Debug build, a running timer uses about 3% of one core.
+
 ## What is not proven yet
 
 Lowering other apps' music means adding `.duckOthers` to the audio session, and restoring it means removing the option while the session stays active. Apple documents a full deactivation as the way to restore other audio, and a full deactivation would stop the silent loop that keeps the app awake. Whether removing the option on a live session restores the music is something only a phone can show.
 
-`CuePlayer.setDucked` is the only function that depends on the answer. Settings offers three strategies:
+`CuePlayer.setDucked` is the only function that depends on the answer. Settings has a Troubleshooting screen with three strategies:
 
 | Strategy | What it does | Cost |
 | --- | --- | --- |

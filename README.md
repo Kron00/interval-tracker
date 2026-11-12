@@ -2,7 +2,7 @@
 
 # Interval Tracker
 
-An interval timer for iPhone. You build timers from a warm-up, work and rest rounds, and a cool-down. The app beeps, counts down, and speaks at each phase change. It keeps doing that with the screen locked, and it lowers your music for each cue without stopping it.
+An interval timer for iPhone. You build timers from a warm-up, work and rest rounds, and a cool-down. The app beeps, counts down, and speaks at each phase change. It keeps doing that with the screen locked, and it lowers your music for each cue without stopping it. Every screen is dark.
 
 Two presets are built in:
 
@@ -11,13 +11,13 @@ Two presets are built in:
 | Norwegian 4x4 | 5:00 | 4 × 4:00 work, 3:00 rest | 5:00 | 38:00 |
 | 20/20 HIIT | 5:00 | 9 × 0:20 work, 0:20 rest | 3:00 | 14:00 |
 
-Both presets rest after every round, including the last. To drop the last rest, duplicate the preset and turn off **Rest after last round**.
+Both presets rest after every round, including the last. To drop the last rest, tap the preset, tap **Duplicate**, and turn off **Rest after last round**.
 
 ## Install the app on your iPhone
 
-You do these steps once. You need a Mac with about 25 GB free, an Apple Account, and a cable.
+You do these steps once. You need a Mac with Xcode 27 or later, an Apple Account, and a cable. An iPhone on iOS 27 needs Xcode 27.
 
-1. Install Xcode from the Mac App Store. Open it, accept the license, and let it install the iOS platform when it offers.
+1. If the Mac has no Xcode, install it from the Mac App Store. Open it, accept the license, and let it install the iOS platform when it offers.
 2. In Xcode, open **Settings**, then **Accounts**. Click **+** and sign in with your Apple Account.
 3. Get the code and open the project.
 
@@ -47,10 +47,20 @@ Nobody has run this app on a real iPhone yet. The timer, the screens, and the so
 | You hear | It means |
 | --- | --- |
 | Three beeps, a tone, and "Round one" at 0:27 | The app stays awake while locked. |
-| Nothing after the first tone | iOS suspended the app. Copy the audio log from Settings and report it. |
+| Nothing after the first tone | iOS suspended the app. In Settings, open **Troubleshooting**, tap **Copy log**, and report it. |
 | The music dips for each cue and returns to full between cues | Ducking works. Change nothing. |
-| The music stays low after a cue | In Settings, choose **Dip, then restart audio** and run the check again. |
-| The music never dips, or the cues are hard to hear | In Settings, choose **Low for the whole run**. |
+| The music stays low after a cue | In **Troubleshooting**, choose **Dip, then restart audio** and run the check again. |
+| The music never dips, or the cues are hard to hear | In **Troubleshooting**, choose **Low for the whole run**. |
+
+If the run screen ever shows **No sound**, the app could not start its audio. It retries every second and the timer keeps counting.
+
+## Run a workout
+
+- Tap a timer, then **Start**.
+- **Skip** ends the current phase. **Undo skip** appears for 6 seconds, also on the finish screen.
+- **Pause** stops the clock and releases your music. The screen turns grey and reads PAUSED.
+- The X asks before it ends the workout.
+- The finish screen shows the time you worked. Skipped time and paused time do not count.
 
 ## Run the tests
 
@@ -60,7 +70,7 @@ The app tests and the UI tests need Xcode and a simulator:
 
 ```sh
 xcodebuild test -project IntervalTracker.xcodeproj -scheme IntervalTracker \
-	-destination 'platform=iOS Simulator,name=iPhone 17 Pro' CODE_SIGNING_ALLOWED=NO
+	-destination 'platform=iOS Simulator,name=iPhone 16 Pro Max' CODE_SIGNING_ALLOWED=NO
 ```
 
 CI runs both on every push, plus a build for the device architecture. The UI test attaches a screenshot of each screen, and CI uploads the screenshots as the `test-results` artifact.

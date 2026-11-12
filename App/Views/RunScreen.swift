@@ -121,10 +121,37 @@ struct ActiveRunView: View {
             }
         }
         .padding(20)
-        .alert("End this workout?", isPresented: $confirmingEnd) {
-            Button("End workout", role: .destructive, action: end)
-            Button("Keep going", role: .cancel) {}
+        .overlay {
+            if confirmingEnd { endConfirmation }
         }
+        .animation(.easeOut(duration: 0.15), value: confirmingEnd)
+    }
+
+    /// Drawn by the app, not as a system alert: on iOS 27 an alert is translucent glass, and over the
+    /// red Work screen its red destructive button was hard to read.
+    private var endConfirmation: some View {
+        ZStack {
+            Color.black.opacity(0.72)
+                .ignoresSafeArea()
+                .onTapGesture { confirmingEnd = false }
+            VStack(spacing: 14) {
+                Text("End this workout?")
+                    .font(.system(.title2, design: .rounded, weight: .bold))
+                    .padding(.bottom, 6)
+                Button("Keep going") { confirmingEnd = false }
+                    .buttonStyle(RunButtonStyle(isProminent: true))
+                    .accessibilityIdentifier("keepGoingButton")
+                Button("End workout", action: end)
+                    .buttonStyle(RunButtonStyle(isProminent: false, fill: Theme.work))
+                    .accessibilityIdentifier("confirmEndButton")
+            }
+            .padding(22)
+            .background(Color(white: 0.12), in: RoundedRectangle(cornerRadius: 30, style: .continuous))
+            .frame(maxWidth: 420)
+            .padding(24)
+        }
+        .accessibilityAddTraits(.isModal)
+        .transition(.opacity)
     }
 
     private var header: some View {
@@ -289,6 +316,7 @@ struct FinishedView: View {
 private struct RunButtonStyle: ButtonStyle {
     let isProminent: Bool
     var minHeight: CGFloat = 72
+    var fill: Color?
 
     func makeBody(configuration: Configuration) -> some View {
         let shape = RoundedRectangle(cornerRadius: 20, style: .continuous)
@@ -298,7 +326,7 @@ private struct RunButtonStyle: ButtonStyle {
             .minimumScaleFactor(0.7)
             .frame(maxWidth: .infinity, minHeight: minHeight)
             .foregroundStyle(isProminent ? Color.black : Color.white)
-            .background(isProminent ? Color.white : Color.white.opacity(0.22), in: shape)
+            .background(fill ?? (isProminent ? Color.white : Color.white.opacity(0.22)), in: shape)
             .contentShape(shape)
             .opacity(configuration.isPressed ? 0.6 : 1)
     }

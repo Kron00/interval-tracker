@@ -160,8 +160,10 @@ final class RunFlowUITests: XCTestCase {
         wait(for: [isTall], timeout: 10)
 
         app.buttons["endButton"].tap()
-        let confirm = app.buttons["End workout"]
+        let confirm = app.buttons["confirmEndButton"]
         XCTAssertTrue(confirm.waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["keepGoingButton"].isHittable)
+        snap(app, "12-end-confirmation")
         confirm.tap()
         XCTAssertTrue(app.buttons["timerRow-Norwegian 4x4"].waitForExistence(timeout: 5))
     }

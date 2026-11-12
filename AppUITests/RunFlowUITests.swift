@@ -106,10 +106,19 @@ final class RunFlowUITests: XCTestCase {
         XCTAssertEqual(phase.label, "WARM-UP")
 
         XCUIDevice.shared.orientation = .landscapeLeft
-        XCTAssertTrue(app.buttons["skipButton"].waitForExistence(timeout: 5))
-        Thread.sleep(forTimeInterval: 1)
+        let window = app.windows.firstMatch
+        let isWide = expectation(for: NSPredicate { _, _ in window.frame.width > window.frame.height }, evaluatedWith: nil)
+        wait(for: [isWide], timeout: 10)
+        Thread.sleep(forTimeInterval: 2)
+        let clock = app.staticTexts["timeRemaining"].frame
+        let pause = app.buttons["pauseResumeButton"].frame
+        XCTAssertLessThan(clock.maxX, pause.minX, "the clock sits left of the controls in landscape")
+        XCTAssertTrue(window.frame.contains(clock) && window.frame.contains(pause))
+        XCTAssertTrue(app.buttons["skipButton"].isHittable)
         snap(app, "11-landscape")
         XCUIDevice.shared.orientation = .portrait
+        let isTall = expectation(for: NSPredicate { _, _ in window.frame.height > window.frame.width }, evaluatedWith: nil)
+        wait(for: [isTall], timeout: 10)
 
         app.buttons["endButton"].tap()
         let confirm = app.buttons["End workout"]

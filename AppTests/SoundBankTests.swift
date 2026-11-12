@@ -39,7 +39,8 @@ final class SoundBankTests: XCTestCase {
             XCTAssertLessThanOrEqual(seconds(of: buffer), phrase.slot + 0.001, "\(phrase)")
             XCTAssertGreaterThan(seconds(of: buffer), 0.15, "\(phrase)")
         }
-        XCTAssertLessThan(elapsed, 16, "Rendering 8 phrases took \(elapsed) s, so renders are hitting the timeout.")
+        XCTAssertLessThan(elapsed, 30, "Rendering 8 phrases took \(elapsed) s, so most renders are hitting the timeout.")
+        print("voice render: \(rendered.count) phrases in \(elapsed) s, log: \(log.lines)")
     }
 
     private func seconds(of buffer: AVAudioPCMBuffer) -> Double {

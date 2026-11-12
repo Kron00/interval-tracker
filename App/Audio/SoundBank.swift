@@ -7,7 +7,7 @@ final class SoundBank {
     let silence: AVAudioPCMBuffer
 
     private var buffers: [Sound: AVAudioPCMBuffer] = [:]
-    private var attempted: Set<Sound> = []
+    private var rendering: Set<Sound> = []
     private let log: AudioLog
 
     private static let sampleRate = 44_100.0
@@ -30,17 +30,22 @@ final class SoundBank {
 
     subscript(sound: Sound) -> AVAudioPCMBuffer? { buffers[sound] }
 
+    /// Renders the voice phrases in `sounds` that have no buffer yet. Returns true when it added one.
+    /// A phrase that fails twice is left without a buffer, so the next call tries it again.
     @discardableResult
     func prepare(_ sounds: Set<Sound>) async -> Bool {
         var added = false
         for sound in sounds {
-            guard case .voice(let phrase) = sound, attempted.insert(sound).inserted else { continue }
-            let samples = await SpeechRender(target: format).samples(for: phrase.spokenText)
-            if let buffer = Self.phraseBuffer(samples, slot: sound.slot, format) {
-                buffers[sound] = buffer
-                added = true
-            } else {
-                log.note("voice \"\(phrase.spokenText)\" did not render, cue skipped")
+            guard case .voice(let phrase) = sound, buffers[sound] == nil, rendering.insert(sound).inserted else { continue }
+            defer { rendering.remove(sound) }
+            for attempt in 1...2 {
+                let samples = await SpeechRender(target: format).samples(for: phrase.spokenText)
+                if let buffer = Self.phraseBuffer(samples, slot: sound.slot, format) {
+                    buffers[sound] = buffer
+                    added = true
+                    break
+                }
+                log.note("voice \"\(phrase.spokenText)\" did not render, attempt \(attempt) of 2")
             }
         }
         return added
@@ -95,6 +100,7 @@ private final class SpeechRender: @unchecked Sendable {
 
     init(target: AVAudioFormat) { self.target = target }
 
+    @MainActor
     func samples(for text: String) async -> [Float] {
         await withCheckedContinuation { continuation in
             lock.withLock { self.continuation = continuation }

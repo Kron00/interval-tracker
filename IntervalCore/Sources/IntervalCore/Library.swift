@@ -1,55 +1,53 @@
 import Foundation
 
 public struct Library: Equatable, Sendable {
-    /// User timers only, in display order. Built-ins come from `TimerDefinition.builtIn`.
-    public private(set) var timers: [TimerDefinition] = []
+    /// User workouts only, in display order. Built-ins come from `Workout.builtIn`.
+    public private(set) var workouts: [Workout] = []
     public var cues = CuePreferences()
 
     public init() {}
 
-    /// Parses the versioned file format. Throws on unknown version or any invalid value (e.g. `"work": 0`).
+    /// Parses the versioned file format. Throws on any other version and on any invalid value
+    /// (e.g. `"work": 0`). Version 1 never shipped, so nothing migrates it.
     public init(json: Data) throws {
         let file = try JSONDecoder().decode(File.self, from: json)
-        timers = file.timers
+        workouts = file.workouts
         cues = file.cues
     }
 
     public func json() throws -> Data {
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-        return try encoder.encode(File(timers: timers, cues: cues))
+        return try encoder.encode(File(workouts: workouts, cues: cues))
     }
 
-    /// Inserts, or replaces the timer with the same id. Saving a built-in id forks it under a fresh id.
+    /// Inserts, or replaces the workout with the same id. Saving a built-in id forks it under a fresh id.
     @discardableResult
-    public mutating func save(_ timer: TimerDefinition) -> TimerDefinition {
-        guard !TimerDefinition.builtIn.contains(where: { $0.id == timer.id }) else {
-            return save(TimerDefinition(
-                name: timer.name, warmUp: timer.warmUp, work: timer.work, rest: timer.rest,
-                rounds: timer.rounds, coolDown: timer.coolDown,
-                restAfterLastRound: timer.restAfterLastRound))
+    public mutating func save(_ workout: Workout) -> Workout {
+        guard !Workout.builtIn.contains(where: { $0.id == workout.id }) else {
+            return save(workout.forked())
         }
-        if let index = timers.firstIndex(where: { $0.id == timer.id }) {
-            timers[index] = timer
+        if let index = workouts.firstIndex(where: { $0.id == workout.id }) {
+            workouts[index] = workout
         } else {
-            timers.append(timer)
+            workouts.append(workout)
         }
-        return timer
+        return workout
     }
 
-    public mutating func delete(_ id: TimerDefinition.ID) {
-        timers.removeAll { $0.id == id }
+    public mutating func delete(_ id: Workout.ID) {
+        workouts.removeAll { $0.id == id }
     }
 
     private struct File: Codable {
-        static let currentVersion = 1
+        static let currentVersion = 2
 
         var version = File.currentVersion
-        var timers: [TimerDefinition]
+        var workouts: [Workout]
         var cues: CuePreferences
 
-        init(timers: [TimerDefinition], cues: CuePreferences) {
-            self.timers = timers
+        init(workouts: [Workout], cues: CuePreferences) {
+            self.workouts = workouts
             self.cues = cues
         }
 
@@ -61,7 +59,7 @@ public struct Library: Equatable, Sendable {
                     forKey: .version, in: container,
                     debugDescription: "Unsupported library version \(version).")
             }
-            timers = try container.decode([TimerDefinition].self, forKey: .timers)
+            workouts = try container.decode([Workout].self, forKey: .workouts)
             cues = try container.decode(CuePreferences.self, forKey: .cues)
         }
     }

@@ -2,20 +2,11 @@ import Foundation
 import IntervalCore
 import Testing
 
-private func schedule(_ definition: TimerDefinition = .norwegian4x4,
-                      countdown: Countdown = .three, voice: Bool = true) throws -> CueSchedule {
-    try #require(session(definition, cues: CuePreferences(countdown: countdown, voice: voice)).cueSchedule)
-}
-
-private func bounds(_ window: DuckWindow) -> [Int] {
-    [ms(window.start), ms(window.end)]
-}
-
 struct CueScheduleTests {
     @Test func startBurstOfNorwegian4x4() throws {
         let first = try #require(try schedule().windows.first)
         #expect(bounds(first) == [0, 2200])
-        #expect(cues(first) == [Cue(0, .phaseChange), Cue(500, .voice(.warmUp))])
+        #expect(cues(first) == [Cue(0, .phaseChange), Cue(500, voice("Warm up"))])
     }
 
     @Test func firstBoundaryOfNorwegian4x4() throws {
@@ -23,7 +14,7 @@ struct CueScheduleTests {
         #expect(bounds(window) == [296_500, 302_200])
         #expect(cues(window) == [
             Cue(297_000, .tick), Cue(298_000, .tick), Cue(299_000, .tick),
-            Cue(300_000, .phaseChange), Cue(300_500, .voice(.round(1))),
+            Cue(300_000, .phaseChange), Cue(300_500, voice("Round one")),
         ])
     }
 
@@ -33,7 +24,7 @@ struct CueScheduleTests {
         #expect(bounds(last) == [2_276_500, 2_282_700])
         #expect(cues(last) == [
             Cue(2_277_000, .tick), Cue(2_278_000, .tick), Cue(2_279_000, .tick),
-            Cue(2_280_000, .finish), Cue(2_281_000, .voice(.done)),
+            Cue(2_280_000, .finish), Cue(2_281_000, voice("Workout complete")),
         ])
         #expect(plan.end == last.end)
     }
@@ -48,20 +39,17 @@ struct CueScheduleTests {
     }
 
     @Test func lastRoundReplacesTheFinalRoundNumber() throws {
-        let spoken = cues(try schedule()).compactMap { cue -> Phrase? in
-            if case .voice(let phrase) = cue.sound { phrase } else { nil }
-        }
-        #expect(spoken == [
-            .warmUp, .round(1), .rest, .round(2), .rest, .round(3), .rest,
-            .lastRound, .rest, .coolDown, .done,
+        #expect(spoken(try schedule()) == [
+            "Warm up", "Round one", "Rest", "Round two", "Rest", "Round three", "Rest",
+            "Last round", "Rest", "Cool down", "Workout complete",
         ])
     }
 
     @Test func aSingleRoundIsAnnouncedByNumber() throws {
         #expect(cues(try schedule(try timer(work: 60))) == [
-            Cue(0, .phaseChange), Cue(500, .voice(.round(1))),
+            Cue(0, .phaseChange), Cue(500, voice("Round one")),
             Cue(57_000, .tick), Cue(58_000, .tick), Cue(59_000, .tick),
-            Cue(60_000, .finish), Cue(61_000, .voice(.done)),
+            Cue(60_000, .finish), Cue(61_000, voice("Workout complete")),
         ])
     }
 
@@ -74,9 +62,9 @@ struct CueScheduleTests {
         #expect(bounds(firstRest) == [316_500, 322_200])
         #expect(cues(firstRest) == [
             Cue(317_000, .tick), Cue(318_000, .tick), Cue(319_000, .tick),
-            Cue(320_000, .phaseChange), Cue(320_500, .voice(.rest)),
+            Cue(320_000, .phaseChange), Cue(320_500, voice("Rest")),
         ])
-        #expect(cues(plan.windows[17]).last == Cue(620_500, .voice(.lastRound)))
+        #expect(cues(plan.windows[17]).last == Cue(620_500, voice("Last round")))
     }
 
     @Test func audioCheckLeavesTheMusicAloneBetweenCues() throws {
@@ -89,20 +77,20 @@ struct CueScheduleTests {
         let plan = try schedule(try timer(work: 4, rest: 4, rounds: 2, restAfterLastRound: false))
         #expect(plan.windows.map(bounds) == [[0, 14_700]])
         #expect(cues(plan) == [
-            Cue(0, .phaseChange), Cue(500, .voice(.round(1))),
+            Cue(0, .phaseChange), Cue(500, voice("Round one")),
             Cue(2000, .tick), Cue(3000, .tick),
-            Cue(4000, .phaseChange), Cue(4500, .voice(.rest)),
+            Cue(4000, .phaseChange), Cue(4500, voice("Rest")),
             Cue(6000, .tick), Cue(7000, .tick),
-            Cue(8000, .phaseChange), Cue(8500, .voice(.lastRound)),
+            Cue(8000, .phaseChange), Cue(8500, voice("Last round")),
             Cue(10_000, .tick), Cue(11_000, .tick),
-            Cue(12_000, .finish), Cue(13_000, .voice(.done)),
+            Cue(12_000, .finish), Cue(13_000, voice("Workout complete")),
         ])
     }
 
     @Test func aTwoSecondPhaseHasNoTicks() throws {
         #expect(cues(try schedule(try timer(work: 2))) == [
-            Cue(0, .phaseChange), Cue(500, .voice(.round(1))),
-            Cue(2000, .finish), Cue(3000, .voice(.done)),
+            Cue(0, .phaseChange), Cue(500, voice("Round one")),
+            Cue(2000, .finish), Cue(3000, voice("Workout complete")),
         ])
     }
 
@@ -112,15 +100,15 @@ struct CueScheduleTests {
             Cue(0, .phaseChange),
             Cue(1000, .phaseChange),
             Cue(2000, .phaseChange),
-            Cue(3000, .finish), Cue(4000, .voice(.done)),
+            Cue(3000, .finish), Cue(4000, voice("Workout complete")),
         ])
     }
 
     @Test func aThreeSecondPhaseKeepsOnlyTheLastTick() throws {
         #expect(cues(try schedule(try timer(work: 3), countdown: .five)) == [
-            Cue(0, .phaseChange), Cue(500, .voice(.round(1))),
+            Cue(0, .phaseChange), Cue(500, voice("Round one")),
             Cue(2000, .tick),
-            Cue(3000, .finish), Cue(4000, .voice(.done)),
+            Cue(3000, .finish), Cue(4000, voice("Workout complete")),
         ])
     }
 
@@ -128,7 +116,7 @@ struct CueScheduleTests {
         let plan = try schedule(countdown: .off)
         #expect(!plan.vocabulary.contains(.tick))
         #expect(bounds(plan.windows[1]) == [299_500, 302_200])
-        #expect(cues(plan.windows[1]) == [Cue(300_000, .phaseChange), Cue(300_500, .voice(.round(1)))])
+        #expect(cues(plan.windows[1]) == [Cue(300_000, .phaseChange), Cue(300_500, voice("Round one"))])
         #expect(cues(plan).count == 22)
     }
 
@@ -138,7 +126,7 @@ struct CueScheduleTests {
         #expect(cues(window) == [
             Cue(295_000, .tick), Cue(296_000, .tick), Cue(297_000, .tick),
             Cue(298_000, .tick), Cue(299_000, .tick),
-            Cue(300_000, .phaseChange), Cue(300_500, .voice(.round(1))),
+            Cue(300_000, .phaseChange), Cue(300_500, voice("Round one")),
         ])
     }
 
@@ -150,28 +138,33 @@ struct CueScheduleTests {
             Cue(297_000, .tick), Cue(298_000, .tick), Cue(299_000, .tick), Cue(300_000, .phaseChange),
         ])
         #expect(bounds(try #require(plan.windows.last)) == [2_276_500, 2_281_100])
-        #expect(plan.vocabulary == [.tick, .phaseChange, .finish])
+        #expect(plan.vocabulary == [.phaseChange, .tick, .finish])
     }
 
-    @Test func vocabularyListsEveryDistinctSound() throws {
+    @Test func vocabularyListsEveryDistinctSoundInOrderOfFirstUse() throws {
         #expect(try schedule().vocabulary == [
-            .tick, .phaseChange, .finish,
-            .voice(.warmUp), .voice(.round(1)), .voice(.round(2)), .voice(.round(3)),
-            .voice(.lastRound), .voice(.rest), .voice(.coolDown), .voice(.done),
+            .phaseChange, voice("Warm up"), .tick, voice("Round one"), voice("Rest"),
+            voice("Round two"), voice("Round three"), voice("Last round"), voice("Cool down"),
+            .finish, voice("Workout complete"),
         ])
     }
 
     @Test func windowsAreSortedDisjointAndHoldTheirSounds() throws {
-        let definitions = [
-            .norwegian4x4, .hiit2020, .audioCheck,
+        let workouts = [
+            .norwegian4x4, .hiit2020, .audioCheck, .dailyStretch,
             try timer(work: 1, rest: 1, rounds: 5),
             try timer(warmUp: 3, work: 4, rest: 4, rounds: 3, coolDown: 2),
             try timer(work: 7, rest: 5, rounds: 4, restAfterLastRound: false),
+            try routine(getReady: 5, switchSides: 3, [
+                try stretch("Neck Rolls", try reps(4, every: 1), .each),
+                try stretch("Calf", try hold(1), .each),
+                try stretch("Squat", try reps(1, every: 30)),
+            ]),
         ]
-        for definition in definitions {
+        for workout in workouts {
             for countdown in Countdown.allCases {
                 for voice in [true, false] {
-                    let plan = try schedule(definition, countdown: countdown, voice: voice)
+                    let plan = try schedule(workout, countdown: countdown, voice: voice)
                     for (earlier, later) in zip(plan.windows, plan.windows.dropFirst()) {
                         #expect(ms(later.start) - ms(earlier.end) >= 1500)
                     }
@@ -205,7 +198,7 @@ struct CueProjectionTests {
         #expect(todo.windows.count == 10)
         #expect(bounds(todo.windows[0]) == [298_500, 302_200])
         #expect(cues(todo.windows[0]) == [
-            Cue(299_000, .tick), Cue(300_000, .phaseChange), Cue(300_500, .voice(.round(1))),
+            Cue(299_000, .tick), Cue(300_000, .phaseChange), Cue(300_500, voice("Round one")),
         ])
     }
 
@@ -215,7 +208,7 @@ struct CueProjectionTests {
         #expect(ms(todo.windows[0].start) == Int(now * 1000))
         #expect(cues(todo.windows[0]) == [
             Cue(298_000, .tick), Cue(299_000, .tick),
-            Cue(300_000, .phaseChange), Cue(300_500, .voice(.round(1))),
+            Cue(300_000, .phaseChange), Cue(300_500, voice("Round one")),
         ])
     }
 
@@ -289,7 +282,7 @@ struct CueProjectionTests {
         let first = try #require(todo.windows.first)
         #expect(first.start == now)
         #expect(first.sounds.first?.at == now)
-        #expect(cues(first) == [Cue(100_000, .phaseChange), Cue(100_500, .voice(.round(1)))])
+        #expect(cues(first) == [Cue(100_000, .phaseChange), Cue(100_500, voice("Round one"))])
         #expect(ms(first.end) == 102_200)
         #expect(todo.isDucked(at: now))
     }
@@ -300,7 +293,7 @@ struct CueProjectionTests {
         run.skip(try progress(run, at: 2000).segment, at: now)
 
         let todo = try #require(run.cueSchedule).remaining(after: now)
-        #expect(cues(todo) == [Cue(2_000_000, .finish), Cue(2_001_000, .voice(.done))])
+        #expect(cues(todo) == [Cue(2_000_000, .finish), Cue(2_001_000, voice("Workout complete"))])
         #expect(ms(try #require(todo.end)) == 2_002_700)
     }
 
@@ -312,21 +305,52 @@ struct CueProjectionTests {
         let todo = try #require(run.cueSchedule).remaining(after: t0 + 1000)
         let next = try #require(todo.windows.first)
         #expect(bounds(next) == [1_196_500, 1_202_200])
-        #expect(cues(next).last == Cue(1_200_500, .voice(.round(1))))
+        #expect(cues(next).last == Cue(1_200_500, voice("Round one")))
     }
 }
 
-struct PhraseTests {
+struct UtteranceTests {
+    @Test func roundNumbersAreSpelledOut() throws {
+        let spoken = spoken(try schedule(try timer(work: 5, rounds: 22)))
+        try #require(spoken.count == 23)
+        #expect(spoken[2] == "Round three")
+        #expect(spoken[20] == "Round twenty-one")
+        #expect(spoken[21] == "Last round")
+    }
+
     @Test(arguments: [
-        (Phrase.warmUp, "Warm up"),
-        (.round(3), "Round three"),
-        (.round(21), "Round twenty-one"),
-        (.lastRound, "Last round"),
-        (.rest, "Rest"),
-        (.coolDown, "Cool down"),
-        (.done, "Workout complete"),
+        "Warm up", "Round one", "Round twenty-one", "Last round", "Rest", "Cool down",
+        "Switch sides", "Workout complete", "",
     ])
-    func spokenText(_ phrase: Phrase, reads text: String) {
-        #expect(phrase.spokenText == text)
+    func aShortTextGetsTheMinimumSlot(_ text: String) {
+        #expect(Utterance(text).slot == 1.5)
+    }
+
+    @Test(arguments: [
+        (18, 1.5), (19, 1.6), (20, 1.6), (21, 1.7), (25, 1.9), (35, 2.5), (51, 3.5), (52, 3.6),
+        (60, 4.0), (61, 4.0), (500, 4.0),
+    ])
+    func theSlotGrowsWithTheTextUpToFourSeconds(characters: Int, slot: TimeInterval) {
+        #expect(Utterance(String(repeating: "a", count: characters)).slot == slot)
+    }
+
+    @Test func aFortyCharacterNameWithItsSideGetsThreePointSixSeconds() {
+        let longest = Utterance(String(repeating: "a", count: 40) + ", right side")
+        #expect(longest.text.count == 52)
+        #expect(longest.slot == 3.6)
+    }
+
+    @Test func theFixedTexts() {
+        #expect(Utterance.switchSides.text == "Switch sides")
+        #expect(Utterance.workoutComplete.text == "Workout complete")
+    }
+
+    @Test func soundSlots() {
+        #expect(Sound.tick.slot == 0.12)
+        #expect(Sound.beat.slot == 0.12)
+        #expect(Sound.phaseChange.slot == 0.40)
+        #expect(Sound.finish.slot == 0.90)
+        #expect(voice("Rest").slot == 1.5)
+        #expect(voice("Hip Flexor Couch Stretch, left side").slot == 2.5)
     }
 }

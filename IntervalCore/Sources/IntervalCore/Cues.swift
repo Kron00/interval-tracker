@@ -13,48 +13,41 @@ public struct CuePreferences: Hashable, Sendable, Codable {
     }
 }
 
-public enum Phrase: Hashable, Sendable {
-    case warmUp, round(Int), lastRound, rest, coolDown, done
+public struct Utterance: Hashable, Sendable {
+    public let text: String
 
-    init(announcing phase: Phase) {
-        self = switch phase {
-        case .warmUp: .warmUp
-        case .work(let round): round.isLast && round.total > 1 ? .lastRound : .round(round.number)
-        case .rest: .rest
-        case .coolDown: .coolDown
-        }
-    }
+    public init(_ text: String) { self.text = text }
 
-    public var spokenText: String {
-        switch self {
-        case .warmUp: return "Warm up"
-        case .round(let number):
-            let formatter = NumberFormatter()
-            formatter.numberStyle = .spellOut
-            formatter.locale = Locale(identifier: "en_US")
-            return "Round " + (formatter.string(from: number as NSNumber) ?? String(number))
-        case .lastRound: return "Last round"
-        case .rest: return "Rest"
-        case .coolDown: return "Cool down"
-        case .done: return "Workout complete"
-        }
+    public static let switchSides = Utterance("Switch sides")
+    public static let workoutComplete = Utterance("Workout complete")
+
+    /// The time the schedule reserves for these words: 0.4 s plus 0.06 s a character, rounded up to a
+    /// tenth and kept within 1.5...4.0 s. It depends on the text alone, so the schedule needs no speech
+    /// engine to be worked out.
+    public var slot: TimeInterval {
+        // Counted in whole hundredths, so rounding up to a tenth never depends on floating-point error.
+        let hundredths = CueTiming.voiceBaseHundredths + CueTiming.voiceHundredthsPerCharacter * text.count
+        let limits = CueTiming.voiceSlotTenths
+        return TimeInterval(min(max((hundredths + 9) / 10, limits.lowerBound), limits.upperBound)) / 10
     }
 }
 
 public enum Sound: Hashable, Sendable {
     case tick
+    /// Marks the start of each rep after the first. Softer than `tick`.
+    case beat
     case phaseChange
     case finish
-    case voice(Phrase)
+    case voice(Utterance)
 
     /// The longest this sound may last. The schedule reserves exactly this much time for it, and the
     /// app's SoundBank must deliver a buffer no longer than this.
     public var slot: TimeInterval {
         switch self {
-        case .tick: 0.12
+        case .tick, .beat: 0.12
         case .phaseChange: 0.40
         case .finish: 0.90
-        case .voice: 1.50
+        case .voice(let utterance): utterance.slot
         }
     }
 }
@@ -67,6 +60,9 @@ enum CueTiming {
     static let mergeGap: TimeInterval = 1.5
     static let quietHead: TimeInterval = 2.0
     static let lateGrace: TimeInterval = 0.25
+    static let voiceBaseHundredths = 40
+    static let voiceHundredthsPerCharacter = 6
+    static let voiceSlotTenths = 15...40
 }
 
 public struct TimedSound: Equatable, Sendable {
@@ -87,43 +83,65 @@ public struct CueSchedule: Equatable, Sendable {
 
     init(_ timeline: Timeline, _ preferences: CuePreferences, zeroAt: Date) {
         var cues: [(offset: TimeInterval, sound: Sound)] = []
+        var held: [(start: TimeInterval, end: TimeInterval)] = []
         for segment in timeline.segments {
             cues.append((segment.start, .phaseChange))
-            let voice = Sound.voice(Phrase(announcing: segment.phase))
+            var quietUntil = segment.start + CueTiming.quietHead
             // A phrase that cannot finish inside its phase would talk over the next tone.
-            if preferences.voice, CueTiming.voiceDelay + voice.slot <= segment.duration {
-                cues.append((segment.start + CueTiming.voiceDelay, voice))
+            if preferences.voice, let words = segment.phase.announcement,
+               CueTiming.voiceDelay + words.slot <= segment.duration {
+                let offset = segment.start + CueTiming.voiceDelay
+                cues.append((offset, .voice(words)))
+                quietUntil = max(quietUntil, offset + words.slot)
             }
-            for secondsBefore in stride(from: preferences.countdown.rawValue, through: 1, by: -1) {
-                let offset = segment.end - TimeInterval(secondsBefore)
-                if offset >= segment.start + CueTiming.quietHead { cues.append((offset, .tick)) }
+            if let pulse = segment.phase.pulse {
+                // Beats replace the countdown, and the music stays low for the whole hold rather than
+                // dipping again for every rep.
+                cues += pulse.beats.map { (segment.start + $0, .beat) }
+                held.append((segment.start, segment.end))
+            } else {
+                for secondsBefore in stride(from: preferences.countdown.rawValue, through: 1, by: -1) {
+                    let offset = segment.end - TimeInterval(secondsBefore)
+                    if offset >= quietUntil { cues.append((offset, .tick)) }
+                }
             }
         }
         cues.append((timeline.total, .finish))
         if preferences.voice {
-            cues.append((timeline.total + CueTiming.finishVoiceDelay, .voice(.done)))
+            cues.append((timeline.total + CueTiming.finishVoiceDelay, .voice(.workoutComplete)))
         }
 
-        var windows: [DuckWindow] = []
-        for (offset, sound) in cues {
-            let start = zeroAt + max(0, offset - CueTiming.duckLead)
-            let end = zeroAt + (offset + sound.slot + CueTiming.duckRelease)
-            let timed = TimedSound(at: zeroAt + offset, sound: sound)
-            if let open = windows.last, start.timeIntervalSince(open.end) < CueTiming.mergeGap {
-                windows[windows.count - 1] = DuckWindow(
-                    start: open.start, end: max(open.end, end), sounds: open.sounds + [timed])
+        let spans = (cues.map { (start: $0.offset, end: $0.offset + $0.sound.slot) } + held).map {
+            (start: max(0, $0.start - CueTiming.duckLead), end: $0.end + CueTiming.duckRelease)
+        }
+        var merged: [(start: TimeInterval, end: TimeInterval)] = []
+        for span in spans.sorted(by: { $0.start < $1.start }) {
+            if let open = merged.last, span.start - open.end < CueTiming.mergeGap {
+                merged[merged.count - 1].end = max(open.end, span.end)
             } else {
-                windows.append(DuckWindow(start: start, end: end, sounds: [timed]))
+                merged.append(span)
             }
         }
-        self.windows = windows
+
+        // `cues` was built in time order, so each window takes the next run of them.
+        var unplaced = cues[...]
+        windows = merged.map { span in
+            let inside = unplaced.prefix { $0.offset <= span.end }
+            unplaced = unplaced.dropFirst(inside.count)
+            return DuckWindow(start: zeroAt + span.start, end: zeroAt + span.end,
+                              sounds: inside.map { TimedSound(at: zeroAt + $0.offset, sound: $0.sound) })
+        }
     }
 
     public var isEmpty: Bool { windows.isEmpty }
 
     public var end: Date? { windows.last?.end }
 
-    public var vocabulary: Set<Sound> { Set(windows.flatMap(\.sounds).map(\.sound)) }
+    /// Every distinct sound, in order of first use.
+    public var vocabulary: [Sound] {
+        var seen: Set<Sound> = []
+        return windows.flatMap(\.sounds).map(\.sound).filter { seen.insert($0).inserted }
+    }
 
     /// What is still to do at `now`: drops windows that have closed and sounds more than `lateGrace` old,
     /// and clamps a window in progress to start at `now`. A sound within the grace keeps its (past) time;

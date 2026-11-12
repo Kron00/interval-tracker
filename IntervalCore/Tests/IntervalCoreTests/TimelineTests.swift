@@ -61,8 +61,8 @@ struct TimelineTests {
     }
 
     @Test func restAfterTheLastRoundCanBeTurnedOff() throws {
-        let definition = try timer(work: 30, rest: 15, rounds: 2, coolDown: 60, restAfterLastRound: false)
-        #expect(steps(of: definition) == [
+        let workout = try timer(work: 30, rest: 15, rounds: 2, coolDown: 60, restAfterLastRound: false)
+        #expect(steps(of: workout) == [
             Step("work 1/2", start: 0, duration: 30),
             Step("rest 1/2", start: 30, duration: 15),
             Step("work 2/2", start: 45, duration: 30),
@@ -80,16 +80,45 @@ struct TimelineTests {
 
     @Test func onlyWorkAndRestCarryARound() throws {
         let run = session()
-        #expect(try progress(run, at: 0).phase.round == nil)
-        #expect(try progress(run, at: 1980).phase.round == nil)
+        #expect(try progress(run, at: 0).phase == .warmUp)
+        #expect(try progress(run, at: 0).phase.caption == nil)
+        #expect(try progress(run, at: 1980).phase == .coolDown)
+        #expect(try progress(run, at: 1980).phase.caption == nil)
 
-        let second = try #require(try progress(run, at: 960).phase.round)
+        let rest = try progress(run, at: 960).phase
+        guard case .rest(let second) = rest else {
+            Issue.record("expected a rest, got \(rest)")
+            return
+        }
         #expect(second.number == 2)
         #expect(second.total == 4)
         #expect(!second.isLast)
+        #expect(rest.caption == "Round 2 of 4")
 
-        let last = try #require(try progress(run, at: 1560).phase.round)
+        let work = try progress(run, at: 1560).phase
+        guard case .work(let last) = work else {
+            Issue.record("expected work, got \(work)")
+            return
+        }
         #expect(last.number == 4)
         #expect(last.isLast)
+        #expect(work.caption == "Round 4 of 4")
+    }
+
+    @Test func intervalPhasesHaveNoRepsAndNoHowTo() throws {
+        let run = session()
+        for offset in [0.0, 300, 540, 1980] {
+            let p = try progress(run, at: offset)
+            #expect(p.rep == nil)
+            #expect(p.phase.howTo == nil)
+        }
+    }
+
+    @Test func intervalTones() throws {
+        let run = session()
+        #expect(try progress(run, at: 0).phase.tone == .prepare)
+        #expect(try progress(run, at: 300).phase.tone == .effort)
+        #expect(try progress(run, at: 540).phase.tone == .recover)
+        #expect(try progress(run, at: 1980).phase.tone == .cool)
     }
 }

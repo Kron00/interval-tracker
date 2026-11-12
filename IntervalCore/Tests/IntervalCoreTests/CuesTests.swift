@@ -106,6 +106,16 @@ struct CueScheduleTests {
         ])
     }
 
+    @Test func aPhaseTooShortForItsPhraseKeepsTheToneAndDropsTheVoice() throws {
+        let plan = try schedule(try timer(work: 1, rest: 1, rounds: 2, restAfterLastRound: false))
+        #expect(cues(plan) == [
+            Cue(0, .phaseChange),
+            Cue(1000, .phaseChange),
+            Cue(2000, .phaseChange),
+            Cue(3000, .finish), Cue(4000, .voice(.done)),
+        ])
+    }
+
     @Test func aThreeSecondPhaseKeepsOnlyTheLastTick() throws {
         #expect(cues(try schedule(try timer(work: 3), countdown: .five)) == [
             Cue(0, .phaseChange), Cue(500, .voice(.round(1))),

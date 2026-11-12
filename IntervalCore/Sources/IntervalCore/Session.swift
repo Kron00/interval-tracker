@@ -10,6 +10,7 @@ public struct Session: Equatable, Sendable {
     private let timeline: Timeline
     private let cues: CuePreferences
     private var clock: Clock
+    private var skipped: TimeInterval = 0
 
     public init(_ definition: TimerDefinition, cues: CuePreferences, startingAt now: Date) {
         self.definition = definition
@@ -29,7 +30,9 @@ public struct Session: Equatable, Sendable {
 
     /// Ends `segment` now. No-op unless `segment` is the one in progress at `now`.
     public mutating func skip(_ segment: SegmentID, at now: Date) {
-        guard let current = timeline.segment(at: elapsed(at: now)), current.id == segment else { return }
+        let elapsed = elapsed(at: now)
+        guard let current = timeline.segment(at: elapsed), current.id == segment else { return }
+        skipped += current.end - elapsed
         switch clock {
         case .running: clock = .running(zeroAt: now - current.end)
         case .paused: clock = .paused(elapsed: current.end)
@@ -39,13 +42,14 @@ public struct Session: Equatable, Sendable {
     public func snapshot(at now: Date) -> Snapshot {
         let elapsed = elapsed(at: now)
         guard let current = timeline.segment(at: elapsed) else {
-            return .finished(totalDuration: timeline.total)
+            return .finished(worked: timeline.total - skipped)
         }
         return .active(RunProgress(
             segment: current.id, phase: current.phase,
             phaseRemaining: current.end - elapsed, phaseDuration: current.duration,
             totalRemaining: timeline.total - elapsed, totalDuration: timeline.total,
-            upNext: timeline.segment(after: current.id)?.phase, isPaused: isPaused))
+            upNext: timeline.segment(after: current.id).map { Upcoming(phase: $0.phase, duration: $0.duration) },
+            isPaused: isPaused))
     }
 
     /// Every cue of this run at its wall-clock time. nil while paused.
@@ -70,7 +74,8 @@ public struct Session: Equatable, Sendable {
 
 public enum Snapshot: Equatable, Sendable {
     case active(RunProgress)
-    case finished(totalDuration: TimeInterval)
+    /// `worked` is the timer's length minus whatever was skipped. Paused time never counts.
+    case finished(worked: TimeInterval)
 }
 
 public struct RunProgress: Equatable, Sendable {
@@ -80,8 +85,13 @@ public struct RunProgress: Equatable, Sendable {
     public let phaseDuration: TimeInterval
     public let totalRemaining: TimeInterval
     public let totalDuration: TimeInterval
-    public let upNext: Phase?
+    public let upNext: Upcoming?
     public let isPaused: Bool
+}
+
+public struct Upcoming: Equatable, Sendable {
+    public let phase: Phase
+    public let duration: TimeInterval
 }
 
 public enum ClockText {

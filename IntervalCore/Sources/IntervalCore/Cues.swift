@@ -89,8 +89,10 @@ public struct CueSchedule: Equatable, Sendable {
         var cues: [(offset: TimeInterval, sound: Sound)] = []
         for segment in timeline.segments {
             cues.append((segment.start, .phaseChange))
-            if preferences.voice {
-                cues.append((segment.start + CueTiming.voiceDelay, .voice(Phrase(announcing: segment.phase))))
+            let voice = Sound.voice(Phrase(announcing: segment.phase))
+            // A phrase that cannot finish inside its phase would talk over the next tone.
+            if preferences.voice, CueTiming.voiceDelay + voice.slot <= segment.duration {
+                cues.append((segment.start + CueTiming.voiceDelay, voice))
             }
             for secondsBefore in stride(from: preferences.countdown.rawValue, through: 1, by: -1) {
                 let offset = segment.end - TimeInterval(secondsBefore)

@@ -10,7 +10,7 @@ struct SnapshotTests {
         #expect(p.phaseDuration == 300)
         #expect(p.totalRemaining == 2280)
         #expect(p.totalDuration == 2280)
-        #expect(describe(p.upNext) == "work 1/4")
+        #expect(describe(p.upNext?.phase) == "work 1/4")
         #expect(!p.isPaused)
     }
 
@@ -20,7 +20,7 @@ struct SnapshotTests {
         #expect(p.phaseRemaining == 120)
         #expect(p.phaseDuration == 240)
         #expect(p.totalRemaining == 1860)
-        #expect(describe(p.upNext) == "rest 1/4")
+        #expect(describe(p.upNext?.phase) == "rest 1/4")
     }
 
     @Test func aBoundaryBelongsToTheNextPhase() throws {
@@ -43,11 +43,11 @@ struct SnapshotTests {
     }
 
     @Test func finishedExactlyAtTheTotal() {
-        #expect(session().snapshot(at: t0 + 2280) == .finished(totalDuration: 2280))
+        #expect(session().snapshot(at: t0 + 2280) == .finished(worked: 2280))
     }
 
     @Test func finishedFarPastTheTotal() {
-        #expect(session().snapshot(at: t0 + 2280 + 86_400) == .finished(totalDuration: 2280))
+        #expect(session().snapshot(at: t0 + 2280 + 86_400) == .finished(worked: 2280))
     }
 
     @Test func aClockBeforeTheStartReadsAsTheStart() {
@@ -100,8 +100,8 @@ struct PauseResumeTests {
     @Test func pauseAfterTheFinishStaysFinished() {
         var run = session()
         run.pause(at: t0 + 3000)
-        #expect(run.snapshot(at: t0 + 3000) == .finished(totalDuration: 2280))
-        #expect(run.snapshot(at: t0 + 9000) == .finished(totalDuration: 2280))
+        #expect(run.snapshot(at: t0 + 3000) == .finished(worked: 2280))
+        #expect(run.snapshot(at: t0 + 9000) == .finished(worked: 2280))
     }
 
     @Test func aPausedRunHasNoCueSchedule() {
@@ -167,7 +167,24 @@ struct SkipTests {
         let coolDown = try progress(run, at: 2000)
         #expect(describe(coolDown.phase) == "coolDown")
         run.skip(coolDown.segment, at: t0 + 2000)
-        #expect(run.snapshot(at: t0 + 2000) == .finished(totalDuration: 2280))
+        #expect(run.snapshot(at: t0 + 2000) == .finished(worked: 2000))
+    }
+
+    @Test func aFinishedRunReportsTheTimeThatWasNotSkipped() throws {
+        var run = session()
+        run.skip(try progress(run, at: 60).segment, at: t0 + 60)
+        run.pause(at: t0 + 100)
+        run.resume(at: t0 + 700)
+        let work = try progress(run, at: 700)
+        #expect(describe(work.phase) == "work 1/4")
+        #expect(work.phaseRemaining == 200)
+        run.skip(work.segment, at: t0 + 700)
+        #expect(run.snapshot(at: t0 + 10_000) == .finished(worked: 2280 - 240 - 200))
+    }
+
+    @Test func upNextCarriesTheLengthOfTheNextPhase() throws {
+        #expect(try progress(session(), at: 0).upNext?.duration == 240)
+        #expect(try progress(session(), at: 300).upNext?.duration == 180)
     }
 
     @Test func skippingEveryPhaseVisitsThemInOrder() throws {

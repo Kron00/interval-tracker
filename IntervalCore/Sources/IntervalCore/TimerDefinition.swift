@@ -72,6 +72,11 @@ public struct TimerDefinition: Identifiable, Hashable, Sendable, Codable {
 
     public var totalDuration: TimeInterval { Timeline(self).total }
 
+    /// Every phase of the workout in order, for drawing it.
+    public var outline: [PhaseSpan] {
+        Timeline(self).segments.map { PhaseSpan(phase: $0.phase, duration: $0.duration) }
+    }
+
     public static let norwegian4x4 = TimerDefinition(
         id: codeConstantID(1), name: "Norwegian 4x4",
         warmUp: literal(minutes: 5), work: literal(minutes: 4), rest: literal(minutes: 3),

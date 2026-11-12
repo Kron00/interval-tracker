@@ -30,6 +30,18 @@ struct TimerDraft: Equatable {
         coolDown = timer.coolDown?.seconds ?? coolDown
     }
 
+    /// The same values under a new identity, so editing a copy never touches the original.
+    init(copyOf timer: TimerDefinition) {
+        self.init(TimerDefinition(
+            name: "\(timer.name) copy", warmUp: timer.warmUp, work: timer.work, rest: timer.rest,
+            rounds: timer.rounds, coolDown: timer.coolDown, restAfterLastRound: timer.restAfterLastRound))
+    }
+
+    var problem: String? {
+        if name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { return "Name the timer to save it." }
+        return definition == nil ? "Each phase that is switched on needs a length above 0:00." : nil
+    }
+
     var definition: TimerDefinition? {
         let name = self.name.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !name.isEmpty,
@@ -75,6 +87,10 @@ struct EditorScreen: View {
                 Section {
                     TextField("Name", text: $draft.name)
                         .accessibilityIdentifier("nameField")
+                } footer: {
+                    if let problem = draft.problem {
+                        Text(problem).accessibilityIdentifier("editorProblem")
+                    }
                 }
                 Section {
                     Toggle("Warm-up", isOn: $draft.hasWarmUp)

@@ -30,6 +30,14 @@ final class RunFlowUITests: XCTestCase {
         let skip = app.buttons["skipButton"]
         skip.tap()
         waitFor(phase, toRead: "WORK")
+        let undo = app.buttons["undoSkipButton"]
+        XCTAssertTrue(undo.waitForExistence(timeout: 2))
+        snap(app, "04a-undo-offered")
+        undo.tap()
+        waitFor(phase, toRead: "WARM-UP")
+        XCTAssertFalse(undo.exists)
+        skip.tap()
+        waitFor(phase, toRead: "WORK")
         XCTAssertEqual(app.staticTexts["roundLabel"].label, "Round 1 of 4")
         let workLeft = app.staticTexts["timeRemaining"].label
         XCTAssertTrue(workLeft == "4:00" || workLeft.hasPrefix("3:5"), "work time left was \(workLeft)")
@@ -39,6 +47,8 @@ final class RunFlowUITests: XCTestCase {
         XCTAssertEqual(pauseResume.label, "Pause")
         pauseResume.tap()
         waitFor(pauseResume, toRead: "Resume")
+        XCTAssertEqual(phase.label, "PAUSED")
+        XCTAssertTrue(app.staticTexts["in Work"].exists)
         let frozen = app.staticTexts["timeRemaining"].label
         Thread.sleep(forTimeInterval: 2.5)
         XCTAssertEqual(app.staticTexts["timeRemaining"].label, frozen)
@@ -59,6 +69,8 @@ final class RunFlowUITests: XCTestCase {
         }
         XCTAssertTrue(done.waitForExistence(timeout: 5))
         XCTAssertEqual(taps, 8, "rest 1, then work and rest for rounds 2 to 4, then cool-down")
+        let worked = app.staticTexts["timeWorked"].label
+        XCTAssertTrue(worked.hasPrefix("0:"), "nearly everything was skipped, yet time worked read \(worked)")
         snap(app, "07-finished")
 
         done.tap()
@@ -75,6 +87,7 @@ final class RunFlowUITests: XCTestCase {
         let name = app.textFields["nameField"]
         XCTAssertTrue(name.waitForExistence(timeout: 5))
         XCTAssertFalse(app.buttons["saveButton"].isEnabled)
+        XCTAssertTrue(app.staticTexts["editorProblem"].exists)
         name.tap()
         name.typeText("Test timer")
         snap(app, "08-editor")
@@ -83,6 +96,15 @@ final class RunFlowUITests: XCTestCase {
         let row = app.buttons["timerRow-Test timer"]
         XCTAssertTrue(row.waitForExistence(timeout: 5))
         snap(app, "09-saved")
+
+        app.buttons["timerRow-20/20 HIIT"].tap()
+        XCTAssertTrue(app.buttons["startButton"].waitForExistence(timeout: 5))
+        app.buttons["Duplicate"].tap()
+        XCTAssertTrue(name.waitForExistence(timeout: 5))
+        XCTAssertEqual(name.value as? String, "20/20 HIIT copy")
+        snap(app, "09a-duplicate-opens-editor")
+        app.buttons["Cancel"].tap()
+        XCTAssertFalse(app.buttons["timerRow-20/20 HIIT copy"].waitForExistence(timeout: 2))
         app.terminate()
 
         let relaunched = launch("-uiTestingKeepLibrary")
@@ -96,6 +118,13 @@ final class RunFlowUITests: XCTestCase {
         settings.tap()
         XCTAssertTrue(app.navigationBars["Settings"].waitForExistence(timeout: 5))
         snap(app, "10-settings")
+
+        let troubleshooting = app.buttons["troubleshootingLink"]
+        for _ in 0..<6 where !troubleshooting.isHittable { app.swipeUp() }
+        troubleshooting.tap()
+        XCTAssertTrue(app.navigationBars["Troubleshooting"].waitForExistence(timeout: 5))
+        snap(app, "10a-troubleshooting")
+        app.navigationBars["Troubleshooting"].buttons.firstMatch.tap()
 
         let check = app.buttons["audioCheckButton"]
         for _ in 0..<6 where !check.isHittable { app.swipeUp() }

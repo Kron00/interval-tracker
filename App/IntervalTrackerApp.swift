@@ -44,7 +44,7 @@ struct RootView: View {
             LibraryScreen(store: store, run: run, log: log)
                 .accessibilityHidden(run.session != nil)
             if let session = run.session {
-                RunScreen(run: run, session: session)
+                RunScreen(run: run, session: session, log: log)
                     .transition(.move(edge: .bottom))
                     .zIndex(1)
             }

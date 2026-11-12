@@ -4,11 +4,13 @@ import SwiftUI
 struct RunScreen: View {
     let run: RunModel
     let session: Session
+    let log: AudioLog
 
     var body: some View {
         TimelineView(.periodic(from: .now, by: 0.1)) { context in
             let snapshot = session.snapshot(at: context.date)
             let tone = RunTone(snapshot)
+            let undoSkip: (() -> Void)? = run.beforeSkip == nil ? nil : { run.undoSkip() }
             ZStack {
                 tone.color
                     .ignoresSafeArea()
@@ -18,12 +20,14 @@ struct RunScreen: View {
                     ActiveRunView(
                         name: session.definition.name,
                         progress: progress,
+                        cuesAreSilent: log.cuesAreSilent,
                         pause: run.pause,
                         resume: run.resume,
                         skip: { run.skip(progress.segment) },
+                        undoSkip: undoSkip,
                         end: run.end)
-                case .finished(let total):
-                    FinishedView(name: session.definition.name, total: total, close: run.end)
+                case .finished(let worked):
+                    FinishedView(name: session.definition.name, worked: worked, close: run.end)
                 }
             }
         }
@@ -53,10 +57,10 @@ private enum RunTone: Hashable {
 
     var color: Color {
         switch self {
-        case .warmUp: Color(red: 0.80, green: 0.38, blue: 0.04)
+        case .warmUp: Color(red: 0.68, green: 0.47, blue: 0.00)
         case .work: Color(red: 0.76, green: 0.11, blue: 0.13)
         case .rest: Color(red: 0.09, green: 0.33, blue: 0.75)
-        case .coolDown: Color(red: 0.02, green: 0.46, blue: 0.50)
+        case .coolDown: Color(red: 0.42, green: 0.26, blue: 0.64)
         case .paused: Color(red: 0.26, green: 0.28, blue: 0.31)
         case .finished: Color(red: 0.02, green: 0.35, blue: 0.25)
         }
@@ -66,9 +70,11 @@ private enum RunTone: Hashable {
 struct ActiveRunView: View {
     let name: String
     let progress: RunProgress
+    let cuesAreSilent: Bool
     let pause: () -> Void
     let resume: () -> Void
     let skip: () -> Void
+    let undoSkip: (() -> Void)?
     let end: () -> Void
 
     @Environment(\.verticalSizeClass) private var verticalSizeClass
@@ -116,11 +122,25 @@ struct ActiveRunView: View {
                 .font(.headline)
                 .opacity(0.8)
                 .lineLimit(1)
-            Text(progress.phase.title.uppercased())
+            if cuesAreSilent {
+                Label("No sound. Audio could not start. Retrying.", systemImage: "speaker.slash.fill")
+                    .font(.headline)
+                    .lineLimit(2)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 8)
+                    .background(Color.black.opacity(0.5), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                    .accessibilityIdentifier("audioWarning")
+            }
+            Text(progress.isPaused ? "PAUSED" : progress.phase.title.uppercased())
                 .font(.system(size: isLandscape ? 44 : 64, weight: .heavy, design: .rounded))
                 .lineLimit(1)
                 .minimumScaleFactor(0.5)
                 .accessibilityIdentifier("phaseTitle")
+            if progress.isPaused {
+                Text("in \(progress.phase.title)")
+                    .font(.title2.weight(.semibold))
+                    .opacity(0.85)
+            }
         }
     }
 
@@ -144,7 +164,7 @@ struct ActiveRunView: View {
                     .font(.system(size: 34, weight: .semibold, design: .rounded))
                     .accessibilityIdentifier("roundLabel")
             }
-            Text("Up next: \(progress.upNext?.title ?? "Finish")")
+            Text("Up next: \(progress.upNext.map { "\($0.phase.title) \(ClockText.remaining($0.duration))" } ?? "Finish")")
                 .font(.title2.weight(.medium))
                 .opacity(0.85)
         }
@@ -178,6 +198,19 @@ struct ActiveRunView: View {
     }
 
     private var controls: some View {
+        VStack(spacing: 12) {
+            if let undoSkip {
+                Button(action: undoSkip) {
+                    Label("Undo skip", systemImage: "arrow.uturn.backward")
+                }
+                .buttonStyle(RunButtonStyle(isProminent: false, minHeight: 52))
+                .accessibilityIdentifier("undoSkipButton")
+            }
+            mainControls
+        }
+    }
+
+    private var mainControls: some View {
         HStack(spacing: 12) {
             Button {
                 confirmingEnd = true
@@ -205,7 +238,7 @@ struct ActiveRunView: View {
 
 struct FinishedView: View {
     let name: String
-    let total: TimeInterval
+    let worked: TimeInterval
     let close: () -> Void
 
     @Environment(\.verticalSizeClass) private var verticalSizeClass
@@ -226,9 +259,10 @@ struct FinishedView: View {
                 .font(.title2.weight(.medium))
                 .opacity(0.85)
                 .lineLimit(1)
-            Text(ClockText.remaining(total))
+            Text(ClockText.remaining(worked))
                 .font(.system(size: 64, weight: .bold, design: .rounded))
                 .monospacedDigit()
+                .accessibilityIdentifier("timeWorked")
             Spacer(minLength: 0)
             Button("Done", action: close)
                 .buttonStyle(RunButtonStyle(isProminent: true))
@@ -240,6 +274,7 @@ struct FinishedView: View {
 
 private struct RunButtonStyle: ButtonStyle {
     let isProminent: Bool
+    var minHeight: CGFloat = 72
 
     func makeBody(configuration: Configuration) -> some View {
         let shape = RoundedRectangle(cornerRadius: 20, style: .continuous)
@@ -247,7 +282,7 @@ private struct RunButtonStyle: ButtonStyle {
             .font(.system(size: 24, weight: .bold, design: .rounded))
             .lineLimit(1)
             .minimumScaleFactor(0.7)
-            .frame(maxWidth: .infinity, minHeight: 72)
+            .frame(maxWidth: .infinity, minHeight: minHeight)
             .foregroundStyle(isProminent ? Color.black : Color.white)
             .background(isProminent ? Color.white : Color.white.opacity(0.22), in: shape)
             .contentShape(shape)

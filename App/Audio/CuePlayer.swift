@@ -35,6 +35,7 @@ final class CuePlayer {
     func reconcile(_ schedule: CueSchedule?, at now: Date) {
         guard let schedule, case let todo = schedule.remaining(after: now), !todo.isEmpty else {
             teardown()
+            if log.cuesAreSilent { log.cuesAreSilent = false }
             return
         }
         guard now >= retryAfter else { return }
@@ -59,10 +60,12 @@ final class CuePlayer {
                 voiceStale = false
             }
             lastFailure = nil
+            if log.cuesAreSilent { log.cuesAreSilent = false }
         } catch {
             let line = "audio failed: \(error.localizedDescription)"
             if line != lastFailure { log.note(line) }
             lastFailure = line
+            log.cuesAreSilent = true
             retryAfter = now.addingTimeInterval(1)
         }
     }

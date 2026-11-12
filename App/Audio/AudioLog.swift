@@ -4,6 +4,8 @@ import Observation
 @MainActor @Observable
 final class AudioLog {
     private(set) var lines: [String] = []
+    /// True while the player is failing to start audio, so the run screen can say the cues are silent.
+    var cuesAreSilent = false
 
     private static let capacity = 200
     private static let clock: DateFormatter = {

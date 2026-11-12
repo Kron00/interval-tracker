@@ -48,7 +48,7 @@ public struct Session: Equatable, Sendable {
             segment: current.id, phase: current.phase,
             phaseRemaining: current.end - elapsed, phaseDuration: current.duration,
             totalRemaining: timeline.total - elapsed, totalDuration: timeline.total,
-            upNext: timeline.segment(after: current.id).map { Upcoming(phase: $0.phase, duration: $0.duration) },
+            upNext: timeline.segment(after: current.id).map { PhaseSpan(phase: $0.phase, duration: $0.duration) },
             isPaused: isPaused))
     }
 
@@ -85,13 +85,8 @@ public struct RunProgress: Equatable, Sendable {
     public let phaseDuration: TimeInterval
     public let totalRemaining: TimeInterval
     public let totalDuration: TimeInterval
-    public let upNext: Upcoming?
+    public let upNext: PhaseSpan?
     public let isPaused: Bool
-}
-
-public struct Upcoming: Equatable, Sendable {
-    public let phase: Phase
-    public let duration: TimeInterval
 }
 
 public enum ClockText {

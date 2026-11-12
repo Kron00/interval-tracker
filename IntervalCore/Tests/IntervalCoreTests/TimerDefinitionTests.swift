@@ -82,4 +82,11 @@ struct TimerDefinitionTests {
             try JSONDecoder().decode([RoundCount].self, from: Data(json.utf8))
         }
     }
+
+    @Test func theOutlineListsEveryPhaseInOrder() {
+        let outline = TimerDefinition.audioCheck.outline
+        #expect(outline.map { describe($0.phase) } == ["warmUp", "work 1/2", "rest 1/2", "work 2/2"])
+        #expect(outline.map(\.duration) == [30, 10, 10, 10])
+        #expect(TimerDefinition.norwegian4x4.outline.count == 10)
+    }
 }

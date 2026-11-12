@@ -89,12 +89,9 @@ struct LibraryScreen: View {
             TimerDetailSheet(
                 timer: timer,
                 isPreset: isPreset(timer),
-                start: { start(timer) },
+                start: { start(timer, cues: store.library.cues) },
                 edit: { self.sheet = .editor(TimerDraft(timer)) },
-                duplicate: {
-                    duplicate(timer)
-                    self.sheet = nil
-                },
+                duplicate: { self.sheet = .editor(TimerDraft(copyOf: timer)) },
                 close: { self.sheet = nil })
                 .task { run.prepare(timer, cues: store.library.cues) }
         case .editor(let draft):
@@ -110,9 +107,9 @@ struct LibraryScreen: View {
             SettingsScreen(
                 store: store,
                 log: log,
-                startAudioCheck: { start(.audioCheck) },
+                startAudioCheck: { start(.audioCheck, cues: SettingsScreen.audioCheckCues) },
                 close: { self.sheet = nil })
-                .task { run.prepare(.audioCheck, cues: store.library.cues) }
+                .task { run.prepare(.audioCheck, cues: SettingsScreen.audioCheckCues) }
         }
     }
 
@@ -141,7 +138,7 @@ struct LibraryScreen: View {
 
     private func duplicateButton(_ timer: TimerDefinition) -> some View {
         Button {
-            duplicate(timer)
+            sheet = .editor(TimerDraft(copyOf: timer))
         } label: {
             Label("Duplicate", systemImage: "plus.square.on.square")
         }
@@ -163,16 +160,9 @@ struct LibraryScreen: View {
         TimerDefinition.builtIn.contains { $0.id == timer.id }
     }
 
-    private func start(_ timer: TimerDefinition) {
+    private func start(_ timer: TimerDefinition, cues: CuePreferences) {
         sheet = nil
-        run.start(timer, cues: store.library.cues)
-    }
-
-    private func duplicate(_ timer: TimerDefinition) {
-        let copy = TimerDefinition(
-            name: "\(timer.name) copy", warmUp: timer.warmUp, work: timer.work, rest: timer.rest,
-            rounds: timer.rounds, coolDown: timer.coolDown, restAfterLastRound: timer.restAfterLastRound)
-        store.update { $0.save(copy) }
+        run.start(timer, cues: cues)
     }
 }
 
@@ -227,7 +217,7 @@ struct TimerDetailSheet: View {
                 .padding()
             }
         }
-        .presentationDetents([.medium, .large])
+        .presentationDetents([.large])
     }
 }
 

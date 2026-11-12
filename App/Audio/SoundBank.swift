@@ -90,27 +90,33 @@ final class SoundBank {
 
 private final class SpeechRender: @unchecked Sendable {
     private let target: AVAudioFormat
-    private let synthesizer = AVSpeechSynthesizer()
+    private var synthesizer: AVSpeechSynthesizer?
     private let lock = NSLock()
     private var converter: AVAudioConverter?
     private var samples: [Float] = []
     private var continuation: CheckedContinuation<[Float], Never>?
 
     private static let timeout: TimeInterval = 5
+    private static let queue = DispatchQueue(label: "IntervalTracker.speech", qos: .userInitiated)
 
     init(target: AVAudioFormat) { self.target = target }
 
-    @MainActor
     func samples(for text: String) async -> [Float] {
         await withCheckedContinuation { continuation in
             lock.withLock { self.continuation = continuation }
-            let utterance = AVSpeechUtterance(string: text)
-            utterance.voice = AVSpeechSynthesisVoice(language: "en-US")
-            synthesizer.write(utterance) { [self] buffer in
-                guard let chunk = buffer as? AVAudioPCMBuffer else { return }
-                if chunk.frameLength == 0 { finish() } else { append(chunk) }
+            // Looking up a voice waits on the system speech service, for minutes on a cold simulator.
+            // On the main thread that froze the whole app, so every speech call runs on this queue.
+            Self.queue.async { [self] in
+                let synthesizer = AVSpeechSynthesizer()
+                lock.withLock { self.synthesizer = synthesizer }
+                let utterance = AVSpeechUtterance(string: text)
+                utterance.voice = AVSpeechSynthesisVoice(language: "en-US")
+                synthesizer.write(utterance) { [self] buffer in
+                    guard let chunk = buffer as? AVAudioPCMBuffer else { return }
+                    if chunk.frameLength == 0 { finish() } else { append(chunk) }
+                }
+                Self.queue.asyncAfter(deadline: .now() + Self.timeout) { [self] in finish() }
             }
-            DispatchQueue.main.asyncAfter(deadline: .now() + Self.timeout) { [self] in finish() }
         }
     }
 

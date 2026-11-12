@@ -31,6 +31,11 @@ public enum Phase: Hashable, Sendable {
     }
 }
 
+public struct PhaseSpan: Hashable, Sendable {
+    public let phase: Phase
+    public let duration: TimeInterval
+}
+
 public struct SegmentID: Hashable, Sendable {
     let index: Int
 }

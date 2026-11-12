@@ -33,13 +33,20 @@ final class CuePlayer {
     }
 
     func reconcile(_ schedule: CueSchedule?, at now: Date) {
-        guard let schedule, case let todo = schedule.remaining(after: now), !todo.isEmpty else {
+        guard let schedule, let end = schedule.end, end > now else {
             teardown()
             if log.cuesAreSilent { log.cuesAreSilent = false }
             return
         }
         guard now >= retryAfter else { return }
-        let wantDuck = strategy == .wholeRun || todo.isDucked(at: now)
+        let wantDuck = strategy == .wholeRun || schedule.isDucked(at: now)
+
+        // Nine ticks in ten change nothing. Comparing a schedule with the copy stored from it is a
+        // pointer check, so this path allocates nothing.
+        if graph?.engine.isRunning == true, appliedDuck == wantDuck, scheduled == schedule, !voiceStale {
+            return
+        }
+        let todo = schedule.remaining(after: now)
 
         do {
             if graph?.engine.isRunning != true {

@@ -182,6 +182,18 @@ struct SkipTests {
         #expect(run.snapshot(at: t0 + 10_000) == .finished(worked: 2280 - 240 - 200))
     }
 
+    @Test func theZeroDateFollowsPauseResumeAndSkip() throws {
+        var run = session()
+        #expect(run.zeroDate == t0)
+        run.pause(at: t0 + 60)
+        #expect(run.zeroDate == nil)
+        run.resume(at: t0 + 100)
+        #expect(run.zeroDate == t0 + 40)
+        run.skip(try progress(run, at: 100).segment, at: t0 + 100.5)
+        #expect(run.zeroDate == t0 + 100.5 - 300)
+        #expect(try progress(run, at: 101.5).phaseRemaining == 239)
+    }
+
     @Test func upNextCarriesTheLengthOfTheNextPhase() throws {
         #expect(try progress(session(), at: 0).upNext?.duration == 240)
         #expect(try progress(session(), at: 300).upNext?.duration == 180)

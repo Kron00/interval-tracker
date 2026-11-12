@@ -29,6 +29,7 @@ targets:
         UIBackgroundModes:
           - audio
         UILaunchScreen: {}
+        UIUserInterfaceStyle: Dark
         UISupportedInterfaceOrientations:
           - UIInterfaceOrientationPortrait
           - UIInterfaceOrientationLandscapeLeft

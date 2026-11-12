@@ -17,6 +17,7 @@ struct IntervalTrackerApp: App {
     var body: some Scene {
         WindowGroup {
             RootView(store: store, run: run, log: log)
+                .preferredColorScheme(.dark)
         }
     }
 

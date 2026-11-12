@@ -16,6 +16,7 @@
 		42673E6F6ECC603645EE0B71 /* CuePlayer.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB0AEDE3457A6104C3C5258A /* CuePlayer.swift */; };
 		4E1EBB983C3FEB1DA63D0774 /* IntervalCore in Frameworks */ = {isa = PBXBuildFile; productRef = E79D50150352491D4A2ACE3A /* IntervalCore */; };
 		6FA38A6312167E02B9007763 /* LibraryScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF6599F4E1C29BAA5A822900 /* LibraryScreen.swift */; };
+		726D34B5EF121297A17801CC /* Theme.swift in Sources */ = {isa = PBXBuildFile; fileRef = D5517CEAEFB56C608BB5EB7D /* Theme.swift */; };
 		8448CB9D91124C8A24A3D04C /* AudioLog.swift in Sources */ = {isa = PBXBuildFile; fileRef = A3D1772091FDA9F49DA82650 /* AudioLog.swift */; };
 		8B7633F6529F652307321B05 /* LibraryStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 443CA32D43F94C087A951A1D /* LibraryStore.swift */; };
 		BEFF4E550D75B1070B67FCB5 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 0C603108A538A703403A3B48 /* Assets.xcassets */; };
@@ -55,6 +56,7 @@
 		940EFE8E9FC571E61CC14BFA /* RunFlowUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RunFlowUITests.swift; sourceTree = "<group>"; };
 		A3D1772091FDA9F49DA82650 /* AudioLog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioLog.swift; sourceTree = "<group>"; };
 		B564074ECDB7B22BE0C9414B /* SoundBankTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SoundBankTests.swift; sourceTree = "<group>"; };
+		D5517CEAEFB56C608BB5EB7D /* Theme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Theme.swift; sourceTree = "<group>"; };
 		DEC5A26246D7BA4D9FD1C24A /* IntervalCore */ = {isa = PBXFileReference; lastKnownFileType = folder; name = IntervalCore; path = IntervalCore; sourceTree = SOURCE_ROOT; };
 		E51795C1EF2894ED689E5554 /* SettingsScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsScreen.swift; sourceTree = "<group>"; };
 		FB0AEDE3457A6104C3C5258A /* CuePlayer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CuePlayer.swift; sourceTree = "<group>"; };
@@ -104,6 +106,7 @@
 				FF6599F4E1C29BAA5A822900 /* LibraryScreen.swift */,
 				3FB42CB10B3A825E97F8DCEC /* RunScreen.swift */,
 				E51795C1EF2894ED689E5554 /* SettingsScreen.swift */,
+				D5517CEAEFB56C608BB5EB7D /* Theme.swift */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -294,6 +297,7 @@
 				2D6BA75FB9BE9EC6A805450F /* RunScreen.swift in Sources */,
 				3E7F2C5A2B9FC4E27BFDA527 /* SettingsScreen.swift in Sources */,
 				149274F838B066544D1E5414 /* SoundBank.swift in Sources */,
+				726D34B5EF121297A17801CC /* Theme.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

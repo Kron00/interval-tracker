@@ -53,6 +53,15 @@ public struct Session: Equatable, Sendable {
     }
 
     /// Every cue of this run at its wall-clock time. nil while paused.
+    /// The instant elapsed time was zero, or nil while paused. Every figure a snapshot reports changes
+    /// on a whole second after it, so a screen that redraws on those seconds is never stale.
+    public var zeroDate: Date? {
+        switch clock {
+        case .running(let zeroAt): zeroAt
+        case .paused: nil
+        }
+    }
+
     public var cueSchedule: CueSchedule? {
         switch clock {
         case .running(let zeroAt): CueSchedule(timeline, cues, zeroAt: zeroAt)

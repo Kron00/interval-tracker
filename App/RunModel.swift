@@ -75,6 +75,9 @@ final class RunModel {
 
         let keepScreenOn = defaults.object(forKey: SettingsKey.keepScreenOn) as? Bool ?? true
         let isActive = if case .active = session?.snapshot(at: now) { true } else { false }
-        UIApplication.shared.isIdleTimerDisabled = keepScreenOn && isActive
+        let stayAwake = keepScreenOn && isActive
+        if UIApplication.shared.isIdleTimerDisabled != stayAwake {
+            UIApplication.shared.isIdleTimerDisabled = stayAwake
+        }
     }
 }

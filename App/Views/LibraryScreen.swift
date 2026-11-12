@@ -36,6 +36,8 @@ struct LibraryScreen: View {
                     if store.library.timers.isEmpty {
                         Text("Tap + to build your own, or duplicate a preset.")
                             .foregroundStyle(.secondary)
+                            .listRowSeparator(.hidden)
+                            .listRowBackground(Color.clear)
                     }
                     ForEach(store.library.timers) { timer in
                         row(timer)
@@ -52,6 +54,9 @@ struct LibraryScreen: View {
                     }
                 }
             }
+            .listStyle(.plain)
+            .scrollContentBackground(.hidden)
+            .background(Theme.background)
             .navigationTitle("Intervals")
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
@@ -117,22 +122,12 @@ struct LibraryScreen: View {
         Button {
             sheet = .detail(timer)
         } label: {
-            HStack(spacing: 12) {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(timer.name)
-                        .font(.headline)
-                        .foregroundStyle(Color.primary)
-                    Text(timer.summary)
-                        .font(.subheadline)
-                        .foregroundStyle(Color.secondary)
-                }
-                Spacer()
-                Text(ClockText.remaining(timer.totalDuration))
-                    .font(.title3.monospacedDigit())
-                    .foregroundStyle(Color.secondary)
-            }
-            .padding(.vertical, 4)
+            TimerCard(timer: timer)
         }
+        .buttonStyle(.plain)
+        .listRowInsets(EdgeInsets(top: 6, leading: 16, bottom: 6, trailing: 16))
+        .listRowSeparator(.hidden)
+        .listRowBackground(Color.clear)
         .accessibilityIdentifier("timerRow-\(timer.name)")
     }
 
@@ -166,6 +161,32 @@ struct LibraryScreen: View {
     }
 }
 
+struct TimerCard: View {
+    let timer: TimerDefinition
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(alignment: .firstTextBaseline) {
+                Text(timer.name)
+                    .font(.system(.title3, design: .rounded, weight: .bold))
+                    .lineLimit(1)
+                Spacer()
+                Text(ClockText.remaining(timer.totalDuration))
+                    .font(.system(.title2, design: .rounded, weight: .bold))
+                    .monospacedDigit()
+            }
+            TimelineStrip(spans: timer.outline)
+                .frame(height: 10)
+            Text(timer.summary)
+                .font(.subheadline)
+                .foregroundStyle(Color.secondary)
+        }
+        .padding(16)
+        .background(Theme.card, in: Theme.cardShape)
+        .contentShape(Theme.cardShape)
+    }
+}
+
 struct TimerDetailSheet: View {
     let timer: TimerDefinition
     let isPreset: Bool
@@ -176,22 +197,39 @@ struct TimerDetailSheet: View {
 
     var body: some View {
         NavigationStack {
-            List {
-                if let warmUp = timer.warmUp {
-                    LabeledContent("Warm-up", value: warmUp.clockText)
+            ScrollView {
+                VStack(spacing: 22) {
+                    VStack(spacing: 2) {
+                        Text(ClockText.remaining(timer.totalDuration))
+                            .font(.system(size: 64, weight: .bold, design: .rounded))
+                            .monospacedDigit()
+                        Text("total")
+                            .font(.headline)
+                            .foregroundStyle(Color.secondary)
+                    }
+                    TimelineStrip(spans: timer.outline)
+                        .frame(height: 14)
+                    VStack(spacing: 0) {
+                        if let warmUp = timer.warmUp {
+                            phaseRow("Warm-up", warmUp.clockText, Theme.warmUp)
+                            Divider()
+                        }
+                        phaseRow("Work", "\(timer.rounds.value) × \(timer.work.clockText)", Theme.work)
+                        if let rest = timer.rest {
+                            Divider()
+                            phaseRow("Rest", "\(restCount) × \(rest.clockText)", Theme.rest)
+                        }
+                        if let coolDown = timer.coolDown {
+                            Divider()
+                            phaseRow("Cool-down", coolDown.clockText, Theme.coolDown)
+                        }
+                    }
+                    .padding(.horizontal, 16)
+                    .background(Theme.card, in: Theme.cardShape)
                 }
-                LabeledContent("Work", value: timer.work.clockText)
-                if let rest = timer.rest {
-                    LabeledContent("Rest", value: rest.clockText)
-                }
-                LabeledContent("Rounds", value: "\(timer.rounds.value)")
-                if let coolDown = timer.coolDown {
-                    LabeledContent("Cool-down", value: coolDown.clockText)
-                }
-                LabeledContent("Total", value: ClockText.remaining(timer.totalDuration))
-                    .fontWeight(.semibold)
+                .padding(20)
             }
-            .monospacedDigit()
+            .background(Theme.background)
             .navigationTitle(timer.name)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -209,7 +247,7 @@ struct TimerDetailSheet: View {
             .safeAreaInset(edge: .bottom) {
                 Button(action: start) {
                     Label("Start", systemImage: "play.fill")
-                        .font(.title2.bold())
+                        .font(.system(.title2, design: .rounded, weight: .bold))
                         .frame(maxWidth: .infinity, minHeight: 64)
                 }
                 .buttonStyle(.borderedProminent)
@@ -218,6 +256,26 @@ struct TimerDetailSheet: View {
             }
         }
         .presentationDetents([.large])
+        .presentationBackground(Theme.background)
+    }
+
+    private var restCount: Int {
+        timer.restAfterLastRound ? timer.rounds.value : timer.rounds.value - 1
+    }
+
+    private func phaseRow(_ label: String, _ value: String, _ color: Color) -> some View {
+        HStack(spacing: 12) {
+            Circle()
+                .fill(color)
+                .frame(width: 12, height: 12)
+            Text(label)
+            Spacer()
+            Text(value)
+                .monospacedDigit()
+                .foregroundStyle(Color.secondary)
+        }
+        .font(.title3)
+        .padding(.vertical, 16)
     }
 }
 

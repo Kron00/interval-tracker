@@ -5,14 +5,23 @@ struct RunScreen: View {
     let run: RunModel
     let session: Session
     let log: AudioLog
+    private let outline: [PhaseSpan]
+
+    init(run: RunModel, session: Session, log: AudioLog) {
+        self.run = run
+        self.session = session
+        self.log = log
+        outline = session.definition.outline
+    }
 
     var body: some View {
-        TimelineView(.periodic(from: .now, by: 0.1)) { context in
+        TimelineView(.periodic(from: session.zeroDate ?? .now, by: 1)) { context in
             let snapshot = session.snapshot(at: context.date)
             let tone = RunTone(snapshot)
             let undoSkip: (() -> Void)? = run.beforeSkip == nil ? nil : { run.undoSkip() }
             ZStack {
-                tone.color
+                LinearGradient(colors: [tone.color, tone.color.opacity(0.5)], startPoint: .top, endPoint: .bottom)
+                    .background(Color.black)
                     .ignoresSafeArea()
                     .animation(.easeInOut(duration: 0.4), value: tone)
                 switch snapshot {
@@ -20,6 +29,7 @@ struct RunScreen: View {
                     ActiveRunView(
                         name: session.definition.name,
                         progress: progress,
+                        outline: outline,
                         cuesAreSilent: log.cuesAreSilent,
                         pause: run.pause,
                         resume: run.resume,
@@ -70,6 +80,7 @@ private enum RunTone: Hashable {
 struct ActiveRunView: View {
     let name: String
     let progress: RunProgress
+    let outline: [PhaseSpan]
     let cuesAreSilent: Bool
     let pause: () -> Void
     let resume: () -> Void
@@ -184,16 +195,8 @@ struct ActiveRunView: View {
                     .monospacedDigit()
                     .accessibilityIdentifier("totalRemaining")
             }
-            GeometryReader { geometry in
-                ZStack(alignment: .leading) {
-                    Capsule().fill(Color.white.opacity(0.25))
-                    Capsule()
-                        .fill(Color.white)
-                        .frame(width: geometry.size.width * (1 - progress.totalRemaining / progress.totalDuration))
-                }
-            }
-            .frame(height: 6)
-            .accessibilityHidden(true)
+            TimelineStrip(spans: outline, elapsed: progress.totalDuration - progress.totalRemaining)
+                .frame(height: 8)
         }
     }
 

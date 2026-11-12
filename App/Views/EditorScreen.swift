@@ -119,6 +119,10 @@ struct EditorScreen: View {
                     LabeledContent("Total", value: definition.map { ClockText.remaining($0.totalDuration) } ?? "–")
                         .fontWeight(.semibold)
                         .monospacedDigit()
+                    if let definition {
+                        TimelineStrip(spans: definition.outline)
+                            .frame(height: 10)
+                    }
                 }
             }
             .navigationTitle(title)

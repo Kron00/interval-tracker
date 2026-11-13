@@ -17,8 +17,9 @@ BUNDLE_ID = "com.kron00.IntervalTracker"
 ICON_PATH = "App/Assets.xcassets/AppIcon.appiconset/AppIcon.png"
 
 pending = sys.argv[2] if len(sys.argv) == 3 and sys.argv[1] == "--pending" else None
-releases = json.loads(subprocess.run(
-    ["gh", "api", f"repos/{REPO}/releases", "--paginate"], check=True, capture_output=True, text=True).stdout)
+pages = json.loads(subprocess.run(
+    ["gh", "api", f"repos/{REPO}/releases", "--paginate", "--slurp"], check=True, capture_output=True, text=True).stdout)
+releases = [release for page in pages for release in page]
 
 versions = []
 for release in releases:

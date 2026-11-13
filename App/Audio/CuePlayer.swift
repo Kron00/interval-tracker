@@ -111,7 +111,7 @@ final class CuePlayer {
                 scheduled = schedule
                 voiceStale = false
                 prepare(todo.vocabulary)
-            } else if voiceStale, !todo.isDucked(at: now) {
+            } else if voiceStale, !Self.voiceIsSounding(in: schedule, at: now) {
                 queue(todo, on: graph, voiceOnly: true)
                 voiceStale = false
             }
@@ -227,6 +227,17 @@ final class CuePlayer {
         } catch {
             try? session.setCategory(.playback, mode: .default, options: Mix.mixing(ducked: false).options)
             log.note("release failed, duck option removed instead: \(error.localizedDescription)")
+        }
+    }
+
+    /// Queueing late voices restarts the speaker node, which would cut a phrase in mid-word. Waiting
+    /// for the music to come back up was too long a wait: back-to-back short phases never un-duck.
+    static func voiceIsSounding(in schedule: CueSchedule, at now: Date) -> Bool {
+        schedule.windows.contains { window in
+            window.start <= now && now < window.end && window.sounds.contains { timed in
+                guard case .voice = timed.sound else { return false }
+                return timed.at <= now && now < timed.at.addingTimeInterval(timed.sound.slot)
+            }
         }
     }
 

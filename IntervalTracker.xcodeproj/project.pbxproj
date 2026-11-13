@@ -10,6 +10,7 @@
 		0E1E136B2A384BA853D92531 /* RunModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7B8150F690D288A77119B24D /* RunModel.swift */; };
 		149274F838B066544D1E5414 /* SoundBank.swift in Sources */ = {isa = PBXBuildFile; fileRef = 168E2EE34B8116BC26F443B5 /* SoundBank.swift */; };
 		19B9E7CB7BAAD9A4AD7DB66B /* IntervalTrackerApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 669DF9039B157EE7974A983B /* IntervalTrackerApp.swift */; };
+		1B28FD2E5BA4C13600F5E750 /* CuePlayerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 491B8024DCB83D1ACD9C704E /* CuePlayerTests.swift */; };
 		2CAE1E04562C191D86C18AFE /* EditorScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = 37A0E52AAC7DCFA9945D0ABD /* EditorScreen.swift */; };
 		2D6BA75FB9BE9EC6A805450F /* RunScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FB42CB10B3A825E97F8DCEC /* RunScreen.swift */; };
 		3E7F2C5A2B9FC4E27BFDA527 /* SettingsScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = E51795C1EF2894ED689E5554 /* SettingsScreen.swift */; };
@@ -53,6 +54,7 @@
 		3FB42CB10B3A825E97F8DCEC /* RunScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RunScreen.swift; sourceTree = "<group>"; };
 		443CA32D43F94C087A951A1D /* LibraryStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryStore.swift; sourceTree = "<group>"; };
 		45ABF9DB89E5EFD5669F0BCC /* IntervalTrackerTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = IntervalTrackerTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		491B8024DCB83D1ACD9C704E /* CuePlayerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CuePlayerTests.swift; sourceTree = "<group>"; };
 		5328460832F6C81D5B1FEDD1 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		5CBE4144F81F89060C1019D7 /* HeadphoneRemote.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HeadphoneRemote.swift; sourceTree = "<group>"; };
 		669DF9039B157EE7974A983B /* IntervalTrackerApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IntervalTrackerApp.swift; sourceTree = "<group>"; };
@@ -151,6 +153,7 @@
 		E164EF4B990F2D334613C1BD /* AppTests */ = {
 			isa = PBXGroup;
 			children = (
+				491B8024DCB83D1ACD9C704E /* CuePlayerTests.swift */,
 				6816BDD7F258B7B7991FEE07 /* RunModelTests.swift */,
 				B564074ECDB7B22BE0C9414B /* SoundBankTests.swift */,
 			);
@@ -288,6 +291,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				1B28FD2E5BA4C13600F5E750 /* CuePlayerTests.swift in Sources */,
 				5DC64F5291516E01F3DB80A8 /* RunModelTests.swift in Sources */,
 				DEB6F73EE4C142910EB7DAF8 /* SoundBankTests.swift in Sources */,
 			);

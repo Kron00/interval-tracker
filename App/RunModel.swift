@@ -19,6 +19,11 @@ final class RunModel {
     @ObservationIgnored private var schedule: CueSchedule?
     /// The paused session an interruption left behind. Only that exact session resumes when the interruption ends.
     @ObservationIgnored private var interrupted: Session?
+    /// Receives every run once, when it is over. The history listens here.
+    @ObservationIgnored var onRunOver: ((WorkoutRecord) -> Void)?
+    /// When the run in progress started. nil once the run has been reported, so that finishing and
+    /// then leaving the finish screen reports it once.
+    @ObservationIgnored private var unreportedStart: Date?
     @ObservationIgnored private let player: CuePlayer
     @ObservationIgnored private let remote: HeadphoneRemote
     @ObservationIgnored private var ticker: Timer?
@@ -32,7 +37,9 @@ final class RunModel {
     }
 
     func start(_ workout: Workout, cues: CuePreferences) {
+        report()
         change { $0 = Session(workout, cues: cues, startingAt: .now) }
+        unreportedStart = .now
     }
     func pause() { change { $0?.pause(at: .now) } }
     func resume() { change { $0?.resume(at: .now) } }
@@ -44,7 +51,10 @@ final class RunModel {
         guard let undo else { return }
         change { $0 = undo }
     }
-    func end() { change { $0 = nil } }
+    func end() {
+        report()
+        change { $0 = nil }
+    }
 
     /// `Session.perform` decides what a press means, and a single press means Start or Next while the
     /// run waits. So Undo goes by what the press did. A press that moved the run and left it paused or
@@ -86,12 +96,26 @@ final class RunModel {
             ticker = nil
         } else if ticker == nil {
             let timer = Timer(timeInterval: 0.1, repeats: true) { [weak self] _ in
-                MainActor.assumeIsolated { self?.reconcile() }
+                MainActor.assumeIsolated { self?.tick() }
             }
             RunLoop.main.add(timer, forMode: .common)
             ticker = timer
         }
         reconcile()
+    }
+
+    /// A workout that a skip finished can be brought back with Undo, so it is not over until Undo
+    /// is gone. Only a tick checks. `change` clears `undo` before a skip offers it again, and a check
+    /// in between would report a run that Undo can still bring back.
+    private func tick() {
+        reconcile()
+        if unreportedStart != nil, undo == nil, case .finished? = session?.snapshot(at: .now) { report() }
+    }
+
+    private func report() {
+        guard let session, let start = unreportedStart else { return }
+        unreportedStart = nil
+        onRunOver?(WorkoutRecord(session, startedAt: start, endedAt: .now))
     }
 
     private func interruptionBegan() {

@@ -6,8 +6,8 @@ Intervals is an iPhone app that runs interval timers and stretch routines. It ke
 
 | Path | What lives there |
 | --- | --- |
-| `IntervalCore/` | Pure Swift package, Foundation only. Workouts, the compiled timeline, `Session`, the cue schedule, the library file. All timer logic is here. |
-| `App/` | The SwiftUI app. `RunModel` is the only writer of the session. `Audio/` holds `CuePlayer`, `SoundBank`, `HeadphoneRemote`. `Views/` holds the screens and `Theme`. |
+| `IntervalCore/` | Pure Swift package, Foundation only. Workouts, the compiled timeline, `Session`, the cue schedule, the library file, the history. All timer logic is here. |
+| `App/` | The SwiftUI app. `RunModel` is the only writer of the session. `LibraryStore` and `HistoryStore` are the only writers of their files. `Audio/` holds `CuePlayer`, `SoundBank`, `HeadphoneRemote`. `Views/` holds the screens and `Theme`. |
 | `AppTests/` | Tests that need the iOS runtime. |
 | `AppUITests/` | End-to-end flows. They attach a named screenshot at each step. |
 | `Scripts/` | Test, build and release scripts. |
@@ -49,7 +49,10 @@ The owner updates the app from AltStore. A merge that changes the app must show 
 - **Speech never runs on the main thread.** A voice lookup there froze the app.
 - **`CuePlayer.reconcile` runs ten times a second.** Keep its early return free of allocation.
 - **Every screen is dark.**
-- **A released library file must keep loading.** If you change the file format, decode the shapes that released versions wrote.
+- **A released library file must keep loading.** If you change the file format, decode the shapes that released versions wrote. The same holds for the history file.
+- **The history is its own file.** `history.json` is apart from `library.json`. A history file that cannot be read is set aside, and it must never cost the saved workouts. Do not move the history into the library file.
+- **A run is reported once, and never while Undo can bring it back.** `RunModel` reports from `end()` and from its tick, and never from `change`. `History.add` decides what is kept. `docs/design.md` has the reasons.
+- **The package takes dates and calendars as arguments.** Nothing in `IntervalCore` reads the clock or the calendar of the phone.
 - Validate at the boundary only: the failable initialisers in the package and the `Decodable` code. Editors hold plain drafts and convert on Save.
 
 ## What a simulator cannot prove

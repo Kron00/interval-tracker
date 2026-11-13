@@ -111,9 +111,10 @@ final class LiveActivityController {
             return
         }
         var alerting = false
-        if card.state.isHeadsUp, shown?.state.isHeadsUp != true, case .counting(_, let end) = card.state.clock,
-           end != alertedPhaseEnd {
-            alerting = true
+        if card.state.isHeadsUp, case .counting(_, let end) = card.state.clock {
+            alerting = shown?.state.isHeadsUp != true && end != alertedPhaseEnd
+            // A resume inside the heads-up moves the end of the phase. It is still the heads-up
+            // that alerted, so the new end is the one to remember.
             alertedPhaseEnd = end
         }
         do {

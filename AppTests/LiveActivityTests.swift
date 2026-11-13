@@ -213,14 +213,31 @@ final class LiveActivityControllerTests: XCTestCase {
             .show(card(session, at: 282), alerting: false),
         ])
 
+        // A pause and a resume move the end of the warm-up. A skip and its Undo after that still
+        // come back into the heads-up that alerted.
+        var paused = session
+        paused.pause(at: start + 283)
+        var resumed = paused
+        resumed.resume(at: start + 290)
+        var skippedAgain = resumed
+        skippedAgain.perform(.next, at: start + 291)
+        for (run, second) in [(paused, 283.0), (resumed, 290), (skippedAgain, 291), (resumed, 292)] {
+            controller.reconcile(run, at: start + second)
+            await settle(controller)
+        }
+        for event in display.events.dropFirst(2) {
+            if case .show(_, alerting: true) = event { XCTFail("the heads-up alerted a second time: \(event)") }
+        }
+        XCTAssertEqual(display.events.count, 8, "each of the four changes was shown")
+
         // Going back to the start of the warm-up is another run through it, so its heads-up alerts again.
-        var again = session
-        again.perform(.previous, at: start + 285)
-        controller.reconcile(again, at: start + 285)
+        var again = resumed
+        again.perform(.previous, at: start + 295)
+        controller.reconcile(again, at: start + 295)
         await settle(controller)
-        controller.reconcile(again, at: start + 285 + 270)
+        controller.reconcile(again, at: start + 295 + 270)
         await settle(controller)
-        XCTAssertEqual(display.events.last, .show(RunActivityCard(name: again.workout.name, state: .init(again, at: start + 285 + 270)), alerting: true))
+        XCTAssertEqual(display.events.last, .show(RunActivityCard(name: again.workout.name, state: .init(again, at: start + 295 + 270)), alerting: true))
     }
 
     func testARoutineShowsEachWaitCountInAndHoldOnceAndNeverAlerts() async {

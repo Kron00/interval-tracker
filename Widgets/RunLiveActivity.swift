@@ -67,10 +67,15 @@ private struct LockScreenCard: View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(alignment: .center, spacing: 12) {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text([name, state.caption].compactMap { $0 }.joined(separator: " · "))
-                        .font(.footnote.weight(.semibold))
-                        .opacity(0.8)
-                        .lineLimit(1)
+                    // The caption says which stretch and which side this is. Where it and the
+                    // workout's name do not fit on one line, the name gives way.
+                    ViewThatFits(in: .horizontal) {
+                        Text([name, state.caption].compactMap { $0 }.joined(separator: " · "))
+                        Text(state.caption ?? name)
+                    }
+                    .font(.footnote.weight(.semibold))
+                    .opacity(0.8)
+                    .lineLimit(1)
                     PhaseTitle(text: state.title, size: 30)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)

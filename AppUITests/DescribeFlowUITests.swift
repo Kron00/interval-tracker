@@ -129,11 +129,17 @@ final class DescribeFlowUITests: XCTestCase {
         app.buttons["editGeneratedButton"].tap()
         XCTAssertTrue(app.textFields["nameField"].waitForExistence(timeout: Self.patience))
         app.buttons["saveButton"].tap()
+        // Changing an answer before saving it is a common way through this screen. It ends where
+        // Save on the result ends: on the workout, with Start.
+        XCTAssertTrue(app.buttons["startButton"].waitForExistence(timeout: Self.patience), "Save in the editor opens the workout, ready to start")
+        XCTAssertTrue(app.navigationBars["1-2 Run"].exists)
+        XCTAssertEqual(app.staticTexts["detailTotal"].label, "30:00")
+        XCTAssertFalse(save.exists, "the result has closed")
+        snap(app, "75b-edited-and-saved")
+        app.buttons["Close"].tap()
         let row = app.buttons["timerRow-1-2 Run"]
-        XCTAssertTrue(row.waitForExistence(timeout: Self.patience), "Save in the editor saves the workout and closes both sheets")
+        XCTAssertTrue(row.waitForExistence(timeout: Self.patience))
         XCTAssertTrue(row.label.contains("30:00"), row.label)
-        XCTAssertTrue(row.isHittable)
-        XCTAssertFalse(save.exists)
     }
 
     func testAGeneratedTimerOpensInTheEditorAndIsNotSavedByItself() {

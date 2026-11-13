@@ -681,6 +681,10 @@ final class RunFlowUITests: XCTestCase {
         XCTAssertTrue(done.waitForExistence(timeout: Self.patience))
         app.buttons["undoButton"].tap()
         XCTAssertTrue(end.waitForExistence(timeout: Self.patience))
+        // iOS starts an activity only for an app that is on the screen, and the app first has to
+        // end the finished one. On a busy simulator that takes seconds, and a lock that comes
+        // sooner leaves no card.
+        Thread.sleep(forTimeInterval: 4)
         try showLockScreen()
         XCTAssertTrue(springboard.staticTexts["PAUSED"].waitForExistence(timeout: Self.patience), "Undo brings the activity back with the run")
         allowLiveActivities()

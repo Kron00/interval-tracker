@@ -305,7 +305,7 @@ An answer costs a request, so the sheet does not give one up until it has a bett
 
 `DescribeState.ended(with:)` and `DescribeState.cancelled` are the only places that decide where the sheet goes next. A retry that succeeds shows the new answer. A retry that fails, or that the user cancels, shows the earlier answer again, with the failure above it if there was one.
 
-**Edit** opens the editor as a sheet over the result, so **Cancel** in the editor leaves the result as it was. **Save** on the result closes the sheet and opens the detail screen of the saved workout. The new card is the last one in the library and can be below the edge of the screen, and the detail screen is where **Start** is.
+**Edit** opens the editor as a sheet over the result, so **Cancel** in the editor leaves the result as it was. **Save**, on the result or in that editor, closes the sheet and opens the detail screen of the saved workout. The new card is the last one in the library and can be below the edge of the screen, and the detail screen is where **Start** is.
 
 ## How the app signs in to ChatGPT
 

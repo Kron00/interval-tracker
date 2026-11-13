@@ -156,7 +156,7 @@ struct LibraryScreen: View {
                 },
                 saveEdited: { workout in
                     store.update { $0.save(workout) }
-                    self.sheet = nil
+                    self.sheet = .detail(workout)
                 },
                 close: { self.sheet = nil })
         case .settings:

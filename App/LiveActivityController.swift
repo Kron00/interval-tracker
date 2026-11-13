@@ -63,6 +63,9 @@ final class LiveActivityController {
     /// The one task that talks to the display. Updates are async, and a second task could overtake the first.
     @ObservationIgnored private(set) var worker: Task<Void, Never>?
     @ObservationIgnored private var lastNote: String?
+    /// The end of the phase whose heads-up last alerted. A skip and its Undo come back into the
+    /// same heads-up after the voice has spoken, and the card must not alert a second time.
+    @ObservationIgnored private var alertedPhaseEnd: Date?
 
     init(display: any RunActivityDisplay, log: AudioLog) {
         self.display = display
@@ -107,8 +110,14 @@ final class LiveActivityController {
             note("live activity: turned off in Settings")
             return
         }
+        var alerting = false
+        if card.state.isHeadsUp, shown?.state.isHeadsUp != true, case .counting(_, let end) = card.state.clock,
+           end != alertedPhaseEnd {
+            alerting = true
+            alertedPhaseEnd = end
+        }
         do {
-            try await display.show(card, alerting: card.state.isHeadsUp && shown?.state.isHeadsUp != true)
+            try await display.show(card, alerting: alerting)
             refusal = nil
             lastNote = nil
         } catch {
@@ -130,6 +139,9 @@ private final class SystemActivityDisplay: RunActivityDisplay {
     private var hasEnded = false
 
     private static let lingerAfterFinish: TimeInterval = 120
+    /// The alert lights the screen while the voice says "Get ready". The system's alert sound would
+    /// play over the voice, and an alert cannot be given no sound, so it is given a silent one.
+    private static let silence = AlertConfiguration.AlertSound.named("HeadsUpSilence.wav")
 
     var isAllowed: Bool { ActivityAuthorizationInfo().areActivitiesEnabled }
 
@@ -140,7 +152,7 @@ private final class SystemActivityDisplay: RunActivityDisplay {
         let content = ActivityContent(state: card.state, staleDate: nil)
         if let activity {
             let alert = alerting
-                ? AlertConfiguration(title: "Get ready", body: "Up next: \(card.state.upNext ?? "Work")", sound: .default) : nil
+                ? AlertConfiguration(title: "Get ready", body: "Up next: \(card.state.upNext ?? "Work")", sound: Self.silence) : nil
             await activity.update(content, alertConfiguration: alert)
         } else {
             activity = try Activity.request(

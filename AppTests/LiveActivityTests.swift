@@ -196,6 +196,33 @@ final class LiveActivityControllerTests: XCTestCase {
         XCTAssertEqual(display.shown.last?.state.tone, .paused)
     }
 
+    func testAHeadsUpAlertsOnceThoughASkipAndItsUndoComeBackIntoIt() async {
+        let (controller, display) = await make()
+        let session = Session(.norwegian4x4, cues: CuePreferences(), startingAt: start)
+        var skipped = session
+        skipped.perform(.next, at: start + 280)
+
+        // The warm-up's heads-up begins at 4:30. The skip at 4:40 goes to work, and Undo puts the
+        // run back as it was.
+        for (run, second) in [(session, 270.0), (skipped, 280), (session, 282)] {
+            controller.reconcile(run, at: start + second)
+            await settle(controller)
+        }
+        XCTAssertEqual(display.events, [
+            .clear, .show(card(session, at: 270), alerting: true), .show(card(skipped, at: 280), alerting: false),
+            .show(card(session, at: 282), alerting: false),
+        ])
+
+        // Going back to the start of the warm-up is another run through it, so its heads-up alerts again.
+        var again = session
+        again.perform(.previous, at: start + 285)
+        controller.reconcile(again, at: start + 285)
+        await settle(controller)
+        controller.reconcile(again, at: start + 285 + 270)
+        await settle(controller)
+        XCTAssertEqual(display.events.last, .show(RunActivityCard(name: again.workout.name, state: .init(again, at: start + 285 + 270)), alerting: true))
+    }
+
     func testARoutineShowsEachWaitCountInAndHoldOnceAndNeverAlerts() async {
         let (controller, display) = await make()
         var session = Session(.dailyStretch, cues: CuePreferences(), startingAt: start)

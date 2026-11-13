@@ -187,7 +187,7 @@ A wait carries which tap it waits for as a key, `start` or `next`, the way the c
 | --- | --- |
 | Starts | Requested. iOS allows a request only while the app is in front, and Start is a tap in the app |
 | Changes phase or state | Updated |
-| Reaches its heads-up | Updated with an alert, which lights a locked screen and opens the Dynamic Island |
+| Reaches its heads-up | Updated with an alert, which lights a locked screen and opens the Dynamic Island. The alert carries a silent sound file, because the system's alert sound would play over the voice and an alert cannot have no sound. It alerts once for each run through the phase, so a skip and its Undo do not alert again |
 | Finishes | Updated, then ended, and left on the lock screen for two minutes |
 | Is ended, or **Done** is tapped | Removed at once |
 | Is brought back by Undo after the finish | Requested again, because an ended activity takes no updates |
@@ -309,7 +309,7 @@ No UI test asserts on the count-in or the hold of a stretch on the lock screen. 
 
 What only a phone can show:
 
-- Whether the alert lights the screen of a locked phone, and what sound it makes.
+- Whether the alert lights the screen of a locked phone, and whether it stays silent. The simulator plays no alert sound either way.
 - Whether the card keeps up for a whole workout on a locked phone. The app updates it from the background, so this rests on the same thing as the cues: the audio keeps the app awake.
 - Whether AltStore installs the extension. AltStore signs the app again with the owner's Apple Account and may ask whether to keep app extensions. If the extension is removed, the app is expected to run with no card, but that path has never run.
 - What the minimal form of the Dynamic Island looks like. iOS shows it only when two apps have an activity.

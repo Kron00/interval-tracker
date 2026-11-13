@@ -449,11 +449,12 @@ final class RunFlowUITests: XCTestCase {
         XCTAssertFalse(caption.exists, "a warm-up has no caption until its heads-up")
         assertNothingMoved(in: app, since: running, "in the warm-up of the audio check")
         XCTAssertTrue(caption.waitForExistence(timeout: Self.patience), "ten seconds before work the caption says to get ready")
-        snap(app, "34-heads-up")
-        // The heads-up lasts ten seconds, and a slow machine can take longer than that over the
-        // checks. A pause keeps the heads-up, so they are made on a run that cannot move on.
+        // The heads-up lasts ten seconds, and a slow machine can take longer than that over a
+        // screenshot and the checks. A pause keeps the heads-up, so they are made on a run that
+        // cannot move on.
         setPaused(true, with: primary)
         XCTAssertEqual(caption.label, "Get ready")
+        snap(app, "34-heads-up")
         XCTAssertTrue(app.staticTexts["in Warm-up"].exists)
         assertNothingMoved(in: app, since: running, "when the heads-up begins")
     }

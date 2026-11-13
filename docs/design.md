@@ -252,6 +252,91 @@ The cost is height. A stretch name can be 40 characters, so the title block is t
 
 The heads-up uses the caption line, which is always there. During it the line reads "Get ready" in place of the round. In a warm-up the line is empty until then.
 
+## How a description becomes a workout
+
+**Describe a workout** sends the text you type to OpenAI's Responses API and gets back JSON. A language model can return anything, so its answer is treated like a file from an unknown version of the app. It is decoded, checked, and only then becomes a `Workout`.
+
+`WorkoutBlueprint` in the package is that JSON, decoded and not yet checked. `WorkoutBlueprint.workout()` is the only code that knows how an answer maps to a workout. It builds the workout through the same failable initialisers that the editor and the library file use, so a generated workout cannot hold a value that a hand-built one could not.
+
+| In the answer | What `workout()` does |
+| --- | --- |
+| A number above a limit, such as 500 rounds | Uses the limit |
+| A warm-up, rest, or cool-down of zero or less | Leaves the phase out |
+| A stretch name longer than 40 characters | Cuts it to 40 |
+| More than 99 stretches | Keeps the first 99 |
+| A stretch with both a hold and reps | Counts it in reps |
+| No name, no work time, no rounds, no stretches, or a stretch with no name or no amount | Fails with a `BlueprintError` that names what was wrong |
+
+The model never chooses the count-in of a routine. A generated routine gets the count-in that a new routine has in the editor. A stretch waits for Start, so the model has no pause to plan, and the instructions tell it not to add get-ready steps as stretches.
+
+The JSON Schema of the answer and the instructions for the model are constants next to `workout()`. The instructions state the same limits that `workout()` enforces, with the numbers taken from the package. A change to the workout model is then a change to one file.
+
+The schema is in the strict form that OpenAI's structured output takes. Every property is required, an absent value is null, and no other property is allowed. OpenAI does not say whether a request that a ChatGPT plan pays for may carry a schema. If the server refuses the schema, `WorkoutGenerator` sends the request once more with the schema written into the instructions. `workout()` checks the answer in both cases, so the app does not depend on the server holding the model to the schema.
+
+An interval timer has one work length and one rest length. A pyramid cannot be stored. The instructions tell the model to choose one length and to say so in `note`, and the result screen shows the note above the total.
+
+## How the app signs in to ChatGPT
+
+The app uses OpenAI's "Sign in with ChatGPT" flow for open-source apps. It is OAuth with PKCE and a public client. No secret is involved, so there is none in this repository. The request for a workout then goes to `POST https://api.openai.com/v1/responses` with the token from the sign-in, and OpenAI counts it against the user's plan.
+
+The app does not use the Codex CLI's client id or the `chatgpt.com/backend-api` route. OpenAI's documentation tells other apps not to.
+
+### Why the app runs a listener on 127.0.0.1
+
+OpenAI ends a sign-in by sending the browser to `http://127.0.0.1:<port>/auth/callback`. It accepts no other kind of redirect address, and it has no device-code flow. The system sign-in sheet, `ASWebAuthenticationSession`, tells an app only about a redirect to a custom scheme or to an HTTPS address. So the sheet cannot hand the app the answer.
+
+`LoopbackCallback` fills the gap. Before the sheet opens, the app starts a small HTTP listener on 127.0.0.1, on a port that the system chooses, and puts that port in the redirect address. When ChatGPT sends the browser there, the listener hands the request to the app and answers with a redirect to `intervals-auth://done`. The sheet watches for that scheme and closes.
+
+The listener is bound to the loopback address, so no other device can reach it. A hosted test proves that the listener's port is still free on the machine's network address. The listener stops when the sign-in succeeds, when the user cancels, and after ten minutes.
+
+`NWParameters.acceptLocalOnly` is not set. With it, the simulator reset every connection before the listener saw a request.
+
+### Why there is a second route through Safari
+
+Nobody has seen the sheet reach the listener on a real iPhone. So Settings also offers **Sign in with Safari**, which does not depend on it.
+
+Safari is a separate app. While the user signs in there, Intervals is in the background, and iOS may suspend it. Two things can then happen when ChatGPT sends Safari to the redirect address.
+
+| Intervals is | Safari shows | The user |
+| --- | --- | --- |
+| Still running | The listener's page: "Signed in. Go back to Intervals." | Goes back to the app |
+| Suspended | An error, with the redirect address in the address bar | Copies the address and pastes it into the app |
+
+A pasted address and a request to the listener are read by the same function, `SignInAttempt.grant(from:)`. It checks the `state` value against the attempt in progress, so an address from another attempt is turned away.
+
+### What is stored, and where
+
+Everything about the account is one value, `Vault`, kept as one Keychain item: an id for this install, the client id that OpenAI issued, the tokens, and the API key. Nothing about the account is in `UserDefaults` or in a file. No token, code, or key is written to a log.
+
+What the screens show is derived from the vault and never stored beside it.
+
+| The vault holds | The account is |
+| --- | --- |
+| No tokens and no key | Signed out |
+| No tokens and a key | Key only |
+| Tokens whose scope has `chatgpt.tokens.use.direct` | Signed in, and the plan pays |
+| Tokens without that scope | Signed in without plan usage. The key pays if there is one. |
+
+A valid sign-in does not by itself allow plan usage. Only the scope that came back with the tokens does.
+
+`ChatGPTAccount` is an actor, so the Keychain and the token responses are never handled on the main thread. `WorkoutGenerator` is an actor for the same reason: it reads the stream and builds the workout away from the main thread. `ChatGPTModel` is the main-actor object that the screens observe.
+
+### Why refreshes wait for each other
+
+An access token lasts one hour. A refresh returns a new access token and a new refresh token, and the old refresh token stops working. Two refreshes at the same time would leave one caller with a dead token, and OpenAI treats a reused refresh token as a reason to end the session.
+
+So `ChatGPTAccount` keeps the refresh in progress, and every caller that needs a token waits for that one request. A token within two minutes of its end is refreshed before use.
+
+| The refresh | What the app does |
+| --- | --- |
+| Succeeds | Stores the new tokens |
+| Is refused with `invalid_grant`, `refresh_token_expired`, `refresh_token_reused`, or `refresh_token_invalidated` | Deletes the tokens, keeps the client id, and asks the user to sign in again |
+| Fails for any other reason, such as no connection | Keeps the tokens and reports that OpenAI could not be reached |
+
+**Sign out** deletes the tokens and the client id first, then tells OpenAI to revoke the refresh token. The client id belongs to one ChatGPT user, and the next person to sign in may be someone else. The id for the install stays.
+
+The app checks the `nonce` in the ID token against the sign-in attempt. It does not check the token's signature. The token comes straight from OpenAI's token endpoint over TLS, and OpenID Connect accepts that in place of the signature check.
+
 ## What a running timer costs
 
 The digits change once a second, so the run screen redraws once a second. `Session.zeroDate` is the instant elapsed time was zero, and the screen redraws on the whole seconds after it, which is exactly when a digit changes. `Session.haltDate` is the instant the run next stops by itself, at a gate or at the finish. The screen is not redrawn after it, because a waiting run shows the same thing until you tap. A paused run is not redrawn either.
@@ -336,3 +421,32 @@ What only a phone can show:
 The Headphone check in Settings walks through the first two. `HeadphoneRemote` writes a line to the audio log for every command it receives, so a failed check shows whether the press arrived.
 
 If silence does not make the app Now Playing, the fix is in one place: the silent buffer in `SoundBank` becomes noise far below hearing. If a paused run loses the lock screen, the fix is in `CuePlayer.standBy`.
+
+### Building workouts with ChatGPT
+
+One test contacts OpenAI, `LiveOpenAITests`, and it is skipped unless `TEST_RUNNER_LIVE_OPENAI=1` is set, because a person has to sign in. Nobody has signed in to ChatGPT from the app on a phone. The protocol comes from OpenAI's documentation and from three open-source clients that implement it.
+
+What is proven without an account:
+
+- What the app sends. Hosted tests read the sign-in address, the code exchange, the refresh, the revocation, and the request for a workout, and compare each with the documented fields.
+- What the app does with each documented answer: the tokens, a scope without plan usage, each refresh failure, each error code, a stream that ends early, and a refused schema.
+- That the system sign-in sheet reaches the listener on the simulator. A UI test signs in through the real sheet and the real listener. Only ChatGPT's page and the token endpoint are stand-ins.
+- That a signed simulator build stores the vault in the Keychain and reads it back. An unsigned build has no Keychain, so CI skips those two tests.
+
+What one account showed. `LiveOpenAITests` ran against OpenAI on 12 November 2026 in the simulator. It drives `ChatGPTModel` with the real transport, the real listener, and a vault in memory. It prints the sign-in address, and the address is opened in a browser on the Mac, whose loopback interface the simulator shares. `Scripts/chatgpt-probe.py` sends the same requests without the app and ran the same day:
+
+- OpenAI registered a client it had never seen and issued it an `oaiapp_` identifier. It granted all six scopes, with a one-hour access token.
+- The plan may be used by other apps, and a plan request may carry a strict JSON Schema with `store: false` and `stream: true`. The fallback that writes the schema into the instructions was not needed.
+- The plan listed `gpt-6.1-sol`, `gpt-6-astra`, `gpt-6.1-terra`, `gpt-6-sol`, `gpt-6-luna`, `gpt-5.6-sol`, `gpt-5.6-terra` and `gpt-5.6-luna`. `ModelList.smallest` picks `gpt-6-luna` from that list, and a test pins it.
+- The app turned the plan's answer to "15-minute hip mobility routine" into a routine of eight stretches through `WorkoutBlueprint`.
+- Revoking the refresh token succeeded.
+
+What only an account can still show:
+
+- Whether another plan may be used by other apps. The probe checked one.
+- Whether the smallest model is found when OpenAI renames its models. The model list does not say which model is the smallest, so `ModelList.smallest` goes by the names "luna", "nano", and "mini", and otherwise takes the first model listed.
+
+What only a phone can show:
+
+- Whether the sign-in sheet reaches the listener there. If it does not, the Safari route still works, and the fix is in `ChatGPTModel.signIn`.
+- Whether an app that AltStore signed can use the Keychain. It should, because signing gives the app its default Keychain group.

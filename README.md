@@ -23,7 +23,7 @@
   <img src="docs/screenshots/21-stretch-detail.jpg" width="19%" alt="Stretch routine detail with how-to links">
 </p>
 
-A workout timer for iPhone. It runs two kinds of workout from one library:
+A workout timer for iPhone. It runs two kinds of workout from one library, and it can build either kind from a description that you type:
 
 - An **interval timer** has a warm-up, work and rest rounds, and a cool-down.
 - A **stretch routine** is a list of stretches. Each stretch is a timed hold or a number of reps, on one side or on each side, with an optional link to a how-to video.
@@ -145,6 +145,88 @@ Hold and drag a stretch to move it. Swipe a stretch left to delete it.
 
 **Count-in after Start** is the time between **Start** and each hold. It is 3 seconds unless you change it. Choose **Off** to begin each hold the moment you tap **Start**. Reps have no count-in.
 
+## Describe a workout and let ChatGPT build it
+
+You can describe a workout in words. ChatGPT turns the description into an interval timer or a stretch routine, and you read it before you save it.
+
+1. Tap **+**, then **Describe a workout**.
+2. Tap **Continue with ChatGPT** and sign in. The first time, ChatGPT asks whether Intervals may use your plan. Approve it.
+3. Type what you want, for example "15-minute hip mobility routine". You can also tap one of the examples.
+4. Tap **Generate**. To stop waiting, tap **Cancel**.
+5. Read the result, then choose what to do with it.
+
+| Button | What it does |
+| --- | --- |
+| **Save** | Adds the workout to **My workouts** |
+| **Edit** | Opens the workout in the editor, where you can change it and save it |
+| **Try again** | Asks for another answer to the same description |
+| **Reword** | Goes back to the description so that you can change it |
+
+Nothing is saved until you tap **Save**. Only the text you type is sent to OpenAI.
+
+An interval timer has one work length and one rest length. If you ask for rounds of different lengths, such as a pyramid, ChatGPT chooses one length and says so in a note above the total. A generated stretch routine works as one you build by hand does: each hold waits for **Start** and then counts in for 3 seconds. To change the count-in, tap **Edit**.
+
+### Choose what pays for it
+
+| Payment | How to set it up | What it costs |
+| --- | --- | --- |
+| Your ChatGPT plan | Tap **Continue with ChatGPT** in **Settings** or in **Describe a workout** | Each workout counts toward your plan's usage |
+| An OpenAI API key | In **Settings**, paste the key under **OpenAI API key** and tap **Save key** | OpenAI bills the key for each request |
+
+The plan pays when you are signed in and ChatGPT has allowed plan usage. Otherwise the key pays. With neither, the app asks you to sign in.
+
+- To see or limit how much of your plan the app may use, tap **Manage usage** in **Settings**.
+- To use another model, choose it under **Model** in **Settings**. The app starts with the smallest model your account lists.
+- To sign out, tap **Sign out**. The app revokes its sign-in at OpenAI and deletes it from the phone. An API key stays until you tap **Remove key**.
+
+The sign-in and the key are kept in the iPhone's Keychain. If you do not use the feature for 30 days, the sign-in lapses and you sign in again.
+
+The first sign-in adds an app named Intervals to your ChatGPT account. OpenAI's documentation says that you can remove it in ChatGPT under **Settings**, **Security and login**, **Sign in with ChatGPT**.
+
+### If the sign-in does not come back to the app
+
+ChatGPT ends a sign-in by sending the browser to an address on the phone itself, `http://127.0.0.1`. The app listens at that address while you sign in. If the sign-in page stays open, or shows an error after you approve, use Safari:
+
+1. Close the sign-in page.
+2. In **Settings**, tap **Trouble signing in?**, then **Sign in with Safari**.
+3. Sign in and approve in Safari.
+4. If Safari shows "Signed in. Go back to Intervals.", go back to the app. You are signed in.
+5. If Safari says that it cannot open the page, copy the whole address from Safari's address bar. It starts with `http://127.0.0.1`.
+6. Go back to Intervals, paste the address under **Paste the address**, and tap **Finish sign-in**.
+
+### What is not proven about ChatGPT
+
+The tests use a stand-in for OpenAI inside the app. One test contacts OpenAI, and it runs only when asked for, because a person has to sign in.
+
+That test ran on 12 November 2026 in the simulator with one ChatGPT account. The app's own code did every step:
+
+- It signed in. OpenAI registered the app, sent the browser back to the listener inside the app, and granted every scope the app asks for, including plan usage.
+- It read the plan's eight models and picked `gpt-6-luna`.
+- It asked for a "15-minute hip mobility routine" and built a routine of eight stretches from the answer.
+- It signed out.
+
+Three things are still untested:
+
+- Signing in on a real iPhone. The simulator shares the Mac's network, and a phone does not.
+- Whether your plan may be used by other apps. One plan was checked, and OpenAI's pages disagree about which plans qualify.
+- Whether an app that AltStore signed keeps the sign-in in the Keychain. The live test kept its tokens in memory.
+
+`Scripts/chatgpt-probe.py` sends the same requests from a Mac, without the app or Xcode.
+
+To check your own account, run it. It opens the sign-in page in your browser, prints the scope you were granted and the models your plan lists, asks for one routine with a JSON Schema, and revokes its sign-in. It leaves an app named "Intervals probe" in your ChatGPT account.
+
+```sh
+/usr/bin/python3 Scripts/chatgpt-probe.py
+```
+
+| The script prints | It means |
+| --- | --- |
+| A scope without `chatgpt.tokens.use.direct` | Plan usage was declined, or the plan does not qualify. Use an API key. |
+| `subscription_sharing_unsupported_capability` | A plan request may not carry a schema. The app's second request covers that case. |
+| A routine | Sign-in, plan usage, and the schema all work for your account. |
+
+To check the fourth, sign in from the app on your phone. If the sign-in page does not close by itself, follow the Safari steps above and report it.
+
 ## See the workout while you use other apps
 
 A rest is when you pick up the phone. So the workout stays in view after you leave the app.
@@ -239,6 +321,8 @@ xcodebuild test -project IntervalTracker.xcodeproj -scheme IntervalTracker \
 	-destination 'platform=iOS Simulator,name=iPhone 16 Pro Max' CODE_SIGNING_ALLOWED=NO
 ```
 
+The tests for the ChatGPT feature answer every request from a stand-in. One test contacts OpenAI, and it runs only when you ask for it.
+
 CI runs both on every push, plus a build for the device architecture. The UI tests attach a screenshot of each screen, and CI uploads the screenshots as the `test-results` artifact. Three of the UI tests lock the simulator and read the Live Activity from the lock screen.
 
 ## Change the project
@@ -247,7 +331,7 @@ CI runs both on every push, plus a build for the device architecture. The UI tes
 
 The project has two products. `IntervalTracker` is the app. `IntervalTrackerWidgets` is the extension that draws the Live Activity, and the app carries it inside.
 
-[About the design](docs/design.md) explains how the timer keeps time, how the cues are scheduled, how the two audio modes differ, and how the workout gets onto the lock screen.
+[About the design](docs/design.md) explains how the timer keeps time, how the cues are scheduled, how the two audio modes differ, how the workout gets onto the lock screen, and how the app signs in to ChatGPT.
 
 ## Release a version
 

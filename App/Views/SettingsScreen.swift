@@ -63,6 +63,8 @@ struct SettingsScreen: View {
                     Toggle("Keep screen on during a run", isOn: $keepScreenOn)
                 }
 
+                ChatGPTSettings()
+
                 Section {
                     Text("Start your music, run the check, then lock the phone.")
                     Label("The lock screen shows \"Warm-up\" with a countdown. At 0:20 you hear \"Get ready. Ten seconds.\" and the lock screen lights up.", systemImage: "1.circle")

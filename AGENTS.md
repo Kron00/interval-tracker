@@ -31,7 +31,8 @@ CI builds with an older Xcode than a local machine may have. Use no API newer th
 The owner updates the app from AltStore. A merge that changes the app must show up there as an update with no manual step.
 
 - The AltStore source is `https://github.com/Kron00/interval-tracker/releases/latest/download/altstore.json`. Never move it or rename the asset.
-- After the tests pass on `main`, the `release` job in `.github/workflows/ci.yml` runs `Scripts/release-on-merge.sh`. It builds an unsigned `.ipa`, creates a GitHub release, and attaches the source JSON that `Scripts/altstore-source.py` builds from every release.
+- On every push to `main`, the `release` job in `.github/workflows/ci.yml` runs the package tests and then `Scripts/release-on-merge.sh`. It builds an unsigned `.ipa`, creates a GitHub release, and attaches the source JSON that `Scripts/altstore-source.py` builds from every release.
+- The release job does not wait for the simulator tests. They are slow and timing-sensitive on CI, and a slow runner once kept a merged change out of AltStore. The simulator tests gate the pull request, so do not merge a pull request whose checks are not green.
 - The version is the major.minor in `project.yml` plus the commit count, for example `1.2.31`. Raise the major.minor in `project.yml` when a change deserves it. Do not edit version numbers anywhere else.
 - AltStore compares `version` and `buildVersion` in the source with the installed app. Each release body ends with a `Build: N` line that records the build number. Keep that line.
 - AltStore refuses to install an app whose entitlements or privacy keys differ from the source. If you add an entitlement, an app extension, or a `UsageDescription` key, update `appPermissions` in `Scripts/altstore-source.py` in the same change.

@@ -11,7 +11,8 @@ concurrency:
 jobs:
   ios:
     runs-on: macos-26
-    timeout-minutes: 30
+    # The simulator tests take about 29 minutes on this runner now that there are sixteen UI flows.
+    timeout-minutes: 50
     steps:
       - uses: actions/checkout@v4
 

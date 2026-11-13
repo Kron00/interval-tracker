@@ -22,7 +22,7 @@ struct RunScreen: View {
             let snapshot = session.snapshot(at: context.date)
             let tone = RunTone(snapshot)
             ZStack {
-                LinearGradient(colors: [tone.color, tone.color.opacity(0.5)], startPoint: .top, endPoint: .bottom)
+                LinearGradient(colors: [tone.fill, tone.fill.opacity(0.5)], startPoint: .top, endPoint: .bottom)
                     .background(Color.black)
                     .ignoresSafeArea()
                     .animation(.easeInOut(duration: 0.4), value: tone)
@@ -65,25 +65,6 @@ private struct RunTicks: TimelineSchedule {
             // last entry, the screen stayed one second short of every wait. So a date that never
             // comes follows the halt.
             return date < .distantFuture ? .distantFuture : nil
-        }
-    }
-}
-
-private enum RunTone: Hashable {
-    case phase(Tone), paused, finished
-
-    init(_ snapshot: Snapshot) {
-        switch snapshot {
-        case .finished: self = .finished
-        case .active(let progress): self = progress.isPaused ? .paused : .phase(progress.phase.tone)
-        }
-    }
-
-    var color: Color {
-        switch self {
-        case .phase(let tone): tone.runColor
-        case .paused: Color(red: 0.26, green: 0.28, blue: 0.31)
-        case .finished: Color(red: 0.02, green: 0.35, blue: 0.25)
         }
     }
 }
@@ -275,18 +256,18 @@ struct ActiveRunView: View {
 
     private var captionLine: some View {
         Line(font: .system(size: isLandscape ? 28 : 34, weight: .semibold, design: .rounded)) {
-            if let caption = progress.phase.caption {
+            if let caption = progress.caption {
                 Text(caption)
                     .contentTransition(.opacity)
                     .transition(.opacity)
                     .accessibilityIdentifier("roundLabel")
             }
         }
-        .animation(Motion.change, value: progress.phase.caption)
+        .animation(Motion.change, value: progress.caption)
     }
 
     private var upNextLine: some View {
-        let text = "Up next: \(progress.upNext.map { "\($0.phase.title(following: progress.phase)) \($0.lengthText)" } ?? "Finish")"
+        let text = "Up next: \(progress.upNextText)"
         return Line(font: .title2.weight(.medium)) {
             Text(text)
                 .opacity(0.85)

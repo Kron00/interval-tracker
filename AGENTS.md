@@ -1,14 +1,16 @@
 # Working in this repo
 
-Intervals is an iPhone app that runs interval timers and stretch routines. It keeps cueing with the screen locked and lowers other apps' music for each cue. It can build a workout from a description, with ChatGPT. It is installed with AltStore, not the App Store.
+Intervals is an iPhone app that runs interval timers and stretch routines. It keeps cueing with the screen locked and lowers other apps' music for each cue. A Live Activity shows the run on the lock screen and in the Dynamic Island. It can build a workout from a description, with ChatGPT. It is installed with AltStore, not the App Store.
 
 ## Layout
 
 | Path | What lives there |
 | --- | --- |
 | `IntervalCore/` | Pure Swift package, Foundation only. Workouts, the compiled timeline, `Session`, the cue schedule, the library file, and `WorkoutBlueprint`, which turns a model's answer into a workout. All timer logic is here. |
-| `App/` | The SwiftUI app. `RunModel` is the only writer of the session. `Audio/` holds `CuePlayer`, `SoundBank`, `HeadphoneRemote`. `Views/` holds the screens and `Theme`. |
+| `App/` | The SwiftUI app. `RunModel` is the only writer of the session. `Audio/` holds `CuePlayer`, `SoundBank`, `HeadphoneRemote`. `Views/` holds the screens and `Theme`. `LiveActivityController` starts, updates and ends the Live Activity. |
 | `App/ChatGPT/` | The ChatGPT sign-in and the request for a workout. `ChatGPTAccount` owns the Keychain and the tokens. `LoopbackCallback` is the listener on 127.0.0.1. `WorkoutGenerator` talks to the Responses API. `ChatGPTModel` is what the screens observe. `StubOpenAI` stands in for OpenAI in UI tests. |
+| `Widgets/` | The `IntervalTrackerWidgets` app extension. It draws the Live Activity and nothing else. |
+| `Shared/` | The one file that both the app and the extension compile: what the Live Activity shows, and the phase colours. |
 | `AppTests/` | Tests that need the iOS runtime. |
 | `AppUITests/` | End-to-end flows. They attach a named screenshot at each step. |
 | `Scripts/` | Test, build and release scripts. |
@@ -36,7 +38,11 @@ The owner updates the app from AltStore. A merge that changes the app must show 
 - The release job does not wait for the simulator tests. They are slow and timing-sensitive on CI, and a slow runner once kept a merged change out of AltStore. The simulator tests gate the pull request, so do not merge a pull request whose checks are not green.
 - The version is the major.minor in `project.yml` plus the commit count, for example `1.2.31`. Raise the major.minor in `project.yml` when a change deserves it. Do not edit version numbers anywhere else.
 - AltStore compares `version` and `buildVersion` in the source with the installed app. Each release body ends with a `Build: N` line that records the build number. Keep that line.
-- AltStore refuses to install an app whose entitlements or privacy keys differ from the source. If you add an entitlement, an app extension, or a `UsageDescription` key, update `appPermissions` in `Scripts/altstore-source.py` in the same change.
+- AltStore refuses to install an app whose entitlements or privacy keys differ from the source. The app and its extension have no entitlements and no `UsageDescription` keys, so `appPermissions` in `Scripts/altstore-source.py` is empty. If you add an entitlement, another app extension, or a `UsageDescription` key, update `appPermissions` in the same change. Read the keys from the built `Info.plist` files, not from `project.yml`.
+- iOS refuses to install an app whose extension has a different version from the app. Both targets take `MARKETING_VERSION` and `CURRENT_PROJECT_VERSION` from the project settings, and `Scripts/release.sh` checks both `Info.plist` files. Never set a version on one target.
+- The bundle identifier of the extension must start with the bundle identifier of the app.
+- AltStore may remove app extensions when it installs. The app must run without its extension. Nothing but the Live Activity may depend on the extension.
+- `Scripts/release-on-merge.sh` releases only when a folder it lists has changed. If you add a folder that the app is built from, add it to that list.
 - After a merge, check that the release exists and that the source URL and the `.ipa` URL both return 200 without signing in.
 - To publish by hand from a pushed commit, run `Scripts/release.sh <version> "<notes>"`.
 
@@ -44,11 +50,16 @@ The owner updates the app from AltStore. A merge that changes the app must show 
 
 - **Time comes from one anchor date.** `Session` stores when elapsed time was zero and derives everything else. Never count ticks. Never store a flag for a state you can derive, such as finished or waiting.
 - **The cue schedule is data.** The package decides what sounds when. `CuePlayer` only plays it. Timing constants live in `CueTiming`.
+- **The heads-up is one rule.** `Timeline.headsUp(in:_:)` decides which phase says "Get ready" and when. The voice cue and `RunProgress.isHeadsUp` both come from it. The app reads `isHeadsUp` and never works out the time itself. Only an interval timer has one. The count-in of a stretch also reads "Get ready", and it is not a heads-up.
 - **Interval timers advance by themselves. A stretch routine waits before every stretch.** A timed hold waits for Start, then its count-in and its hold run by themselves, and the next stretch waits. A rep stretch is not timed and waits for Next. A routine has no automatic gaps between stretches. The last timed hold finishes the workout by itself. During a wait, a single headphone press means Start or Next.
 - **Nothing on the run screen moves when its state changes.** It is fixed-height slots around the clock. `testNothingMovesWhenTheRunChangesState` compares frames. Add new states to that test.
 - **The run screen redraws once a second, and not at all while waiting or paused.** Do not animate the clock digits. A rolling digit transition cost 71% of one core.
 - **Speech never runs on the main thread.** A voice lookup there froze the app.
 - **`CuePlayer.reconcile` runs ten times a second.** Keep its early return free of allocation.
+- **The app never updates the Live Activity on a timer.** iOS ticks the countdown from the two dates of the phase. `LiveActivityController.reconcile` sends an update only when the content state differs from the last one, so every field of that state must stay the same for a whole phase. Take dates from `Session.phaseEnd(at:)`, never from `now`.
+- **One task talks to ActivityKit.** Updates are async. Do not start a second task for one, or two updates can land out of order.
+- **`LiveActivityController.swift` is the only file in the app that imports ActivityKit.** Guard every call. A user can turn Live Activities off, and the extension can be missing.
+- **The extension does not import `IntervalCore`.** The app sends it plain values. A decision about a run belongs in the package, and a text or a colour key belongs in the content state.
 - **Every screen is dark.**
 - **A released library file must keep loading.** If you change the file format, decode the shapes that released versions wrote.
 - Validate at the boundary only: the failable initialisers in the package and the `Decodable` code. Editors hold plain drafts and convert on Save.
@@ -61,22 +72,25 @@ The owner updates the app from AltStore. A merge that changes the app must show 
 
 ## What a simulator cannot prove
 
-Locked-screen playback, music ducking, and headphone presses need a real iPhone. Do not claim they work from a simulator run. Settings has an audio check, a headphone check, three ducking methods, and a log for checking them on a phone. Keep those working.
+Locked-screen playback, music ducking, and headphone presses need a real iPhone. So do two things about the Live Activity: whether its alert lights a locked phone, and whether AltStore installs the extension. Do not claim they work from a simulator run. Settings has an audio check, a headphone check, three ducking methods, a Live Activity status line, and a log for checking them on a phone. Keep those working.
+
+The simulator does draw the lock screen and the Dynamic Island. Three UI tests lock it and read the Live Activity there.
 
 The ChatGPT feature needs a real account, and the sign-in sheet needs a real iPhone. The simulator proves the sheet, the listener, and every request against stand-ins. `LiveOpenAITests` runs the app's own sign-in and generation against OpenAI. It is skipped unless `TEST_RUNNER_LIVE_OPENAI=1` is set, and it needs a person to open the address it prints, so run it when you change a request. Nobody has signed in from the app on a phone. `docs/design.md` lists what is unproven. The Keychain tests run only in a signed build, so run them once without `CODE_SIGNING_ALLOWED=NO` when you change `KeychainVaultStore`.
 
 ## How to verify a change
 
 1. Run `Scripts/test-core.sh` and the full `xcodebuild test`.
-2. Export the UI test screenshots and look at them. Passing tests do not show a clipped label or a layout that jumps.
+2. Export the UI test screenshots and look at them. Passing tests do not show a clipped label or a layout that jumps. Screenshots 50 to 59 are the lock screen and the Dynamic Island.
 
 	```sh
 	xcrun xcresulttool export attachments --path build/Result.xcresult --output-path build/screenshots
 	python3 Scripts/name-screenshots.py build/screenshots
 	```
 
-3. For anything that affects a running timer, measure CPU for the app's process in the simulator. A running timer uses about 3% of one core in a Debug build.
-4. Say plainly what you could not verify.
+3. For anything that affects a running timer, measure CPU for the app's process in the simulator. A running timer uses about 3% of one core in a Debug build. Pick the process by the simulator's device identifier in its path, because another simulator may run the same app.
+4. For anything that changes a target or `project.yml`, run `Scripts/build-ipa.sh` and check that `build/ipa/Payload/IntervalTracker.app/PlugIns/IntervalTrackerWidgets.appex` exists.
+5. Say plainly what you could not verify.
 
 ## Style
 

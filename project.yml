@@ -20,14 +20,18 @@ targets:
     platform: iOS
     sources:
       - App
+      - Shared
     dependencies:
       - package: IntervalCore
+      - target: IntervalTrackerWidgets
+        embed: true
     info:
       path: App/Info.plist
       properties:
         CFBundleDisplayName: Intervals
         CFBundleShortVersionString: $(MARKETING_VERSION)
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        NSSupportsLiveActivities: true
         UIBackgroundModes:
           - audio
         UILaunchScreen: {}
@@ -43,6 +47,24 @@ targets:
         TARGETED_DEVICE_FAMILY: "1"
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+  IntervalTrackerWidgets:
+    type: app-extension
+    platform: iOS
+    sources:
+      - Widgets
+      - Shared
+    info:
+      path: Widgets/Info.plist
+      properties:
+        CFBundleDisplayName: Intervals
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.widgetkit-extension
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.kron00.IntervalTracker.Widgets
+        TARGETED_DEVICE_FAMILY: "1"
   IntervalTrackerTests:
     type: bundle.unit-test
     platform: iOS

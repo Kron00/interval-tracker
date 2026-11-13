@@ -9,7 +9,7 @@ REPO=Kron00/interval-tracker
 git fetch -q --tags origin
 
 LAST=$(gh release list --repo "$REPO" --exclude-drafts --exclude-pre-releases --limit 1 --json tagName -q '.[0].tagName')
-if [ -n "$LAST" ] && git diff --quiet "$LAST" HEAD -- App IntervalCore/Sources project.yml; then
+if [ -n "$LAST" ] && git diff --quiet "$LAST" HEAD -- App Widgets Shared IntervalCore/Sources project.yml; then
   echo "No change to the app since $LAST. Nothing to release."
   exit 0
 fi

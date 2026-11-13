@@ -49,7 +49,10 @@ final class LoopbackCallback: @unchecked Sendable {
             let id = ObjectIdentifier(connection)
             unanswered.connections[id] = connection
             queue.asyncAfter(deadline: .now() + requestTimeLimit) {
-                unanswered.connections.removeValue(forKey: id)?.cancel()
+                // The identifier of a finished connection can be given to a newer one.
+                guard unanswered.connections[id] === connection else { return }
+                unanswered.connections[id] = nil
+                connection.cancel()
             }
             connection.start(queue: queue)
             read(connection, Data(), unanswered, reply: reply, received: received)

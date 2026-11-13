@@ -33,6 +33,51 @@ final class ChatGPTAccountTests: XCTestCase {
         }
     }
 
+    /// A server whose answer arrives when the test says so, whether or not the caller still wants it.
+    private final class LateTransport: OpenAITransport, @unchecked Sendable {
+        private let lock = NSLock()
+        private var asked = false
+        private var waiting: CheckedContinuation<String, Never>?
+
+        var wasAsked: Bool { lock.withLock { asked } }
+
+        func answer(_ body: String) {
+            lock.withLock { waiting }?.resume(returning: body)
+        }
+
+        func open(_ request: URLRequest) async throws -> (status: Int, lines: AsyncThrowingStream<String, Error>) {
+            let body = await withCheckedContinuation { continuation in
+                lock.withLock {
+                    waiting = continuation
+                    asked = true
+                }
+            }
+            return (200, AsyncThrowingStream { continuation in
+                continuation.yield(body)
+                continuation.finish()
+            })
+        }
+    }
+
+    func testASignInCancelledWhileTheCodeIsExchangedKeepsNothingWhenTheAnswerComes() async throws {
+        let late = LateTransport()
+        let store = MemoryVaultStore()
+        let account = ChatGPTAccount(transport: late, store: store)
+        let begun = await account.beginSignIn(port: 51234, askAgain: false)
+        let grant = try begun.attempt.grant(from: "/auth/callback?code=the-code&state=\(begun.attempt.state)&client_id=oaiapp_1")
+        let exchange = Task { try? await account.finishSignIn(begun.attempt, grant) }
+        while !late.wasAsked { try await Task.sleep(for: .milliseconds(10)) }
+
+        exchange.cancel()
+        late.answer(StubTransport.Reply.tokens(access: "access-1", refresh: "refresh-1", nonce: begun.attempt.nonce).body)
+        await exchange.value
+
+        let summary = await account.summary
+        XCTAssertEqual(summary.status, .signedOut)
+        XCTAssertNil(store.load()?.session)
+        XCTAssertNil(store.load()?.clientID)
+    }
+
     func testSigningInExchangesTheCodeAndKeepsTheTokens() async throws {
         let store = MemoryVaultStore()
         let account = account(store)

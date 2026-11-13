@@ -34,6 +34,8 @@ The app beeps, counts down, and speaks at each change. It keeps doing that with 
 
 While you use other apps, the lock screen and the Dynamic Island show the phase and the time left. Before a rest ends, the app tells you to get ready.
 
+With a Bluetooth heart-rate monitor, such as a Fitbit Air, it shows your heart rate during the workout and keeps it in History.
+
 Three presets are built in:
 
 | Preset | What it is | Total |
@@ -149,6 +151,39 @@ To open **History**, tap the clock button at the top left of the library.
 An entry keeps the name the workout had when you ran it. If you rename or delete the workout, the entry stays as it was. An entry whose workout you deleted has no **Start again** button.
 
 The app keeps the newest 1000 entries. The history stays on the phone, in a file apart from your saved workouts.
+
+## Heart rate
+
+Intervals shows your heart rate during a workout and keeps it in History. It reads a Bluetooth heart-rate monitor: a Google Fitbit Air, or any chest strap or armband that sends heart rate over Bluetooth, such as a Polar, Wahoo or Garmin strap. Heart rate never changes how a workout runs, and it stays on the phone. Nothing goes to Apple Health or Google.
+
+To connect a Fitbit Air:
+
+1. In the Google Health app, open **Connections**, then **Fitbit Air**, and turn on **Share heart rate**.
+2. In Intervals, open Settings and tap **Find a monitor**. The first time, iOS asks whether Intervals may use Bluetooth. Tap **Allow**.
+3. Tap your Fitbit Air in the list. If iOS asks to pair it, tap **Pair**.
+4. Settings now shows its name and your heart rate, such as "72 bpm · Below zone 1".
+
+A strap works the same way. Put it on, so it wakes, then do steps 2 to 4. **Forget** removes the monitor.
+
+Set **Max heart rate** in Settings. It sets the five zones, which begin at 50, 60, 70, 80 and 90% of it. Roughly 220 minus your age is a start.
+
+Where it shows:
+
+- **The run screen** shows your heart rate and its zone in a band above the total. If the monitor is not connected, or its last reading is more than 5 seconds old, the band shows a dash and "Connecting" or "No signal".
+- **The lock screen and the Dynamic Island** show it beside the clock, in the colour of the zone. Within a zone the card catches up every 5 seconds. A change of zone shows at once.
+- **History** shows the average on each entry. An entry shows the average, the maximum, the time in each zone and a graph of the workout.
+
+With no monitor, nothing about heart rate shows anywhere.
+
+### What is not proven about heart rate
+
+Nobody has read a Fitbit Air from this app yet. The app uses the standard Bluetooth Heart Rate Service, which the Air is reported to use when Share heart rate is on. The tests use a stand-in monitor. A real iPhone and a real monitor are needed to show:
+
+- That the Air streams to Intervals at all, and whether it needs pairing first.
+- Whether Share heart rate turns itself off after a while.
+- That readings keep arriving with the screen locked.
+
+To check the first two, connect it in Settings and watch the reading there for ten seconds.
 
 ## Build a stretch routine
 

@@ -32,14 +32,19 @@ final class RunModel {
     @ObservationIgnored private let player: CuePlayer
     @ObservationIgnored private let remote: HeadphoneRemote
     @ObservationIgnored private let liveActivity: LiveActivityController
+    @ObservationIgnored let heartRate: HeartRateMonitor
+    /// The heart rates of the run that has not been reported, taken while it ran and was not paused.
+    @ObservationIgnored private var readings: [HeartRateReading] = []
     @ObservationIgnored private var ticker: Timer?
 
     var liveActivityProblem: String? { liveActivity.problem }
 
-    init(player: CuePlayer, remote: HeadphoneRemote, liveActivity: LiveActivityController) {
+    init(player: CuePlayer, remote: HeadphoneRemote, liveActivity: LiveActivityController, heartRate: HeartRateMonitor) {
         self.player = player
         self.remote = remote
         self.liveActivity = liveActivity
+        self.heartRate = heartRate
+        heartRate.onReading = { [weak self] in self?.keep($0) }
         remote.onCommand = { [weak self] in self?.handle($0) }
         player.onInterrupted = { [weak self] in self?.interruptionBegan() }
         player.onInterruptionEnded = { [weak self] in self?.interruptionEnded() }
@@ -113,6 +118,7 @@ final class RunModel {
         revision &+= 1
         body(&session)
         schedule = session?.cueSchedule
+        heartRate.need(.run, session != nil)
         if session == nil {
             ticker?.invalidate()
             ticker = nil
@@ -137,7 +143,14 @@ final class RunModel {
     private func report() {
         guard let session, let start = unreportedStart else { return }
         unreportedStart = nil
-        onRunOver?(WorkoutRecord(session, startedAt: start, endedAt: .now))
+        let summary = HeartRateSummary(readings, maxHeartRate: heartRate.maxHeartRate, startedAt: start)
+        readings = []
+        onRunOver?(WorkoutRecord(session, startedAt: start, endedAt: .now, heartRate: summary))
+    }
+
+    private func keep(_ reading: HeartRateReading) {
+        guard unreportedStart != nil, case .active(let progress)? = session?.snapshot(at: reading.date), !progress.isPaused else { return }
+        readings.append(reading)
     }
 
     private func interruptionBegan() {
@@ -160,7 +173,8 @@ final class RunModel {
         player.sharing = headphoneControls ? .exclusive : .mixing(strategy)
         player.reconcile(CueDemand(for: session, playing: schedule, at: now), at: now)
         remote.reconcile(headphoneControls ? session : nil, at: now)
-        liveActivity.reconcile(session, at: now, revision: revision)
+        liveActivity.reconcile(session, at: now, revision: revision,
+                               heartRate: heartRate.display(at: now).map(RunActivityAttributes.HeartRate.init))
 
         let keepScreenOn = defaults.object(forKey: SettingsKey.keepScreenOn) as? Bool ?? true
         let isActive = if case .active = session?.snapshot(at: now) { true } else { false }

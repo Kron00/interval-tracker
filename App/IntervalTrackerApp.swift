@@ -17,7 +17,7 @@ struct IntervalTrackerApp: App {
         _history = State(initialValue: history)
         let run = RunModel(
             player: CuePlayer(bank: SoundBank(log: log), log: log), remote: HeadphoneRemote(log: log),
-            liveActivity: LiveActivityController(log: log))
+            liveActivity: LiveActivityController(log: log), heartRate: .forThisLaunch())
         run.onRunOver = history.record
         AdvanceRunIntent.onPerform = { [weak run] in await run?.advance(fromWait: $0) }
         _run = State(initialValue: run)

@@ -1,16 +1,17 @@
 # Working in this repo
 
-Intervals is an iPhone app that runs interval timers and stretch routines. It keeps cueing with the screen locked and lowers other apps' music for each cue. A Live Activity shows the run on the lock screen and in the Dynamic Island. It can build a workout from a description, with ChatGPT. It is installed with AltStore, not the App Store.
+Intervals is an iPhone app that runs interval timers and stretch routines. It keeps cueing with the screen locked and lowers other apps' music for each cue. A Live Activity shows the run on the lock screen and in the Dynamic Island. It can build a workout from a description, with ChatGPT. It reads heart rate from a Bluetooth monitor during a run and keeps it in History. It is installed with AltStore, not the App Store.
 
 ## Layout
 
 | Path | What lives there |
 | --- | --- |
-| `IntervalCore/` | Pure Swift package, Foundation only. Workouts, the compiled timeline, `Session`, the cue schedule, the library file, the history, and `WorkoutBlueprint`, which turns a model's answer into a workout. All timer logic is here. |
+| `IntervalCore/` | Pure Swift package, Foundation only. Workouts, the compiled timeline, `Session`, the cue schedule, the library file, the history, `WorkoutBlueprint`, which turns a model's answer into a workout, and the heart-rate zones and summary. All timer logic is here. |
 | `App/` | The SwiftUI app. `RunModel` is the only writer of the session. `LibraryStore` and `HistoryStore` are the only writers of their files. `Audio/` holds `CuePlayer`, `SoundBank`, `HeadphoneRemote`. `Views/` holds the screens and `Theme`. `LiveActivityController` starts, updates and ends the Live Activity. |
 | `App/ChatGPT/` | The ChatGPT sign-in and the request for a workout. `ChatGPTAccount` owns the Keychain and the tokens. `LoopbackCallback` is the listener on 127.0.0.1. `WorkoutGenerator` talks to the Responses API. `ChatGPTModel` is what the screens observe. `StubOpenAI` stands in for OpenAI in UI tests. |
+| `App/HeartRate/` | The heart-rate monitor. `HeartRateMonitor` is what the screens observe and where `RunModel` gets readings. `BluetoothHeartRateSource` is the CoreBluetooth client. `StubHeartRateSource` stands in for it in tests. `HeartRateMeasurement` parses the Bluetooth value. |
 | `Widgets/` | The `IntervalTrackerWidgets` app extension. It draws the Live Activity and nothing else. |
-| `Shared/` | The one file that both the app and the extension compile: what the Live Activity shows, the tap it hands back, and the phase colours. |
+| `Shared/` | The files that both the app and the extension compile: what the Live Activity shows, the tap it hands back, the phase colours and the zone colours. |
 | `AppTests/` | Tests that need the iOS runtime. |
 | `AppUITests/` | End-to-end flows. They attach a named screenshot at each step. |
 | `Scripts/` | Test, build and release scripts. |
@@ -38,7 +39,7 @@ The owner updates the app from AltStore. A merge that changes the app must show 
 - The release job does not wait for the simulator tests. They are slow and timing-sensitive on CI, and a slow runner once kept a merged change out of AltStore. The simulator tests gate the pull request, so do not merge a pull request whose checks are not green.
 - The version is the major.minor in `project.yml` plus the commit count, for example `1.2.31`. Raise the major.minor in `project.yml` when a change deserves it. Do not edit version numbers anywhere else.
 - AltStore compares `version` and `buildVersion` in the source with the installed app. Each release body ends with a `Build: N` line that records the build number. Keep that line.
-- AltStore refuses to install an app whose entitlements or privacy keys differ from the source. The app and its extension have no entitlements and no `UsageDescription` keys, so `appPermissions` in `Scripts/altstore-source.py` is empty. If you add an entitlement, another app extension, or a `UsageDescription` key, update `appPermissions` in the same change. Read the keys from the built `Info.plist` files, not from `project.yml`.
+- AltStore refuses to install an app whose entitlements or privacy keys differ from the source. The app and its extension have no entitlements. The app has one `UsageDescription` key, `NSBluetoothAlwaysUsageDescription`, and `PRIVACY` in `Scripts/altstore-source.py` carries the same text. If you add an entitlement, another app extension, or a `UsageDescription` key, or change that text, update `appPermissions` in the same change. Read the keys from the built `Info.plist` files, not from `project.yml`. A background mode such as `bluetooth-central` is neither.
 - iOS refuses to install an app whose extension has a different version from the app. Both targets take `MARKETING_VERSION` and `CURRENT_PROJECT_VERSION` from the project settings, and `Scripts/release.sh` checks both `Info.plist` files. Never set a version on one target.
 - The bundle identifier of the extension must start with the bundle identifier of the app.
 - AltStore may remove app extensions when it installs. The app must run without its extension. Nothing but the Live Activity may depend on the extension.
@@ -56,7 +57,7 @@ The owner updates the app from AltStore. A merge that changes the app must show 
 - **The run screen redraws once a second, and not at all while waiting or paused.** Do not animate the clock digits. A rolling digit transition cost 71% of one core.
 - **Speech never runs on the main thread.** A voice lookup there froze the app.
 - **`CuePlayer.reconcile` runs ten times a second.** Keep its early return free of allocation.
-- **The app never updates the Live Activity on a timer.** iOS ticks the countdown from the two dates of the phase. `LiveActivityController.reconcile` sends an update only when the content state differs from the last one, so every field of that state must stay the same for a whole phase. Take dates from `Session.phaseEnd(at:)`, never from `now`.
+- **The app never updates the Live Activity on a timer, and the heart rate is the one field that may change inside a phase.** iOS ticks the countdown from the two dates of the phase. `LiveActivityController.reconcile` sends an update only when the content state differs from the last one, so every field of that state except `heartRate` must stay the same for a whole phase. Take dates from `Session.phaseEnd(at:)`, never from `now`. An update that changes only the heart rate goes out at most once every 5 seconds (`heartRateInterval`), and at once when the zone changes or the reading goes to a dash or comes back. Do not add another field that changes inside a phase.
 - **One task talks to ActivityKit.** Updates are async. Do not start a second task for one, or two updates can land out of order.
 - **`LiveActivityController.swift` is the only file in the app that imports ActivityKit.** Guard every call. A user can turn Live Activities off, and the extension can be missing.
 - **The extension does not import `IntervalCore`.** The app sends it plain values. A decision about a run belongs in the package, and a text or a colour key belongs in the content state.
@@ -64,6 +65,12 @@ The owner updates the app from AltStore. A merge that changes the app must show 
 - **Every screen is dark.**
 - **A released library file must keep loading.** If you change the file format, decode the shapes that released versions wrote. The same holds for the history file.
 - **The history is its own file.** `history.json` is apart from `library.json`. A history file that cannot be read is set aside, and it must never cost the saved workouts. Do not move the history into the library file.
+- **A record's heart rate is optional.** Files from before 1.4 have no `heartRate` key and must keep loading. A summary that is not valid refuses the file, like any damaged record. Points of the graph are written as `[second, bpm]` pairs to keep the file small. Keep reading both.
+- **CoreBluetooth lives in `BluetoothHeartRateSource.swift` only.** It runs every CoreBluetooth call and callback on its own queue and hands events to the main thread in order. Everything else reaches it through `HeartRateSource`, by stating a `HeartRateDemand`. It makes its `CBCentralManager` on the first demand that needs Bluetooth, because that is what shows the permission prompt. The app never asks at launch: only **Find a monitor** asks, or a run or Settings with a monitor already remembered.
+- **No test touches Bluetooth.** App tests pass a `ScriptedHeartRateSource`. UI tests launch with `-hrStub new` or `-hrStub remembered`, which swaps in `StubHeartRateSource` and settings that last one launch. A launch with `-uiTesting`, and the app that hosts the app tests, get the stand-in too.
+- **The zone rule is `MaxHeartRate.zone(of:)` in the package.** Do not work a zone out anywhere else. The record keeps the max heart rate its zones were worked out with.
+- **A heart-rate reading redraws only the readout.** `HeartRateReadout` and the Settings row observe `HeartRateMonitor` through `LiveHeartRate`, which redraws on a reading and once more when the reading goes stale. The run screen's body must not read the reading or the link. A stale number is never shown as live: no number without a link and a reading of the last 5 seconds.
+- **With no monitor remembered, nothing about heart rate shows**, and the run screen has no slot for it.
 - **A run is reported once, and never while Undo can bring it back.** `RunModel` reports from `end()` and from its tick, and never from `change`. `History.keeps` decides what is kept, for `History.add` and for the line in the End dialog. Do not repeat its rule anywhere. `docs/design.md` has the reasons.
 - **The package takes dates and calendars as arguments.** Nothing in `IntervalCore` reads the clock or the calendar of the phone.
 - Validate at the boundary only: the failable initialisers in the package and the `Decodable` code. Editors hold plain drafts and convert on Save.
@@ -81,12 +88,14 @@ Locked-screen playback, music ducking, and headphone presses need a real iPhone.
 
 The simulator does draw the lock screen and the Dynamic Island. Three UI tests lock it and read the Live Activity there, and one of them taps the button on the card.
 
+Whether a Fitbit Air or any real monitor streams to the app needs a real iPhone and the monitor. So does whether it asks to pair, whether its Share heart rate setting times out, and whether readings keep arriving with the screen locked. Settings shows the monitor's live reading for checking that on a phone. A UI test reads the heart rate on the lock screen from the stand-in.
+
 The ChatGPT feature needs a real account, and the sign-in sheet needs a real iPhone. The simulator proves the sheet, the listener, and every request against stand-ins. `LiveOpenAITests` runs the app's own sign-in and generation against OpenAI. It is skipped unless `TEST_RUNNER_LIVE_OPENAI=1` is set, and it needs a person to open the address it prints, so run it when you change a request. On a phone, the owner has signed in with the sheet, built a workout, and stayed signed in after a relaunch. **Sign in with Safari** is untried there. `docs/design.md` lists what is unproven. The Keychain tests run only in a signed build, so run them once without `CODE_SIGNING_ALLOWED=NO` when you change `KeychainVaultStore`.
 
 ## How to verify a change
 
 1. Run `Scripts/test-core.sh` and the full `xcodebuild test`.
-2. Export the UI test screenshots and look at them. Passing tests do not show a clipped label or a layout that jumps. Screenshots 50 to 59 are the lock screen and the Dynamic Island.
+2. Export the UI test screenshots and look at them. Passing tests do not show a clipped label or a layout that jumps. Screenshots 50 to 59 are the lock screen and the Dynamic Island. Screenshots 80 to 83 are the heart rate in Settings, on the run screen, on the lock screen, and in History.
 
 	```sh
 	xcrun xcresulttool export attachments --path build/Result.xcresult --output-path build/screenshots

@@ -348,8 +348,9 @@ final class RunFlowUITests: XCTestCase {
         snap(app, "27-stretch-editor")
     }
 
+    /// With a heart-rate monitor remembered, so the readout's slot is measured in every state too.
     func testNothingMovesWhenTheRunChangesState() {
-        let app = launch("-uiTesting")
+        let app = launch("-uiTesting", "-hrStub", "remembered")
         let interval = app.buttons["timerRow-Norwegian 4x4"]
         XCTAssertTrue(interval.waitForExistence(timeout: Self.patience))
         interval.tap()
@@ -841,9 +842,9 @@ final class RunFlowUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["phaseTitle"].waitForExistence(timeout: Self.patience))
     }
 
-    private func launch(_ argument: String) -> XCUIApplication {
+    private func launch(_ arguments: String...) -> XCUIApplication {
         let app = XCUIApplication()
-        app.launchArguments = [argument, "-undoWindow", "20"]
+        app.launchArguments = arguments + ["-undoWindow", "20"]
         app.launch()
         return app
     }
@@ -862,7 +863,7 @@ final class RunFlowUITests: XCTestCase {
         Thread.sleep(forTimeInterval: 2)
     }
 
-    private static let fixedInPlace = ["phaseTitle", "clock", "totalRemaining", "primaryButton", "skipButton"]
+    private static let fixedInPlace = ["phaseTitle", "clock", "totalRemaining", "primaryButton", "skipButton", "heartRate"]
 
     private func frames(in app: XCUIApplication) -> [String: CGRect] {
         // Every change on the run screen animates for a quarter of a second.

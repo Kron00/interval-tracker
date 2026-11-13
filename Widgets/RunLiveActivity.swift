@@ -36,6 +36,9 @@ struct RunLiveActivity: Widget {
                             PhaseTitle(text: state.title, size: 28)
                                 .foregroundStyle(state.tone.tint)
                                 .frame(maxWidth: .infinity, alignment: .leading)
+                            if let heartRate = state.heartRate {
+                                HeartRateMark(heartRate: heartRate)
+                            }
                             ClockFace(clock: state.clock, size: 44, sizeOfLongText: 30)
                                 .foregroundStyle(Color.white)
                         }
@@ -79,6 +82,9 @@ private struct LockScreenCard: View {
                     PhaseTitle(text: state.title, size: 30)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
+                if let heartRate = state.heartRate {
+                    HeartRateMark(heartRate: heartRate)
+                }
                 ClockFace(clock: state.clock, size: 52, sizeOfLongText: 36)
             }
             PhaseBar(clock: state.clock, fill: Color.white)
@@ -109,6 +115,32 @@ private struct PhaseTitle: View {
             // The system offers a Live Activity less height than it may take, and the title would
             // shrink to fit the offer.
             .fixedSize(horizontal: false, vertical: true)
+    }
+}
+
+/// The heart rate beside the clock: a heart in the colour of the zone over the beats per minute,
+/// or a grey heart over a dash when there is no fresh reading.
+private struct HeartRateMark: View {
+    let heartRate: RunActivityAttributes.HeartRate
+
+    var body: some View {
+        let bpm: Int? = if case .reading(let bpm, _) = heartRate { bpm } else { nil }
+        VStack(spacing: 1) {
+            Image(systemName: "heart.fill")
+                .font(.system(size: 13, weight: .bold))
+                .foregroundStyle(heartRate.zone?.tint ?? Color.white.opacity(0.5))
+            Text(bpm.map(String.init) ?? "–")
+                .font(.system(size: 18, weight: .bold, design: .rounded))
+                .monospacedDigit()
+                .foregroundStyle(Color.white)
+        }
+        .lineLimit(1)
+        .frame(minWidth: 40)
+        .padding(.horizontal, 6)
+        .padding(.vertical, 5)
+        .background(Color.black.opacity(0.25), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(bpm.map { "Heart rate \($0)" } ?? "Heart rate unknown")
     }
 }
 

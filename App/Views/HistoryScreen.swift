@@ -168,6 +168,16 @@ private struct HistoryCard: View {
                     .accessibilityHidden(true)
                 Text("\(record.outcome.label) · \(record.startedAt.formatted(date: .omitted, time: .shortened))")
                 Spacer()
+                if let heartRate = record.heartRate {
+                    HStack(spacing: 3) {
+                        Image(systemName: "heart.fill")
+                            .foregroundStyle(ZoneTone(heartRate.maxHeartRate.zone(of: heartRate.average)).tint)
+                        Text("\(heartRate.average)")
+                            .monospacedDigit()
+                    }
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel("average \(heartRate.average) bpm")
+                }
                 // Only a run that fell short of its plan has something to compare. Reps and
                 // restarts take a run past it.
                 if record.worked < record.planned {
@@ -240,6 +250,9 @@ struct HistoryEntryScreen: View {
                 }
                 .padding(.horizontal, 16)
                 .background(Theme.card, in: Theme.cardShape)
+                if let heartRate = record.heartRate {
+                    HeartRateSummaryCard(summary: heartRate)
+                }
             }
             .padding(20)
         }

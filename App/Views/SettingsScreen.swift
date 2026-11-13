@@ -7,6 +7,7 @@ struct SettingsScreen: View {
     let log: AudioLog
     /// nil while the Live Activity works.
     let liveActivityProblem: String?
+    let heartRate: HeartRateMonitor
     let startAudioCheck: () -> Void
     let close: () -> Void
 
@@ -59,6 +60,8 @@ struct SettingsScreen: View {
                     Text("Music from other apps stops during a workout. Press to pause or resume. Double-press to skip a phase, or to move on from a stretch. Triple-press to restart. While a stretch routine waits, a single press is Start or Next.")
                 }
 
+                HeartRateSettings(monitor: heartRate)
+
                 Section("Screen") {
                     Toggle("Keep screen on during a run", isOn: $keepScreenOn)
                 }
@@ -110,6 +113,9 @@ struct SettingsScreen: View {
                 }
             }
         }
+        // Settings shows the monitor's live reading, so it stays connected while Settings is open.
+        .onAppear { heartRate.need(.settings, true) }
+        .onDisappear { heartRate.need(.settings, false) }
     }
 
     private func cue<Value>(_ keyPath: WritableKeyPath<CuePreferences, Value>) -> Binding<Value> {

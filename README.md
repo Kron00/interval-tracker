@@ -87,7 +87,7 @@ With a free Apple Account the app stops opening after 7 days. Connect the phone 
 
 ## Check the audio on your phone
 
-Nobody has run this app on a real iPhone yet. The timer, the screens, and the sounds are tested in the simulator. Three behaviors exist only on a phone: whether the app stays awake while locked, whether your music dips and comes back, and whether the lock screen lights up for the heads-up. The app has a 1-minute check for all three.
+Nobody has checked the audio on a real iPhone yet. The timer, the screens, and the sounds are tested in the simulator. Three behaviors exist only on a phone: whether the app stays awake while locked, whether your music dips and comes back, and whether the lock screen lights up for the heads-up. The app has a 1-minute check for all three.
 
 1. Start your music.
 2. In Intervals, tap the gear, then **Run 1-minute audio check**.
@@ -225,11 +225,16 @@ That test ran on 12 November 2026 in the simulator with one ChatGPT account. The
 - It asked for a "15-minute hip mobility routine" and built a routine of eight stretches from the answer.
 - It signed out.
 
-Three things are still untested:
+On 13 November 2026 it was tried on an iPhone, with the app installed from AltStore:
 
-- Signing in on a real iPhone. The simulator shares the Mac's network, and a phone does not.
+- **Sign in with ChatGPT** opened the sheet, and the sheet came back to the app signed in.
+- The app built a workout from a description.
+- The app was still signed in after it was closed and opened again, so an app that AltStore signed keeps the sign-in in the Keychain.
+
+Two things are still untested:
+
 - Whether your plan may be used by other apps. One plan was checked, and OpenAI's pages disagree about which plans qualify.
-- Whether an app that AltStore signed keeps the sign-in in the Keychain. The live test kept its tokens in memory.
+- **Sign in with Safari** on a real iPhone, with or without pasting the address.
 
 `Scripts/chatgpt-probe.py` sends the same requests from a Mac, without the app or Xcode.
 

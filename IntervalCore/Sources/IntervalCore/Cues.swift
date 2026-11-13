@@ -18,7 +18,6 @@ public struct Utterance: Hashable, Sendable {
 
     public init(_ text: String) { self.text = text }
 
-    public static let switchSides = Utterance("Switch sides")
     public static let workoutComplete = Utterance("Workout complete")
 
     /// The time the schedule reserves for these words: 0.4 s plus 0.06 s a character, rounded up to a
@@ -34,7 +33,6 @@ public struct Utterance: Hashable, Sendable {
 
 public enum Sound: Hashable, Sendable {
     case tick
-    /// Starts a phase, and ends a timed hold that the run then waits at.
     case phaseChange
     case finish
     case voice(Utterance)
@@ -85,12 +83,7 @@ public struct CueSchedule: Equatable, Sendable {
 
     init(_ timeline: Timeline, _ preferences: CuePreferences, zeroAt: Date, released: Int) {
         var cues = Self.cues(in: timeline.leg(after: released), preferences)
-        if let gate = timeline.gate(after: released) {
-            // A gate of no length ends where it starts, and its start already has this tone.
-            if gate.duration > 0 { cues.append((gate.end, .phaseChange)) }
-        } else {
-            cues += Self.finish(of: timeline, preferences)
-        }
+        if timeline.gate(after: released) == nil { cues += Self.finish(of: timeline, preferences) }
 
         let spans = cues.map {
             (start: max(0, $0.offset - CueTiming.duckLead), end: $0.offset + $0.sound.slot + CueTiming.duckRelease)
@@ -124,11 +117,19 @@ public struct CueSchedule: Equatable, Sendable {
     private static func cues(in segments: ArraySlice<Segment>, _ preferences: CuePreferences) -> [Cue] {
         var cues: [Cue] = []
         for segment in segments {
+            if segment.phase.isCountIn {
+                // A count-in is all countdown: a tick on each of its seconds, then the tone that starts the hold.
+                if preferences.countdown != .off {
+                    cues += stride(from: segment.start, to: segment.end, by: 1).map { ($0, .tick) }
+                }
+                continue
+            }
             cues.append((segment.start, .phaseChange))
             var quietUntil = segment.start + CueTiming.quietHead
-            // A phrase that cannot finish inside its phase would talk over the next tone.
+            // A phrase that cannot finish inside its phase would talk over the next tone. A gate
+            // holds the run, so nothing follows its phrase.
             if preferences.voice, let words = segment.phase.announcement,
-               CueTiming.voiceDelay + words.slot <= segment.duration {
+               segment.isGate || CueTiming.voiceDelay + words.slot <= segment.duration {
                 let offset = segment.start + CueTiming.voiceDelay
                 cues.append((offset, .voice(words)))
                 quietUntil = max(quietUntil, offset + words.slot)

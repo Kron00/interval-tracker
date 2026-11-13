@@ -61,8 +61,8 @@ func stretch(_ name: String, _ amount: Amount, _ sides: Sides = .once, howTo: St
     return try #require(Stretch(name: name, amount: amount, sides: sides, howTo: link))
 }
 
-func routine(getReady: Int = 10, switchSides: Int = 5, _ stretches: [Stretch]) throws -> Workout {
-    let routine = Routine(getReady: try span(getReady), switchSides: try span(switchSides), stretches: stretches)
+func routine(countIn: Int? = 3, _ stretches: [Stretch]) throws -> Workout {
+    let routine = Routine(countIn: try countIn.map(span), stretches: stretches)
     return Workout(name: "Test", plan: .routine(try #require(routine)))
 }
 
@@ -80,9 +80,9 @@ func describe(_ phase: Phase?) -> String {
     case .work(let round): "work \(round.number)/\(round.total)"
     case .rest(let round): "rest \(round.number)/\(round.total)"
     case .coolDown: "coolDown"
+    case .ready(let pose): "ready \(describe(pose))"
     case .getReady(let pose): "getReady \(describe(pose))"
     case .hold(let pose): "hold \(describe(pose))"
-    case .switchSides(let pose): "switchSides to \(describe(pose))"
     case nil: "none"
     }
 }
@@ -90,14 +90,14 @@ func describe(_ phase: Phase?) -> String {
 struct Visit {
     /// The phase as it first appeared.
     let progress: RunProgress
-    /// Whether the run stopped in the phase until Next was pressed.
+    /// Whether the run stopped in the phase until Start or Next was pressed.
     var waited = false
 }
 
 struct NeverFinished: Error {}
 
-/// Runs `workout` from start to finish the way its user would: every phase runs out, and Next is
-/// pressed only where the run waits.
+/// Runs `workout` from start to finish the way its user would: every phase runs out, and Start or
+/// Next is pressed only where the run waits.
 func walk(_ workout: Workout) throws -> [Visit] {
     var run = session(workout)
     var visits: [Visit] = []
@@ -138,16 +138,24 @@ func steps(of workout: Workout) throws -> [Step] {
 
 struct NoSuchPhase: Error {}
 
-/// A run of `workout` that has just entered `phase`, reached by pressing Next at `t0` until it shows.
-/// Its offsets then count from the start of that phase.
+/// A run of `workout` that enters `phase` at `t0`, so its offsets count from the start of that phase.
+/// It got there the way `walk` does, with every wait ended the instant it began.
 func session(_ workout: Workout, in phase: String, cues: CuePreferences = CuePreferences()) throws -> Session {
-    var run = session(workout, cues: cues)
-    for _ in 0..<1000 {
-        guard case .active(let progress) = run.snapshot(at: t0) else { break }
-        if describe(progress.phase) == phase { return run }
-        run.perform(.next, at: t0)
+    func reach(from start: Date) throws -> (run: Session, took: TimeInterval) {
+        var run = Session(workout, cues: cues, startingAt: start)
+        var took: TimeInterval = 0
+        for _ in 0..<1000 {
+            guard case .active(let progress) = run.snapshot(at: start + took) else { break }
+            if describe(progress.phase) == phase { return (run, took) }
+            if progress.isWaiting {
+                run.perform(.next, at: start + took)
+            } else {
+                took += progress.phaseRemaining
+            }
+        }
+        throw NoSuchPhase()
     }
-    throw NoSuchPhase()
+    return try reach(from: t0 - (try reach(from: t0).took)).run
 }
 
 struct Cue: Equatable, CustomStringConvertible {
@@ -184,8 +192,8 @@ func schedule(_ workout: Workout = .norwegian4x4,
     try #require(session(workout, cues: CuePreferences(countdown: countdown, voice: voice)).cueSchedule)
 }
 
-/// The schedule of each leg of a run in which Next is pressed the instant every wait begins. Pressed
-/// then, a leg starts where the one before it stopped, so every cue reads on the workout's own clock.
+/// The schedule of each leg of a run in which Start or Next is pressed the instant every wait begins.
+/// Pressed then, a leg starts where the one before it stopped, so every cue reads on the workout's own clock.
 func legs(_ workout: Workout, countdown: Countdown = .three, voice: Bool = true) throws -> [CueSchedule] {
     var run = session(workout, cues: CuePreferences(countdown: countdown, voice: voice))
     var legs: [CueSchedule] = []

@@ -155,11 +155,13 @@ struct CueScheduleTests {
             try timer(work: 1, rest: 1, rounds: 5),
             try timer(warmUp: 3, work: 4, rest: 4, rounds: 3, coolDown: 2),
             try timer(work: 7, rest: 5, rounds: 4, restAfterLastRound: false),
-            try routine(getReady: 5, switchSides: 3, [
+            try routine([
                 try stretch("Neck Rolls", try reps(4), .each),
                 try stretch("Calf", try hold(1), .each),
                 try stretch("Squat", try reps(1)),
             ]),
+            try routine(countIn: nil, [try stretch("Calf", try hold(2), .each), try stretch("Cobra", try hold(30))]),
+            try routine(countIn: 30, [try stretch("Cobra", try hold(30))]),
         ]
         for workout in workouts {
             for countdown in Countdown.allCases {
@@ -342,7 +344,6 @@ struct UtteranceTests {
     }
 
     @Test func theFixedTexts() {
-        #expect(Utterance.switchSides.text == "Switch sides")
         #expect(Utterance.workoutComplete.text == "Workout complete")
     }
 

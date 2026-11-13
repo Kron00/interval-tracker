@@ -27,7 +27,7 @@ final class SoundBankTests: XCTestCase {
     /// A buffer that fills its slot to the last sample was cut, so part of the name would go unheard.
     func testEveryDailyStretchNameIsSpokenInFull() async throws {
         let phrases = try await rendered(.dailyStretch)
-        XCTAssertEqual(phrases.count, 12, "ten stretch names, switch sides, complete")
+        XCTAssertEqual(phrases.count, 14, "seven names, a name for each side of three more stretches, complete")
         XCTAssertEqual(phrases.first?.sound, .voice(Utterance("Cat-Cow")), "the first name a run needs is rendered first")
         for phrase in phrases {
             let slot = Int(phrase.sound.slot * phrase.buffer.format.sampleRate)

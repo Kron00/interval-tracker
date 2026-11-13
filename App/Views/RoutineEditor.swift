@@ -2,23 +2,21 @@ import IntervalCore
 import SwiftUI
 
 struct RoutineDraft: Equatable {
-    var getReady = 10
-    var switchSides = 5
+    /// Picked from a menu of valid values, so it needs no plain draft of its own.
+    var countIn = Routine.defaultCountIn
     var stretches: [StretchDraft] = []
 
     init() {}
 
     init(_ routine: Routine) {
-        getReady = routine.getReady.seconds
-        switchSides = routine.switchSides.seconds
+        countIn = routine.countIn
         stretches = routine.stretches.map(StretchDraft.init)
     }
 
     var routine: Routine? {
-        guard let getReady = Span(seconds: getReady), let switchSides = Span(seconds: switchSides) else { return nil }
         let valid = stretches.compactMap(\.stretch)
         guard valid.count == stretches.count else { return nil }
-        return Routine(getReady: getReady, switchSides: switchSides, stretches: valid)
+        return Routine(countIn: countIn, stretches: valid)
     }
 
     /// Why `routine` is nil, in words. `Routine.init` and `Stretch.init` decide what is valid. This only
@@ -28,14 +26,7 @@ struct RoutineDraft: Equatable {
         for (index, stretch) in stretches.enumerated() {
             if let problem = stretch.problem(number: index + 1) { return problem }
         }
-        guard routine == nil else { return nil }
-        if getReady < Routine.minimumGetReady {
-            return "Get ready needs \(clock(Routine.minimumGetReady)) or more, so the voice can name the stretch."
-        }
-        if switchSides < Routine.minimumSwitchSides {
-            return "Switch sides needs \(clock(Routine.minimumSwitchSides)) or more."
-        }
-        return "A routine holds up to \(Routine.maximumStretches) stretches."
+        return routine == nil ? "A routine holds up to \(Routine.maximumStretches) stretches." : nil
     }
 
     func number(of id: StretchDraft.ID) -> Int {
@@ -50,8 +41,6 @@ struct RoutineDraft: Equatable {
             stretches[index] = newValue
         }
     }
-
-    private func clock(_ seconds: Int) -> String { ClockText.remaining(TimeInterval(seconds)) }
 }
 
 struct StretchDraft: Equatable, Identifiable {
@@ -121,21 +110,28 @@ extension Amount {
 
 struct RoutineSections: View {
     @Binding var draft: RoutineDraft
-    let willShowWheel: () -> Void
     let open: (StretchDraft.ID) -> Void
 
-    @State private var expanded: Gap?
-
-    private enum Gap { case getReady, switchSides }
+    /// A routine from a file can have a count-in the menu does not offer. It is listed too, so the
+    /// menu always shows what the routine has.
+    private var countIns: [Span?] {
+        let offered = [nil, Span(seconds: 3), Span(seconds: 5), Span(seconds: 10)]
+        return offered.contains(draft.countIn)
+            ? offered : (offered + [draft.countIn]).sorted { ($0?.seconds ?? 0) < ($1?.seconds ?? 0) }
+    }
 
     var body: some View {
         Section {
-            gapRow("Get ready", $draft.getReady, .getReady, color: Tone.prepare.tint)
-            gapRow("Switch sides", $draft.switchSides, .switchSides, color: Tone.recover.tint)
-        } header: {
-            Text("Gaps")
+            Picker("Count-in after Start", selection: $draft.countIn) {
+                ForEach(countIns, id: \.self) { countIn in
+                    Text(countIn.map { "\($0.seconds) s" } ?? "Off").tag(countIn)
+                }
+            }
+            .pickerStyle(.menu)
+            .tint(Tone.prepare.tint)
+            .accessibilityIdentifier("countInPicker")
         } footer: {
-            Text("Get ready comes before every stretch, and the voice names the stretch in it. Switch sides comes between the left and the right side. Both run by themselves.")
+            Text("The time between Start and the hold, to get into position. Reps have no count-in.")
         }
         Section {
             ForEach(Array(draft.stretches.enumerated()), id: \.element.id) { index, stretch in
@@ -161,18 +157,13 @@ struct RoutineSections: View {
         } header: {
             Text("Stretches")
         } footer: {
-            Text(draft.stretches.count > 1
-                ? "After each stretch the routine waits until you tap Next. Hold and drag a stretch to move it. Swipe left to delete it."
-                : "After each stretch the routine waits until you tap Next.")
+            Text(waitNote + (draft.stretches.count > 1 ? " Hold and drag a stretch to move it. Swipe left to delete it." : ""))
                 .accessibilityIdentifier("stretchesFooter")
         }
     }
 
-    private func gapRow(_ label: String, _ seconds: Binding<Int>, _ gap: Gap, color: Color) -> some View {
-        DurationRow(label: label, color: color, identifier: "duration-\(gap)", seconds: seconds, isExpanded: expanded == gap) {
-            willShowWheel()
-            withAnimation { expanded = expanded == gap ? nil : gap }
-        }
+    private var waitNote: String {
+        "Each stretch waits until you tap Start\(draft.countIn == nil ? "" : ", then counts in"). Reps wait for Next."
     }
 }
 
@@ -273,7 +264,7 @@ struct StretchEditor: View {
             } header: {
                 Text("How-to link")
             } footer: {
-                Text("A video or a page that shows the stretch. You can open it from the routine, while you get ready, and while the routine waits.")
+                Text("A video or a page that shows the stretch. You can open it from the routine while it waits and while it is paused.")
             }
         }
         .scrollDismissesKeyboard(.immediately)
@@ -293,7 +284,7 @@ struct StretchEditor: View {
     }
 
     private var amountNote: String {
-        [stretch.usesReps ? "Reps are not timed. Do them at your own pace, then tap Next." : "The hold counts down, beeps at zero, then waits for Next.",
+        [stretch.usesReps ? "Reps are not timed. Do them at your own pace, then tap Next." : "The hold waits for Start, counts down, and beeps at zero.",
          stretch.eachSide ? "Left side first, then right." : nil]
             .compactMap { $0 }
             .joined(separator: " ")

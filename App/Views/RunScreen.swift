@@ -37,7 +37,6 @@ struct RunScreen: View {
                         resume: run.resume,
                         skip: { run.skip(progress.segment) },
                         restart: { run.restart(progress.segment) },
-                        pauseForHowTo: { run.pauseForHowTo(progress.segment) },
                         undo: undo,
                         end: run.end)
                 case .finished(let worked):
@@ -105,7 +104,6 @@ struct ActiveRunView: View {
     let resume: () -> Void
     let skip: () -> Void
     let restart: () -> Void
-    let pauseForHowTo: () -> Void
     let undo: (() -> Void)?
     let end: () -> Void
 
@@ -256,9 +254,11 @@ struct ActiveRunView: View {
             case .reps(let count):
                 Text("\(Text("\(count.value)"))\(Text(" \(count.repsUnit)").font(Self.unitFont))")
                     .accessibilityIdentifier("repCount")
-            case .done:
-                Text("Done")
-                    .accessibilityIdentifier("holdDone")
+            case .length(let length):
+                // Dimmed, so a clock that has not started does not read as one that has stopped.
+                Text(ClockText.remaining(length))
+                    .opacity(0.6)
+                    .accessibilityIdentifier("holdLength")
             }
         }
         .font(.system(size: 320, weight: .bold, design: .rounded))
@@ -297,7 +297,7 @@ struct ActiveRunView: View {
 
     private var waitLine: some View {
         let prompt = progress.isWaiting && !progress.isPaused
-            ? (progress.reps != nil ? "Tap Next when done" : progress.upNext == nil ? "Tap Next to finish" : "Tap Next to continue") : nil
+            ? (progress.reps == nil ? "Tap Start" : "Tap Next when done") : nil
         return Line(font: .system(size: 34, weight: .bold, design: .rounded), padding: 6) {
             if let prompt {
                 Text(prompt)
@@ -330,28 +330,29 @@ struct ActiveRunView: View {
     }
 
     private var chips: some View {
-        // A countdown leaves no time for a video. A pause and a wait do, and so does the gap before a stretch.
-        let link = progress.isPaused || progress.isWaiting ? progress.phase.howTo : progress.phase.howToWhileGettingReady
+        // A countdown leaves no time for a video. A pause and a wait do, and nothing counts in either.
+        let link = progress.isPaused || progress.isWaiting ? progress.phase.howTo : nil
         return HStack(spacing: 12) {
             RunChip(title: "How to", symbol: "play.circle.fill", identifier: "howToButton", action: link.map { link in
-                {
-                    pauseForHowTo()
-                    openURL(link)
-                }
+                { openURL(link) }
             })
             RunChip(title: "Undo", symbol: "arrow.uturn.backward", identifier: "undoButton", action: undo)
         }
     }
 
     /// Laid out like a music player, because the headphone presses mean the same things: previous
-    /// restarts, play and pause, next moves on. While the run waits, next takes the big button and
-    /// the small one goes dim, so the one thing left to do is the only thing to hit.
+    /// restarts, play and pause, next moves on. While the run waits, Start or Next takes the big
+    /// button. A wait has nothing to restart or to skip, so the small buttons beside it go dim and
+    /// the one thing left to do is the only thing to hit.
     private var controls: some View {
         let primary = Primary(progress)
-        let advanceIsPrimary = primary == .advance
+        let advanceIsPrimary = primary.advances
         return HStack(spacing: 12) {
             iconButton("End", "xmark", identifier: "endButton") { confirmingEnd = true }
             iconButton("Restart", "backward.end.fill", identifier: "restartButton", action: restart)
+                .disabled(progress.isWaiting)
+                .opacity(progress.isWaiting ? 0.3 : 1)
+                .animation(Motion.change, value: progress.isWaiting)
 
             Button(action: action(for: primary)) {
                 HStack(spacing: 8) {
@@ -377,7 +378,7 @@ struct ActiveRunView: View {
         switch primary {
         case .pause: pause
         case .resume: resume
-        case .advance: skip
+        case .start, .next: skip
         }
     }
 
@@ -396,51 +397,53 @@ private enum Face {
     case time
     /// A stretch counted in reps has no time to show.
     case reps(Count)
-    /// A timed hold has run out. A clock stopped at 0:00 would look broken.
-    case done
+    /// A hold that waits for Start shows the length it will count down from.
+    case length(TimeInterval)
 
     init(_ progress: RunProgress) {
         if let reps = progress.reps {
             self = .reps(reps)
+        } else if let length = progress.phase.pendingHold {
+            self = .length(length)
         } else {
-            self = progress.isWaiting ? .done : .time
+            self = .time
         }
     }
 }
 
 /// What the big button does.
 private enum Primary {
-    case pause, resume, advance
+    case pause, resume
+    /// The two ways out of a wait: Start begins a timed hold, Next leaves a stretch counted in reps.
+    case start, next
 
     init(_ progress: RunProgress) {
         if progress.isPaused {
             self = .resume
+        } else if progress.isWaiting {
+            self = progress.phase.pendingHold == nil ? .next : .start
         } else {
-            self = progress.isWaiting ? .advance : .pause
+            self = .pause
         }
     }
+
+    var advances: Bool { self == .start || self == .next }
 
     var title: String {
         switch self {
         case .pause: "Pause"
         case .resume: "Resume"
-        case .advance: "Next"
+        case .start: "Start"
+        case .next: "Next"
         }
     }
 
     var symbol: String {
         switch self {
         case .pause: "pause.fill"
-        case .resume: "play.fill"
-        case .advance: "forward.end.fill"
+        case .resume, .start: "play.fill"
+        case .next: "forward.end.fill"
         }
-    }
-}
-
-private extension Phase {
-    /// The gap before a stretch is when there is time to watch how it is done.
-    var howToWhileGettingReady: URL? {
-        if case .getReady = self { howTo } else { nil }
     }
 }
 

@@ -22,11 +22,12 @@ public enum Phase: Hashable, Sendable {
     /// The rest that follows work round `number`.
     case rest(Ordinal)
     case coolDown
-    /// The gap before a stretch. It announces the stretch, so the hold itself starts without a voice.
+    /// The wait before a timed hold. It has no length, names the stretch, and ends on Start.
+    case ready(Pose)
+    /// The count-in between Start and the hold.
     case getReady(Pose)
+    /// A timed hold, or a stretch counted in reps. Reps have no length and end on Next.
     case hold(Pose)
-    /// The gap between the two sides. Its pose is the side that comes next.
-    case switchSides(to: Pose)
 
     public var title: String {
         switch self {
@@ -34,7 +35,7 @@ public enum Phase: Hashable, Sendable {
         case .work: "Work"
         case .rest: "Rest"
         case .coolDown: "Cool-down"
-        case .getReady(let pose), .hold(let pose), .switchSides(let pose): pose.stretch.name
+        case .ready(let pose), .getReady(let pose), .hold(let pose): pose.stretch.name
         }
     }
 
@@ -47,7 +48,7 @@ public enum Phase: Hashable, Sendable {
 
     private var stretchID: Stretch.ID? {
         switch self {
-        case .getReady(let pose), .hold(let pose), .switchSides(let pose): pose.stretch.id
+        case .ready(let pose), .getReady(let pose), .hold(let pose): pose.stretch.id
         case .warmUp, .work, .rest, .coolDown: nil
         }
     }
@@ -58,20 +59,18 @@ public enum Phase: Hashable, Sendable {
             nil
         case .work(let round), .rest(let round):
             "Round \(round.number) of \(round.total)"
+        case .ready(let pose), .hold(let pose):
+            caption(pose.side?.label, "Stretch \(pose.position.number) of \(pose.position.total)")
         case .getReady(let pose):
             caption("Get ready", pose.side?.label)
-        case .hold(let pose):
-            caption(pose.side?.label, "Stretch \(pose.position.number) of \(pose.position.total)")
-        case .switchSides(let pose):
-            caption("Switch sides", pose.side.map { "\($0.label) next" })
         }
     }
 
     public var tone: Tone {
         switch self {
-        case .warmUp, .getReady: .prepare
+        case .warmUp, .ready, .getReady: .prepare
         case .work: .effort
-        case .rest, .switchSides: .recover
+        case .rest: .recover
         case .hold: .stretch
         case .coolDown: .cool
         }
@@ -80,7 +79,7 @@ public enum Phase: Hashable, Sendable {
     public var howTo: URL? {
         switch self {
         case .warmUp, .work, .rest, .coolDown: nil
-        case .getReady(let pose), .hold(let pose), .switchSides(let pose): pose.stretch.howTo
+        case .ready(let pose), .getReady(let pose), .hold(let pose): pose.stretch.howTo
         }
     }
 
@@ -91,10 +90,10 @@ public enum Phase: Hashable, Sendable {
             round.isLast && round.total > 1 ? Utterance("Last round") : Utterance("Round " + spelledOut[round.number])
         case .rest: Utterance("Rest")
         case .coolDown: Utterance("Cool down")
-        case .getReady(let pose):
-            Utterance(pose.side.map { "\(pose.stretch.name), \($0.label.lowercased())" } ?? pose.stretch.name)
-        case .hold: nil
-        case .switchSides: .switchSides
+        case .ready(let pose): pose.spokenName
+        case .getReady: nil
+        // The wait before a timed hold has already named it. Reps have no wait before them.
+        case .hold(let pose): reps == nil ? nil : pose.spokenName
         }
     }
 
@@ -103,19 +102,30 @@ public enum Phase: Hashable, Sendable {
         if case .hold(let pose) = self, case .reps(let count) = pose.stretch.amount { count } else { nil }
     }
 
-    /// What ending this phase by hand is called. A stretch is left with Next, because a routine
-    /// waits for it. An interval is cut short with Skip.
+    /// The length of the hold that Start begins, for a clock to show while the run waits for Start.
+    /// nil for every other phase.
+    public var pendingHold: TimeInterval? {
+        if case .ready(let pose) = self, case .hold(let span) = pose.stretch.amount { span.interval } else { nil }
+    }
+
+    /// What ending this phase by hand is called. A timed hold begins on Start and a stretch is left
+    /// with Next. An interval is cut short with Skip.
     public var advanceTitle: String {
         switch self {
         case .warmUp, .work, .rest, .coolDown: "Skip"
-        case .getReady, .hold, .switchSides: "Next"
+        case .ready: "Start"
+        case .getReady, .hold: "Next"
         }
     }
 
-    /// A gap leads into a hold. "Up next" looks past it, and a restart from the hold lands on it.
-    var isGap: Bool {
+    var isCountIn: Bool {
+        if case .getReady = self { true } else { false }
+    }
+
+    /// The wait and the count-in lead into a hold and belong to its stretch. "Up next" looks past them.
+    var isLeadIn: Bool {
         switch self {
-        case .getReady, .switchSides: true
+        case .ready, .getReady: true
         case .warmUp, .work, .rest, .coolDown, .hold: false
         }
     }
@@ -136,6 +146,12 @@ extension Side {
         case .left: "Left side"
         case .right: "Right side"
         }
+    }
+}
+
+extension Pose {
+    var spokenName: Utterance {
+        Utterance(side.map { "\(stretch.name), \($0.label.lowercased())" } ?? stretch.name)
     }
 }
 
@@ -164,6 +180,7 @@ struct Segment: Equatable, Sendable {
     let start: TimeInterval
     let duration: TimeInterval
     /// A gate holds the run at its end until someone releases it. Time does not pass a gate by itself.
+    /// Every gate has no length, so the run waits from the moment it reaches one.
     let isGate: Bool
     var end: TimeInterval { start + duration }
     var span: PhaseSpan { PhaseSpan(phase: phase, duration: duration) }
@@ -172,7 +189,7 @@ struct Segment: Equatable, Sendable {
 /// Where a run stands on its timeline.
 enum Place: Equatable, Sendable {
     case inside(Segment)
-    /// Stopped at the end of a gate.
+    /// Stopped at a gate.
     case waiting(Segment)
     case finished
 
@@ -217,19 +234,16 @@ struct Timeline: Equatable, Sendable {
         case .routine(let routine):
             for (index, stretch) in routine.stretches.enumerated() {
                 let position = Ordinal(number: index + 1, total: routine.stretches.count)
-                let length = stretch.amount.length
-                switch stretch.sides {
-                case .once:
-                    let pose = Pose(stretch: stretch, side: nil, position: position)
-                    append(.getReady(pose), routine.getReady.interval)
-                    append(.hold(pose), length, isGate: true)
-                case .each:
-                    let left = Pose(stretch: stretch, side: .left, position: position)
-                    let right = Pose(stretch: stretch, side: .right, position: position)
-                    append(.getReady(left), routine.getReady.interval)
-                    append(.hold(left), length, isGate: true)
-                    append(.switchSides(to: right), routine.switchSides.interval)
-                    append(.hold(right), length, isGate: true)
+                for side in stretch.sides.inOrder {
+                    let pose = Pose(stretch: stretch, side: side, position: position)
+                    switch stretch.amount {
+                    case .hold(let span):
+                        append(.ready(pose), 0, isGate: true)
+                        append(.getReady(pose), routine.countIn?.interval)
+                        append(.hold(pose), span.interval)
+                    case .reps:
+                        append(.hold(pose), 0, isGate: true)
+                    }
                 }
             }
         }
@@ -270,13 +284,20 @@ struct Timeline: Equatable, Sendable {
         return segments[first..<end]
     }
 
+    /// What follows the segment, or from a wait or a count-in what follows the hold it leads into.
     func upNext(after id: SegmentID) -> Segment? {
-        segments[(id.index + 1)...].first { !$0.phase.isGap }
+        guard let phase = segments[id.index...].firstIndex(where: { !$0.phase.isLeadIn }) else { return nil }
+        return segments[(phase + 1)...].first { !$0.phase.isLeadIn }
     }
 
+    /// A hold restarts from its count-in, so there is time to get back into position.
     func restartPoint(for id: SegmentID) -> Segment {
-        let current = segments[id.index]
-        guard !current.phase.isGap, id.index > 0, segments[id.index - 1].phase.isGap else { return current }
+        guard id.index > 0, segments[id.index - 1].phase.isCountIn else { return segments[id.index] }
         return segments[id.index - 1]
+    }
+
+    /// Where a skip of the segment lands. Next in a count-in leaves the stretch, so it lands past the hold.
+    func skipPoint(for id: SegmentID) -> TimeInterval {
+        segments[id.index].phase.isCountIn ? segments[id.index + 1].end : segments[id.index].end
     }
 }

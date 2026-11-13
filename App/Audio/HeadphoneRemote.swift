@@ -34,7 +34,8 @@ final class HeadphoneRemote {
             MPNowPlayingInfoPropertyPlaybackRate: progress.isPaused || progress.isWaiting ? 0.0 : 1.0,
         ]
         info[MPMediaItemPropertyArtist] = progress.isWaiting
-            ? "\(progress.reps?.repsText ?? "Done") · Waiting for Next" : progress.phase.caption
+            ? [progress.awaited, "Waiting for \(progress.phase.advanceTitle)"].compactMap { $0 }.joined(separator: " · ")
+            : progress.phase.caption
         MPNowPlayingInfoCenter.default().nowPlayingInfo = info
     }
 
@@ -78,4 +79,9 @@ final class HeadphoneRemote {
         let segment: SegmentID
         let isWaiting: Bool
     }
+}
+
+private extension RunProgress {
+    /// What a waiting run waits on: a rep count, or the length of the hold that Start begins.
+    var awaited: String? { reps?.repsText ?? phase.pendingHold.map(ClockText.remaining) }
 }

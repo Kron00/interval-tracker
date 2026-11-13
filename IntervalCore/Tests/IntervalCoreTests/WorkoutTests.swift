@@ -7,7 +7,7 @@ struct WorkoutTests {
         #expect(Workout.norwegian4x4.totalDuration == 2280)
         #expect(Workout.hiit2020.totalDuration == 840)
         #expect(Workout.audioCheck.totalDuration == 60)
-        #expect(Workout.dailyStretch.totalDuration == 595)
+        #expect(Workout.dailyStretch.totalDuration == 501)
     }
 
     @Test func presetsWithoutTheRestAfterTheLastRound() throws {

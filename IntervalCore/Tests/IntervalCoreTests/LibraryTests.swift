@@ -18,10 +18,11 @@ private let pigeonJSON = #"""
      "amount": {"hold": 45}, "sides": "each", "howTo": "https://youtu.be/lqCqETr7Q0g"}
     """#
 
-private func routineJSON(getReady: Int = 10, switchSides: Int = 5, stretches: String = pigeonJSON) -> String {
+/// `fields` come before the stretches: `"countIn": 5,` or the gap settings of a released version.
+private func routineJSON(_ fields: String = "", stretches: String = pigeonJSON) -> String {
     #"""
     {"id": "9C1B2A3D-4E5F-4061-8273-8495A6B7C8D9", "name": "Evening",
-     "routine": {"getReady": \#(getReady), "switchSides": \#(switchSides), "stretches": [\#(stretches)]}}
+     "routine": {\#(fields) "stretches": [\#(stretches)]}}
     """#
 }
 
@@ -45,16 +46,43 @@ struct LibraryTests {
         var library = Library()
         library.cues = CuePreferences(countdown: .five, voice: false)
         library.save(try timer(warmUp: 600, work: 90, rest: 60, rounds: 8, coolDown: 300))
-        library.save(try routine(getReady: 12, switchSides: 4, [
+        library.save(try routine(countIn: 10, [
             try stretch("Cat-Cow", try reps(10)),
             try stretch("Pigeon", try hold(45), .each, howTo: "https://youtu.be/lqCqETr7Q0g"),
         ]))
         library.save(try timer(work: 20, rest: 10, rounds: 8, restAfterLastRound: false))
         library.save(.dailyStretch)
+        library.save(try routine(countIn: nil, [try stretch("Cobra", try hold(30))]))
 
         let reloaded = try Library(json: try library.json())
         #expect(reloaded == library)
-        #expect(reloaded.workouts.count == 4)
+        #expect(reloaded.workouts.count == 5)
+        #expect(reloaded.workouts.map(\.totalDuration) == [2100, 110, 230, 501, 30])
+    }
+
+    @Test func aRoutineWithNoCountInIsWrittenAsZeroAndAFileWithoutTheKeyGetsThreeSeconds() throws {
+        func countIn(_ fields: String) throws -> Int? {
+            guard case .routine(let routine) = try Library(json: libraryJSON(workouts: routineJSON(fields))).workouts.first?.plan else {
+                Issue.record("expected a routine")
+                return nil
+            }
+            return routine.countIn?.seconds
+        }
+        #expect(try countIn("") == 3)
+        #expect(try countIn(#""countIn": 0,"#) == nil)
+        #expect(try countIn(#""countIn": 1,"#) == 1)
+        #expect(try countIn(#""countIn": 30,"#) == 30)
+
+        func written(_ seconds: Int?) throws -> Int? {
+            var library = Library()
+            library.save(try routine(countIn: seconds, [try stretch("Cobra", try hold(30))]))
+            let file = try #require(try JSONSerialization.jsonObject(with: try library.json()) as? [String: Any])
+            let workouts = try #require(file["workouts"] as? [[String: Any]])
+            return (workouts.first?["routine"] as? [String: Any])?["countIn"] as? Int
+        }
+        #expect(try written(nil) == 0)
+        #expect(try written(3) == 3)
+        #expect(try written(10) == 10)
     }
 
     /// App version 1.1 wrote this file. It paced reps, so its rep amount carries an `every` value.
@@ -122,8 +150,7 @@ struct LibraryTests {
             Issue.record("expected a routine, got \(evening.plan)")
             return
         }
-        #expect(routine.getReady.seconds == 10)
-        #expect(routine.switchSides.seconds == 5)
+        #expect(routine.countIn?.seconds == 3, "the gaps of 1.1 are gone, and the count-in is the default")
         try #require(routine.stretches.count == 2)
         let pigeon = routine.stretches[0]
         #expect(pigeon.id == UUID(uuidString: "5A0C1D2E-3F40-4152-8364-758697A8B9C0"))
@@ -136,13 +163,92 @@ struct LibraryTests {
         #expect(catCow.amount == (try reps(10)))
         #expect(catCow.sides == .once)
         #expect(catCow.howTo == nil)
-        #expect(evening.totalDuration == 115)
+        #expect(evening.totalDuration == 96, "two sides of 45 s, each after a 3 s count-in")
 
         let tabata = library.workouts[2]
         #expect(tabata.name == "Tabata")
         #expect(tabata.plan == .intervals(Intervals(
             warmUp: nil, work: try span(20), rest: try span(10),
             rounds: try count(8), coolDown: nil, restAfterLastRound: false)))
+    }
+
+    /// App version 1.2.29 wrote this file. A routine had a get-ready gap and a switch-sides gap that
+    /// ran by themselves, and reps were a bare count.
+    @Test func decodesAFileWrittenByAppVersionOnePointTwo() throws {
+        let json = Data("""
+            {
+              "cues" : {
+                "countdown" : 3,
+                "voice" : true
+              },
+              "version" : 2,
+              "workouts" : [
+                {
+                  "id" : "9C1B2A3D-4E5F-4061-8273-8495A6B7C8D9",
+                  "name" : "Evening",
+                  "routine" : {
+                    "getReady" : 8,
+                    "stretches" : [
+                      {
+                        "amount" : {
+                          "reps" : 10
+                        },
+                        "id" : "6B1D2E3F-4051-4263-9475-8697A8B9C0D1",
+                        "name" : "Cat-Cow",
+                        "sides" : "once"
+                      },
+                      {
+                        "amount" : {
+                          "hold" : 45
+                        },
+                        "howTo" : "https:\\/\\/youtu.be\\/lqCqETr7Q0g",
+                        "id" : "5A0C1D2E-3F40-4152-8364-758697A8B9C0",
+                        "name" : "Pigeon",
+                        "sides" : "each"
+                      }
+                    ],
+                    "switchSides" : 5
+                  }
+                },
+                {
+                  "id" : "7D4F2A91-3C5E-4B6A-8F01-9E2D3C4B5A6F",
+                  "intervals" : {
+                    "rest" : 10,
+                    "restAfterLastRound" : false,
+                    "rounds" : 8,
+                    "work" : 20
+                  },
+                  "name" : "Tabata"
+                }
+              ]
+            }
+            """.utf8)
+
+        let library = try Library(json: json)
+        #expect(library.cues == CuePreferences(countdown: .three, voice: true))
+        try #require(library.workouts.count == 2)
+
+        let evening = library.workouts[0]
+        #expect(evening.id == UUID(uuidString: "9C1B2A3D-4E5F-4061-8273-8495A6B7C8D9"))
+        #expect(evening.name == "Evening")
+        guard case .routine(let routine) = evening.plan else {
+            Issue.record("expected a routine, got \(evening.plan)")
+            return
+        }
+        #expect(routine.countIn?.seconds == 3, "the gaps of 1.2.29 are gone, and the count-in is the default")
+        #expect(routine.stretches.map(\.id.uuidString) == [
+            "6B1D2E3F-4051-4263-9475-8697A8B9C0D1", "5A0C1D2E-3F40-4152-8364-758697A8B9C0",
+        ])
+        #expect(routine.stretches.map(\.name) == ["Cat-Cow", "Pigeon"])
+        #expect(routine.stretches.map(\.amount) == [try reps(10), try hold(45)])
+        #expect(routine.stretches.map(\.sides) == [.once, .each])
+        #expect(routine.stretches.map(\.howTo) == [nil, URL(string: "https://youtu.be/lqCqETr7Q0g")])
+        #expect(evening.totalDuration == 96)
+
+        #expect(library.workouts[1].plan == .intervals(Intervals(
+            warmUp: nil, work: try span(20), rest: try span(10),
+            rounds: try count(8), coolDown: nil, restAfterLastRound: false)))
+        #expect(try Library(json: try library.json()) == library)
     }
 
     @Test func thePlanKeyNamesTheKindInTheFile() throws {
@@ -161,8 +267,8 @@ struct LibraryTests {
         #expect(Set(workouts[1].keys) == ["id", "name", "routine"])
 
         let routine = try #require(workouts[1]["routine"] as? [String: Any])
-        #expect(routine["getReady"] as? Int == 10)
-        #expect(routine["switchSides"] as? Int == 5)
+        #expect(Set(routine.keys) == ["countIn", "stretches"])
+        #expect(routine["countIn"] as? Int == 3)
         let stretches = try #require(routine["stretches"] as? [[String: Any]])
         try #require(stretches.count == 2)
         #expect(stretches[0]["name"] as? String == "Pigeon")
@@ -221,9 +327,15 @@ struct LibraryTests {
         }
     }
 
-    @Test func aRoutineWithTheShortestGapsDecodes() throws {
-        let library = try Library(json: libraryJSON(workouts: routineJSON(getReady: 5, switchSides: 3)))
-        #expect(library.workouts.map(\.totalDuration) == [98])
+    @Test(arguments: [
+        #""getReady": 10, "switchSides": 5,"#,
+        #""getReady": 5, "switchSides": 3,"#,
+        #""getReady": 86400, "switchSides": 600,"#,
+    ])
+    func theGapSettingsOfReleasedVersionsAreIgnored(_ gaps: String) throws {
+        let library = try Library(json: libraryJSON(workouts: routineJSON(gaps)))
+        #expect(library.workouts.map(\.totalDuration) == [96])
+        #expect(try Library(json: try library.json()) == library)
     }
 
     @Test(arguments: [
@@ -241,8 +353,10 @@ struct LibraryTests {
     }
 
     @Test(arguments: [
-        routineJSON(getReady: 4),
-        routineJSON(switchSides: 2),
+        routineJSON(#""countIn": 31,"#),
+        routineJSON(#""countIn": -1,"#),
+        routineJSON(#""countIn": 2.5,"#),
+        routineJSON(#""countIn": "off","#),
         routineJSON(stretches: ""),
         routineJSON(stretches: Array(repeating: pigeonJSON, count: 100).joined(separator: ",")),
         routineJSON(stretches: stretchJSON(name: "")),
@@ -269,8 +383,9 @@ struct LibraryTests {
 
     @Test func aRepAmountFromVersionOnePointOneIsSavedAgainAsABareCount() throws {
         let old = try Library(json: libraryJSON(workouts: routineJSON(
+            #""getReady": 10, "switchSides": 5,"#,
             stretches: stretchJSON(amount: #"{"reps": 10, "every": 5}"#, sides: "once"))))
-        #expect(old.workouts.first?.totalDuration == 10)
+        #expect(old.workouts.first?.totalDuration == 0)
 
         let file = try #require(try JSONSerialization.jsonObject(with: try old.json()) as? [String: Any])
         let workouts = try #require(file["workouts"] as? [[String: Any]])
@@ -283,7 +398,7 @@ struct LibraryTests {
     @Test func ninetyNineStretchesDecode() throws {
         let stretches = Array(repeating: pigeonJSON, count: 99).joined(separator: ",")
         let library = try Library(json: libraryJSON(workouts: routineJSON(stretches: stretches)))
-        #expect(library.workouts.first?.outline.count == 99 * 4)
+        #expect(library.workouts.first?.outline.count == 99 * 4, "a count-in and a hold for each side")
     }
 
     @Test(arguments: [
@@ -360,7 +475,7 @@ struct LibraryTests {
         #expect(!Workout.builtIn.map(\.id).contains(fork.id))
         #expect(fork.name == "My stretches")
         #expect(fork.plan == Workout.dailyStretch.plan)
-        #expect(fork.totalDuration == 595)
+        #expect(fork.totalDuration == 501)
         #expect(library.workouts == [fork])
 
         let second = library.save(.dailyStretch)

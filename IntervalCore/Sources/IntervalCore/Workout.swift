@@ -65,8 +65,11 @@ public struct Workout: Identifiable, Hashable, Sendable {
     /// The timed length. A stretch counted in reps has none, so it adds nothing here.
     public var totalDuration: TimeInterval { Timeline(plan).total }
 
-    /// Every phase of the workout in order, for drawing it.
-    public var outline: [PhaseSpan] { Timeline(plan).segments.map(\.span) }
+    /// Every phase of the workout in order, for drawing it. A wait for Start is not something to
+    /// draw, so it is left out.
+    public var outline: [PhaseSpan] {
+        Timeline(plan).segments.filter { $0.phase.pendingHold == nil }.map(\.span)
+    }
 
     /// The same workout under a fresh id.
     public func forked() -> Workout { Workout(name: name, plan: plan) }
@@ -92,7 +95,6 @@ public struct Workout: Identifiable, Hashable, Sendable {
     public static let dailyStretch = Workout(
         id: codeConstantID(4), name: "Daily Stretch",
         plan: .routine(Routine(
-            getReady: literal(seconds: 8), switchSides: literal(seconds: 5),
             stretches: [
                 builtInStretch(1, "Cat-Cow", .reps(literal(count: 10)), .once, video: "1Y0YjXS9sKI"),
                 builtInStretch(2, "Child's Pose", .hold(literal(seconds: 45)), .once, video: "_ZX_zTOBgp8"),
@@ -101,7 +103,7 @@ public struct Workout: Identifiable, Hashable, Sendable {
                 builtInStretch(5, "Pigeon", .hold(literal(seconds: 45)), .each, video: "lqCqETr7Q0g"),
                 builtInStretch(6, "Butterfly", .hold(literal(seconds: 45)), .once, video: "MHwUChXNy-Y"),
                 builtInStretch(7, "Standing Hamstring", .hold(literal(seconds: 45)), .once, video: "goN4rWbQUn4"),
-                builtInStretch(8, "Doorway Pec", .hold(literal(seconds: 30)), .each, video: "M850sCj9LHQ"),
+                builtInStretch(8, "Doorway Pec", .hold(literal(seconds: 30)), .once, video: "M850sCj9LHQ"),
                 builtInStretch(9, "Thread the Needle", .hold(literal(seconds: 30)), .each, video: "SkQhKf74nZk"),
                 builtInStretch(10, "Passive Dead Hang", .hold(literal(seconds: 30)), .once, video: "3CEmHJXbNpc"),
             ])!))
@@ -179,39 +181,48 @@ public struct Intervals: Hashable, Sendable, Codable {
     }
 }
 
-/// Stretches in order, with a get-ready gap before each one and a switch-sides gap between the two
-/// sides of an each-side stretch. Always 1...99 stretches.
+/// Stretches in order. Each timed hold waits for Start and then counts in. Always 1...99 stretches.
 public struct Routine: Hashable, Sendable, Codable {
-    public let getReady: Span
-    public let switchSides: Span
+    /// The count-in between Start and each timed hold, 1...30 s. nil means the hold begins on Start.
+    public let countIn: Span?
     public let stretches: [Stretch]
 
-    /// An announcement starts 0.5 s into its gap and takes at most 4.0 s, so every stretch name fits
-    /// and is always spoken.
-    public static let minimumGetReady = 5
-    /// Long enough for "Switch sides".
-    public static let minimumSwitchSides = 3
+    public static let defaultCountIn = Span(seconds: 3)
+    public static let maximumCountIn = 30
     public static let maximumStretches = 99
 
-    public init?(getReady: Span, switchSides: Span, stretches: [Stretch]) {
-        guard getReady.seconds >= Routine.minimumGetReady,
-              switchSides.seconds >= Routine.minimumSwitchSides,
+    public init?(countIn: Span? = Routine.defaultCountIn, stretches: [Stretch]) {
+        guard (countIn?.seconds ?? 0) <= Routine.maximumCountIn,
               (1...Routine.maximumStretches).contains(stretches.count) else { return nil }
-        self.getReady = getReady; self.switchSides = switchSides; self.stretches = stretches
+        self.countIn = countIn; self.stretches = stretches
     }
 
+    private enum CodingKeys: String, CodingKey {
+        case countIn, stretches
+    }
+
+    /// In JSON `"countIn": 0` means none. A file without the key was written before the count-in
+    /// existed and gets the default. Such a file has `getReady` and `switchSides` values. They set
+    /// the length of gaps that no longer exist, so they are ignored.
     public init(from decoder: any Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
-        guard let routine = Routine(
-            getReady: try container.decode(Span.self, forKey: .getReady),
-            switchSides: try container.decode(Span.self, forKey: .switchSides),
-            stretches: try container.decode([Stretch].self, forKey: .stretches)) else {
-            throw DecodingError.dataCorrupted(DecodingError.Context(
-                codingPath: container.codingPath,
-                debugDescription: "A routine has 1...99 stretches, a get-ready gap of 5 s or more, "
-                    + "and a switch-sides gap of 3 s or more."))
+        let invalid = DecodingError.dataCorrupted(DecodingError.Context(
+            codingPath: container.codingPath,
+            debugDescription: "A routine has 1...99 stretches and a count-in of 0...30 s."))
+        var countIn = Routine.defaultCountIn
+        if let seconds = try container.decodeIfPresent(Int.self, forKey: .countIn) {
+            guard seconds == 0 || Span(seconds: seconds) != nil else { throw invalid }
+            countIn = Span(seconds: seconds)
         }
+        guard let routine = Routine(
+            countIn: countIn, stretches: try container.decode([Stretch].self, forKey: .stretches)) else { throw invalid }
         self = routine
+    }
+
+    public func encode(to encoder: any Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(countIn?.seconds ?? 0, forKey: .countIn)
+        try container.encode(stretches, forKey: .stretches)
     }
 }
 
@@ -257,14 +268,6 @@ public enum Amount: Hashable, Sendable, Codable {
     case hold(Span)
     case reps(Count)
 
-    /// Reps are not timed, so they have no length.
-    var length: TimeInterval {
-        switch self {
-        case .hold(let span): span.interval
-        case .reps: 0
-        }
-    }
-
     private enum CodingKeys: String, CodingKey {
         case hold, reps
     }
@@ -297,6 +300,13 @@ public enum Sides: String, Hashable, Sendable, Codable, CaseIterable {
     case once
     /// Left first, then right.
     case each
+
+    var inOrder: [Side?] {
+        switch self {
+        case .once: [nil]
+        case .each: [.left, .right]
+        }
+    }
 }
 
 public enum Side: String, Hashable, Sendable {

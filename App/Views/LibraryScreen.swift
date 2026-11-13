@@ -4,12 +4,14 @@ import SwiftUI
 private enum LibrarySheet: Identifiable {
     case detail(Workout)
     case editor(WorkoutDraft)
+    case describe
     case settings
 
     var id: String {
         switch self {
         case .detail(let workout): "detail-\(workout.id)"
         case .editor(let draft): "editor-\(draft.id)"
+        case .describe: "describe"
         case .settings: "settings"
         }
     }
@@ -87,6 +89,12 @@ struct LibraryScreen: View {
                             Label("Stretch routine", systemImage: "figure.flexibility")
                         }
                         .accessibilityIdentifier("newStretchRoutine")
+                        Button {
+                            sheet = .describe
+                        } label: {
+                            Label("Describe a workout", systemImage: "sparkles")
+                        }
+                        .accessibilityIdentifier("describeWorkout")
                     } label: {
                         Image(systemName: "plus")
                     }
@@ -128,6 +136,14 @@ struct LibraryScreen: View {
                     self.sheet = nil
                 },
                 cancel: { self.sheet = nil })
+        case .describe:
+            DescribeSheet(
+                save: { workout in
+                    store.update { $0.save(workout) }
+                    self.sheet = nil
+                },
+                edit: { self.sheet = .editor(WorkoutDraft($0)) },
+                close: { self.sheet = nil })
         case .settings:
             SettingsScreen(
                 store: store,
@@ -222,30 +238,8 @@ struct WorkoutDetailSheet: View {
     var body: some View {
         NavigationStack {
             ScrollView {
-                VStack(spacing: 22) {
-                    VStack(spacing: 2) {
-                        Text(workout.totalText)
-                            .font(.system(size: 64, weight: .bold, design: .rounded))
-                            .monospacedDigit()
-                            .lineLimit(1)
-                            .minimumScaleFactor(0.5)
-                            .accessibilityIdentifier("detailTotal")
-                        Text("total")
-                            .font(.headline)
-                            .foregroundStyle(Color.secondary)
-                    }
-                    TimelineStrip(spans: workout.outline)
-                        .frame(height: 14)
-                    Group {
-                        switch workout.plan {
-                        case .intervals(let intervals): IntervalRows(intervals: intervals)
-                        case .routine(let routine): StretchRows(routine: routine)
-                        }
-                    }
-                    .padding(.horizontal, 16)
-                    .background(Theme.card, in: Theme.cardShape)
-                }
-                .padding(20)
+                WorkoutBreakdown(workout: workout)
+                    .padding(20)
             }
             .background(Theme.background)
             .navigationTitle(workout.name)
@@ -286,6 +280,37 @@ struct WorkoutDetailSheet: View {
         }
         .presentationDetents([.large])
         .presentationBackground(Theme.background)
+    }
+}
+
+/// A workout laid out to read before it is run: the total, the strip, and every step.
+struct WorkoutBreakdown: View {
+    let workout: Workout
+
+    var body: some View {
+        VStack(spacing: 22) {
+            VStack(spacing: 2) {
+                Text(workout.totalText)
+                    .font(.system(size: 64, weight: .bold, design: .rounded))
+                    .monospacedDigit()
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.5)
+                    .accessibilityIdentifier("detailTotal")
+                Text("total")
+                    .font(.headline)
+                    .foregroundStyle(Color.secondary)
+            }
+            TimelineStrip(spans: workout.outline)
+                .frame(height: 14)
+            Group {
+                switch workout.plan {
+                case .intervals(let intervals): IntervalRows(intervals: intervals)
+                case .routine(let routine): StretchRows(routine: routine)
+                }
+            }
+            .padding(.horizontal, 16)
+            .background(Theme.card, in: Theme.cardShape)
+        }
     }
 }
 

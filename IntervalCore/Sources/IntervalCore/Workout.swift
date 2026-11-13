@@ -4,8 +4,10 @@ import Foundation
 public struct Span: Hashable, Comparable, Sendable, Codable {
     public let seconds: Int
 
+    public static let range = 1...86_400
+
     public init?(seconds: Int) {
-        guard (1...86_400).contains(seconds) else { return nil }
+        guard Span.range.contains(seconds) else { return nil }
         self.seconds = seconds
     }
 
@@ -33,8 +35,10 @@ public struct Span: Hashable, Comparable, Sendable, Codable {
 public struct Count: Hashable, Sendable, Codable {
     public let value: Int
 
+    public static let range = 1...99
+
     public init?(_ value: Int) {
-        guard (1...99).contains(value) else { return nil }
+        guard Count.range.contains(value) else { return nil }
         self.value = value
     }
 

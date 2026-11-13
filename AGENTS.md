@@ -1,18 +1,19 @@
 # Working in this repo
 
-Intervals is an iPhone app that runs interval timers and stretch routines. It keeps cueing with the screen locked and lowers other apps' music for each cue. It is installed with AltStore, not the App Store.
+Intervals is an iPhone app that runs interval timers and stretch routines. It keeps cueing with the screen locked and lowers other apps' music for each cue. It can build a workout from a description, with ChatGPT. It is installed with AltStore, not the App Store.
 
 ## Layout
 
 | Path | What lives there |
 | --- | --- |
-| `IntervalCore/` | Pure Swift package, Foundation only. Workouts, the compiled timeline, `Session`, the cue schedule, the library file. All timer logic is here. |
+| `IntervalCore/` | Pure Swift package, Foundation only. Workouts, the compiled timeline, `Session`, the cue schedule, the library file, and `WorkoutBlueprint`, which turns a model's answer into a workout. All timer logic is here. |
 | `App/` | The SwiftUI app. `RunModel` is the only writer of the session. `Audio/` holds `CuePlayer`, `SoundBank`, `HeadphoneRemote`. `Views/` holds the screens and `Theme`. |
+| `App/ChatGPT/` | The ChatGPT sign-in and the request for a workout. `ChatGPTAccount` owns the Keychain and the tokens. `LoopbackCallback` is the listener on 127.0.0.1. `WorkoutGenerator` talks to the Responses API. `ChatGPTModel` is what the screens observe. `StubOpenAI` stands in for OpenAI in UI tests. |
 | `AppTests/` | Tests that need the iOS runtime. |
 | `AppUITests/` | End-to-end flows. They attach a named screenshot at each step. |
 | `Scripts/` | Test, build and release scripts. |
 | `project.yml` | The XcodeGen spec. `IntervalTracker.xcodeproj` is generated from it and committed. |
-| `docs/design.md` | Why the timer and the audio work the way they do. Read it before you change either. |
+| `docs/design.md` | Why the timer, the audio, and the ChatGPT sign-in work the way they do. Read it before you change any of them. |
 
 ## Commands
 
@@ -51,10 +52,18 @@ The owner updates the app from AltStore. A merge that changes the app must show 
 - **Every screen is dark.**
 - **A released library file must keep loading.** If you change the file format, decode the shapes that released versions wrote.
 - Validate at the boundary only: the failable initialisers in the package and the `Decodable` code. Editors hold plain drafts and convert on Save.
+- **A model's answer becomes a workout in one function.** `WorkoutBlueprint.workout()` is the only code that maps model output to a `Workout`. The schema and the instructions sit beside it. The model never chooses the gaps of a routine.
+- **No test or script in CI contacts OpenAI.** Tests pass a stub as `OpenAITransport`. UI tests launch the app with `-aiStub signedIn` or `-aiStub signedOut`, which swaps in `StubOpenAI` and an in-memory vault. Never sign in from a test.
+- **Tokens and the API key live in the Keychain only**, as one `Vault`. Never log a token, a sign-in code, or the key. Derive the account state from the vault. Do not store it.
+- **One token refresh at a time.** Every refresh kills the old refresh token, so every caller waits for the refresh in `ChatGPTAccount`. Do not refresh anywhere else.
+- **The sign-in follows OpenAI's documented flow for open-source apps.** Do not use the Codex CLI's client id or `chatgpt.com/backend-api`. The redirect address must stay `http://127.0.0.1:<port>/auth/callback`, and the listener must stay bound to 127.0.0.1.
+- Do not write `try result.get()`. In a hosted test it threw an unrelated error left over from an earlier `try?` in place of the result's own failure. Use a `switch`.
 
 ## What a simulator cannot prove
 
 Locked-screen playback, music ducking, and headphone presses need a real iPhone. Do not claim they work from a simulator run. Settings has an audio check, a headphone check, three ducking methods, and a log for checking them on a phone. Keep those working.
+
+The ChatGPT feature needs a real account, and the sign-in sheet needs a real iPhone. The simulator proves the sheet, the listener, and every request against stand-ins. It does not prove that OpenAI accepts any of it. `docs/design.md` lists what is unproven. The Keychain tests run only in a signed build, so run them once without `CODE_SIGNING_ALLOWED=NO` when you change `KeychainVaultStore`.
 
 ## How to verify a change
 

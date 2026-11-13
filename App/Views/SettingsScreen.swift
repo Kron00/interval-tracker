@@ -41,6 +41,8 @@ struct SettingsScreen: View {
                     Toggle("Keep screen on during a run", isOn: $keepScreenOn)
                 }
 
+                ChatGPTSettings()
+
                 Section {
                     Text("Start your music, run the check, then lock the phone.")
                     Label("At 0:27 you hear three beeps, a tone and \"Round one\". Silence means the app was suspended while locked.", systemImage: "1.circle")

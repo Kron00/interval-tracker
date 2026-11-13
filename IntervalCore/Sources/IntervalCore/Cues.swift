@@ -4,12 +4,38 @@ public enum Countdown: Int, Hashable, Sendable, Codable, CaseIterable {
     case off = 0, three = 3, five = 5
 }
 
+/// How long before work begins an interval timer says to get ready.
+public enum HeadsUp: Int, Hashable, Sendable, Codable, CaseIterable {
+    case off = 0, ten = 10, thirty = 30
+
+    var lead: TimeInterval? {
+        self == .off ? nil : TimeInterval(rawValue)
+    }
+
+    var words: Utterance? {
+        switch self {
+        case .off: nil
+        case .ten: Utterance("Get ready. Ten seconds.")
+        case .thirty: Utterance("Get ready. Thirty seconds.")
+        }
+    }
+}
+
 public struct CuePreferences: Hashable, Sendable, Codable {
     public var countdown: Countdown
     public var voice: Bool
+    public var headsUp: HeadsUp
 
-    public init(countdown: Countdown = .three, voice: Bool = true) {
-        self.countdown = countdown; self.voice = voice
+    public init(countdown: Countdown = .three, voice: Bool = true, headsUp: HeadsUp = .thirty) {
+        self.countdown = countdown; self.voice = voice; self.headsUp = headsUp
+    }
+
+    /// Released versions wrote no `headsUp`, so a file without it reads as the default.
+    public init(from decoder: any Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        countdown = try container.decode(Countdown.self, forKey: .countdown)
+        voice = try container.decode(Bool.self, forKey: .voice)
+        headsUp = try container.decodeIfPresent(HeadsUp.self, forKey: .headsUp) ?? CuePreferences().headsUp
     }
 }
 
@@ -57,6 +83,9 @@ enum CueTiming {
     static let mergeGap: TimeInterval = 1.5
     static let quietHead: TimeInterval = 2.0
     static let lateGrace: TimeInterval = 0.25
+    /// A phase gets a heads-up only when it has run at least this long by then, so the heads-up
+    /// never follows right after the phase's own announcement.
+    static let headsUpMargin: TimeInterval = 15
     static let voiceBaseHundredths = 40
     static let voiceHundredthsPerCharacter = 6
     static let voiceSlotTenths = 15...40
@@ -82,7 +111,7 @@ public struct CueSchedule: Equatable, Sendable {
     private typealias Cue = (offset: TimeInterval, sound: Sound)
 
     init(_ timeline: Timeline, _ preferences: CuePreferences, zeroAt: Date, released: Int) {
-        var cues = Self.cues(in: timeline.leg(after: released), preferences)
+        var cues = Self.cues(in: timeline.leg(after: released), of: timeline, preferences)
         if timeline.gate(after: released) == nil { cues += Self.finish(of: timeline, preferences) }
 
         let spans = cues.map {
@@ -109,12 +138,13 @@ public struct CueSchedule: Equatable, Sendable {
 
     static func vocabulary(of timeline: Timeline, _ preferences: CuePreferences) -> [Sound] {
         var seen: Set<Sound> = []
-        return (cues(in: timeline.segments[...], preferences) + finish(of: timeline, preferences))
+        return (cues(in: timeline.segments[...], of: timeline, preferences) + finish(of: timeline, preferences))
             .map(\.sound).filter { seen.insert($0).inserted }
     }
 
     /// In time order.
-    private static func cues(in segments: ArraySlice<Segment>, _ preferences: CuePreferences) -> [Cue] {
+    private static func cues(in segments: ArraySlice<Segment>, of timeline: Timeline,
+                             _ preferences: CuePreferences) -> [Cue] {
         var cues: [Cue] = []
         for segment in segments {
             if segment.phase.isCountIn {
@@ -131,6 +161,11 @@ public struct CueSchedule: Equatable, Sendable {
             if preferences.voice, let words = segment.phase.announcement,
                segment.isGate || CueTiming.voiceDelay + words.slot <= segment.duration {
                 let offset = segment.start + CueTiming.voiceDelay
+                cues.append((offset, .voice(words)))
+                quietUntil = max(quietUntil, offset + words.slot)
+            }
+            if preferences.voice, let offset = timeline.headsUp(in: segment, preferences.headsUp),
+               let words = preferences.headsUp.words {
                 cues.append((offset, .voice(words)))
                 quietUntil = max(quietUntil, offset + words.slot)
             }

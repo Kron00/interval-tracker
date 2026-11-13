@@ -4,12 +4,14 @@ import SwiftUI
 private enum LibrarySheet: Identifiable {
     case detail(Workout)
     case editor(WorkoutDraft)
+    case describe
     case settings
 
     var id: String {
         switch self {
         case .detail(let workout): "detail-\(workout.id)"
         case .editor(let draft): "editor-\(draft.id)"
+        case .describe: "describe"
         case .settings: "settings"
         }
     }
@@ -97,6 +99,12 @@ struct LibraryScreen: View {
                             Label("Stretch routine", systemImage: "figure.flexibility")
                         }
                         .accessibilityIdentifier("newStretchRoutine")
+                        Button {
+                            sheet = .describe
+                        } label: {
+                            Label("Describe a workout", systemImage: "sparkles")
+                        }
+                        .accessibilityIdentifier("describeWorkout")
                     } label: {
                         Image(systemName: "plus")
                     }
@@ -138,10 +146,19 @@ struct LibraryScreen: View {
                     self.sheet = nil
                 },
                 cancel: { self.sheet = nil })
+        case .describe:
+            DescribeSheet(
+                save: { workout in
+                    store.update { $0.save(workout) }
+                    self.sheet = nil
+                },
+                edit: { self.sheet = .editor(WorkoutDraft($0)) },
+                close: { self.sheet = nil })
         case .settings:
             SettingsScreen(
                 store: store,
                 log: log,
+                liveActivityProblem: run.liveActivityProblem,
                 startAudioCheck: { start(.audioCheck, cues: SettingsScreen.audioCheckCues) },
                 close: { self.sheet = nil })
                 .task { run.prepare(.audioCheck, cues: SettingsScreen.audioCheckCues) }
@@ -232,30 +249,8 @@ struct WorkoutDetailSheet: View {
     var body: some View {
         NavigationStack {
             ScrollView {
-                VStack(spacing: 22) {
-                    VStack(spacing: 2) {
-                        Text(workout.totalText)
-                            .font(.system(size: 64, weight: .bold, design: .rounded))
-                            .monospacedDigit()
-                            .lineLimit(1)
-                            .minimumScaleFactor(0.5)
-                            .accessibilityIdentifier("detailTotal")
-                        Text("total")
-                            .font(.headline)
-                            .foregroundStyle(Color.secondary)
-                    }
-                    TimelineStrip(spans: workout.outline)
-                        .frame(height: 14)
-                    Group {
-                        switch workout.plan {
-                        case .intervals(let intervals): IntervalRows(intervals: intervals)
-                        case .routine(let routine): StretchRows(routine: routine)
-                        }
-                    }
-                    .padding(.horizontal, 16)
-                    .background(Theme.card, in: Theme.cardShape)
-                }
-                .padding(20)
+                WorkoutBreakdown(workout: workout)
+                    .padding(20)
             }
             .background(Theme.background)
             .navigationTitle(workout.name)
@@ -296,6 +291,37 @@ struct WorkoutDetailSheet: View {
         }
         .presentationDetents([.large])
         .presentationBackground(Theme.background)
+    }
+}
+
+/// A workout laid out to read before it is run: the total, the strip, and every step.
+struct WorkoutBreakdown: View {
+    let workout: Workout
+
+    var body: some View {
+        VStack(spacing: 22) {
+            VStack(spacing: 2) {
+                Text(workout.totalText)
+                    .font(.system(size: 64, weight: .bold, design: .rounded))
+                    .monospacedDigit()
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.5)
+                    .accessibilityIdentifier("detailTotal")
+                Text("total")
+                    .font(.headline)
+                    .foregroundStyle(Color.secondary)
+            }
+            TimelineStrip(spans: workout.outline)
+                .frame(height: 14)
+            Group {
+                switch workout.plan {
+                case .intervals(let intervals): IntervalRows(intervals: intervals)
+                case .routine(let routine): StretchRows(routine: routine)
+                }
+            }
+            .padding(.horizontal, 16)
+            .background(Theme.card, in: Theme.cardShape)
+        }
     }
 }
 
@@ -417,6 +443,16 @@ extension Count {
 
 extension PhaseSpan {
     var lengthText: String { phase.reps?.repsText ?? ClockText.remaining(duration) }
+}
+
+extension RunProgress {
+    /// What a waiting run waits on: a rep count, or the length of the hold that Start begins.
+    var awaited: String? { reps?.repsText ?? phase.pendingHold.map(ClockText.remaining) }
+
+    /// What follows this phase, as "Work 4:00". "Finish" in the last phase.
+    var upNextText: String {
+        upNext.map { "\($0.phase.title(following: phase)) \($0.lengthText)" } ?? "Finish"
+    }
 }
 
 extension Workout {

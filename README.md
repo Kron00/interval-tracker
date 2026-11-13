@@ -23,7 +23,7 @@
   <img src="docs/screenshots/21-stretch-detail.jpg" width="19%" alt="Stretch routine detail with how-to links">
 </p>
 
-A workout timer for iPhone. It runs two kinds of workout from one library:
+A workout timer for iPhone. It runs two kinds of workout from one library, and it can build either kind from a description that you type:
 
 - An **interval timer** has a warm-up, work and rest rounds, and a cool-down.
 - A **stretch routine** is a list of stretches. Each stretch is a timed hold or a number of reps, on one side or on each side, with an optional link to a how-to video.
@@ -31,6 +31,8 @@ A workout timer for iPhone. It runs two kinds of workout from one library:
 An interval timer moves from phase to phase by itself. A stretch routine waits for you before every stretch. A timed hold starts when you tap **Start**, and a stretch counted in reps ends when you tap **Next**.
 
 The app beeps, counts down, and speaks at each change. It keeps doing that with the screen locked, and it lowers your music for each cue without stopping it. Every screen is dark.
+
+While you use other apps, the lock screen and the Dynamic Island show the phase and the time left. Before a rest ends, the app tells you to get ready.
 
 Three presets are built in:
 
@@ -57,6 +59,7 @@ AltStore installs the app without Xcode and tells you when a new version is out.
 	```
 
 4. Open the **Intervals** source and install **Intervals**.
+5. If AltStore asks whether to keep the app's extensions, keep them. The extension draws the workout on the lock screen and in the Dynamic Island. Without it the app works and shows nothing there.
 
 The app is named **Intervals** on the home screen.
 
@@ -74,7 +77,7 @@ Use this path to run your own changes. You need a Mac with Xcode 27 or later, an
 	open interval-tracker/IntervalTracker.xcodeproj
 	```
 
-3. In the project navigator, click **IntervalTracker**, then the **IntervalTracker** target, then **Signing & Capabilities**. Set **Team** to your name. If Xcode says the bundle identifier is not available, change `com.kron00.IntervalTracker` to any identifier of your own.
+3. In the project navigator, click **IntervalTracker**, then the **IntervalTracker** target, then **Signing & Capabilities**. Set **Team** to your name. Do the same for the **IntervalTrackerWidgets** target. If Xcode says the bundle identifier is not available, change `com.kron00.IntervalTracker` to an identifier of your own in both targets. The identifier of **IntervalTrackerWidgets** must start with the identifier of the app.
 4. Connect the iPhone with the cable and unlock it. Tap **Trust** on the phone.
 5. On the iPhone, open **Settings**, then **Privacy & Security**, then **Developer Mode**. Turn it on and restart the phone when asked.
 6. In the Xcode toolbar, choose your iPhone as the run destination. Press Cmd-R.
@@ -84,7 +87,7 @@ With a free Apple Account the app stops opening after 7 days. Connect the phone 
 
 ## Check the audio on your phone
 
-Nobody has run this app on a real iPhone yet. The timer, the screens, and the sounds are tested in the simulator. Two behaviors exist only on a phone: whether the app stays awake while locked, and whether your music dips and comes back. The app has a 1-minute check for both.
+Nobody has run this app on a real iPhone yet. The timer, the screens, and the sounds are tested in the simulator. Three behaviors exist only on a phone: whether the app stays awake while locked, whether your music dips and comes back, and whether the lock screen lights up for the heads-up. The app has a 1-minute check for all three.
 
 1. Start your music.
 2. In Intervals, tap the gear, then **Run 1-minute audio check**.
@@ -92,6 +95,8 @@ Nobody has run this app on a real iPhone yet. The timer, the screens, and the so
 
 | You hear | It means |
 | --- | --- |
+| "Get ready. Ten seconds." at 0:20, and the locked screen lights up with a card that reads **Get ready** | The heads-up and the Live Activity work. |
+| "Get ready" is spoken and the screen stays dark | The Live Activity did not alert. In Intervals, open **Settings** and read the line under **Live Activity**. |
 | Three beeps, a tone, and "Round one" at 0:27 | The app stays awake while locked. |
 | Nothing after the first tone | iOS suspended the app. In Settings, open **Troubleshooting**, tap **Copy log**, and report it. |
 | The music dips for each cue and returns to full between cues | Ducking works. Change nothing. |
@@ -156,6 +161,141 @@ Hold and drag a stretch to move it. Swipe a stretch left to delete it.
 
 **Count-in after Start** is the time between **Start** and each hold. It is 3 seconds unless you change it. Choose **Off** to begin each hold the moment you tap **Start**. Reps have no count-in.
 
+## Describe a workout and let ChatGPT build it
+
+You can describe a workout in words. ChatGPT turns the description into an interval timer or a stretch routine, and you read it before you save it.
+
+1. Tap **+**, then **Describe a workout**.
+2. Tap **Continue with ChatGPT** and sign in. The first time, ChatGPT asks whether Intervals may use your plan. Approve it.
+3. Type what you want, for example "15-minute hip mobility routine". You can also tap one of the examples.
+4. Tap **Generate**. To stop waiting, tap **Cancel**.
+5. Read the result, then choose what to do with it.
+
+| Button | What it does |
+| --- | --- |
+| **Save** | Adds the workout to **My workouts** |
+| **Edit** | Opens the workout in the editor, where you can change it and save it |
+| **Try again** | Asks for another answer to the same description |
+| **Reword** | Goes back to the description so that you can change it |
+
+Nothing is saved until you tap **Save**. Only the text you type is sent to OpenAI.
+
+An interval timer has one work length and one rest length. If you ask for rounds of different lengths, such as a pyramid, ChatGPT chooses one length and says so in a note above the total. A generated stretch routine works as one you build by hand does: each hold waits for **Start** and then counts in for 3 seconds. To change the count-in, tap **Edit**.
+
+### Choose what pays for it
+
+| Payment | How to set it up | What it costs |
+| --- | --- | --- |
+| Your ChatGPT plan | Tap **Continue with ChatGPT** in **Settings** or in **Describe a workout** | Each workout counts toward your plan's usage |
+| An OpenAI API key | In **Settings**, paste the key under **OpenAI API key** and tap **Save key** | OpenAI bills the key for each request |
+
+The plan pays when you are signed in and ChatGPT has allowed plan usage. Otherwise the key pays. With neither, the app asks you to sign in.
+
+- To see or limit how much of your plan the app may use, tap **Manage usage** in **Settings**.
+- To use another model, choose it under **Model** in **Settings**. The app starts with the smallest model your account lists.
+- To sign out, tap **Sign out**. The app revokes its sign-in at OpenAI and deletes it from the phone. An API key stays until you tap **Remove key**.
+
+The sign-in and the key are kept in the iPhone's Keychain. If you do not use the feature for 30 days, the sign-in lapses and you sign in again.
+
+The first sign-in adds an app named Intervals to your ChatGPT account. OpenAI's documentation says that you can remove it in ChatGPT under **Settings**, **Security and login**, **Sign in with ChatGPT**.
+
+### If the sign-in does not come back to the app
+
+ChatGPT ends a sign-in by sending the browser to an address on the phone itself, `http://127.0.0.1`. The app listens at that address while you sign in. If the sign-in page stays open, or shows an error after you approve, use Safari:
+
+1. Close the sign-in page.
+2. In **Settings**, tap **Trouble signing in?**, then **Sign in with Safari**.
+3. Sign in and approve in Safari.
+4. If Safari shows "Signed in. Go back to Intervals.", go back to the app. You are signed in.
+5. If Safari says that it cannot open the page, copy the whole address from Safari's address bar. It starts with `http://127.0.0.1`.
+6. Go back to Intervals, paste the address under **Paste the address**, and tap **Finish sign-in**.
+
+### What is not proven about ChatGPT
+
+The tests use a stand-in for OpenAI inside the app. One test contacts OpenAI, and it runs only when asked for, because a person has to sign in.
+
+That test ran on 12 November 2026 in the simulator with one ChatGPT account. The app's own code did every step:
+
+- It signed in. OpenAI registered the app, sent the browser back to the listener inside the app, and granted every scope the app asks for, including plan usage.
+- It read the plan's eight models and picked `gpt-6-luna`.
+- It asked for a "15-minute hip mobility routine" and built a routine of eight stretches from the answer.
+- It signed out.
+
+Three things are still untested:
+
+- Signing in on a real iPhone. The simulator shares the Mac's network, and a phone does not.
+- Whether your plan may be used by other apps. One plan was checked, and OpenAI's pages disagree about which plans qualify.
+- Whether an app that AltStore signed keeps the sign-in in the Keychain. The live test kept its tokens in memory.
+
+`Scripts/chatgpt-probe.py` sends the same requests from a Mac, without the app or Xcode.
+
+To check your own account, run it. It opens the sign-in page in your browser, prints the scope you were granted and the models your plan lists, asks for one routine with a JSON Schema, and revokes its sign-in. It leaves an app named "Intervals probe" in your ChatGPT account.
+
+```sh
+/usr/bin/python3 Scripts/chatgpt-probe.py
+```
+
+| The script prints | It means |
+| --- | --- |
+| A scope without `chatgpt.tokens.use.direct` | Plan usage was declined, or the plan does not qualify. Use an API key. |
+| `subscription_sharing_unsupported_capability` | A plan request may not carry a schema. The app's second request covers that case. |
+| A routine | Sign-in, plan usage, and the schema all work for your account. |
+
+To check the fourth, sign in from the app on your phone. If the sign-in page does not close by itself, follow the Safari steps above and report it.
+
+## See the workout while you use other apps
+
+A rest is when you pick up the phone. So the workout stays in view after you leave the app.
+
+<p align="center">
+  <img src="docs/screenshots/52-heads-up.jpg" width="30%" alt="Lock screen card for a warm-up with 8 seconds left, with a Get ready badge">
+  <img src="docs/screenshots/52a-heads-up-dynamic-island.jpg" width="45%" alt="Dynamic Island opened by the heads-up, with the phase, the time left and what is up next">
+</p>
+
+- The lock screen shows a card in the colour of the phase, with the phase, the time left, and what is up next.
+- On an iPhone with a Dynamic Island, the island shows a ring and the time left. Touch and hold the island to see the whole card.
+
+iOS draws the countdown, so it keeps ticking while the app does nothing.
+
+| The workout | What the card shows |
+| --- | --- |
+| Counts down | The time left and a bar that fills |
+| Is paused | **Paused** and the time left |
+| Waits for **Start** | **Waiting for Start** and the length of the hold. Nothing counts until you tap **Start** in the app |
+| Waits for **Next** | **Waiting for Next** and the number of reps |
+| Has finished | **Workout complete** and the time you worked, for two minutes |
+
+In a stretch routine, the card follows each stretch through its wait, its count-in and its hold. During the count-in it reads "Get ready" beside the name of the workout.
+
+<p align="center">
+  <img src="docs/screenshots/56-waiting-for-start-lock-screen.jpg" width="30%" alt="Lock screen card for Child's Pose that shows 0:45 and Waiting for Start">
+</p>
+
+The card goes away when you end the workout or tap **Done**.
+
+The first time, iOS asks under the card whether to allow Live Activities from Intervals. Tap **Allow**, then **Always Allow**. If Live Activities are turned off for Intervals in the Settings app of the iPhone, the workout runs as before. **Settings** in Intervals then says that the Live Activity is off.
+
+### Get ready before work
+
+In an interval timer, the voice says "Get ready. Thirty seconds." 30 seconds before a warm-up or a rest ends and work begins. From then on the run screen and the card read **Get ready**. The card also alerts, which lights a locked screen and opens the Dynamic Island.
+
+In **Settings**, **Get ready before work** sets the notice to **Off**, **10 s**, or **30 s**.
+
+- A phase gets no notice if it is less than 15 seconds longer than the notice. With 30 seconds of notice, a rest of 0:45 gets one and a rest of 0:44 gets none.
+- A rest that the cool-down or the finish follows gets none.
+- A stretch routine gets none, because you start every stretch yourself. The count-in after **Start** is not a notice, and the card does not alert for it.
+- With **Voice cues** off, nothing is spoken. The screen and the card still change.
+
+### What is not proven about the Live Activity
+
+The simulator draws the lock screen and the Dynamic Island, and the UI tests check both. Three things need a real iPhone:
+
+- Whether the alert lights the screen of a locked phone.
+- Whether the card follows a whole workout on a locked phone. The app updates the card from the background, which works only while the audio keeps the app awake.
+- Whether AltStore installs the extension that draws the card.
+
+The audio check covers the first two. See [Check the audio on your phone](#check-the-audio-on-your-phone).
+
 ## Control a workout from your headphones
 
 Headphone controls are off until you turn them on. In **Settings**, turn on **Headphone controls**. The same switch is on the screen of every stretch routine, above **Start**.
@@ -166,7 +306,7 @@ Headphone controls are off until you turn them on. In **Settings**, turn on **He
 | Two presses | Skip the current phase. In a stretch routine this leaves the stretch, and the next one waits. While the routine waits, two presses are **Start** or **Next** |
 | Three presses | Restart the current phase. From a hold this goes back to the count-in. While a stretch routine waits, three presses do nothing |
 
-The lock screen shows the current phase with the same three controls. While a stretch routine waits, it reads "Waiting for Start" or "Waiting for Next".
+The lock screen shows the current phase as Now Playing, with the same three controls. While a stretch routine waits, it reads "Waiting for Start" or "Waiting for Next". This is separate from the card in [See the workout while you use other apps](#see-the-workout-while-you-use-other-apps), which shows with headphone controls on or off.
 
 iOS sends headphone presses only to an app that plays audio alone. So while headphone controls are on, music from other apps stops for the whole workout. With headphone controls off, your music keeps playing and dips for each cue.
 
@@ -178,7 +318,7 @@ While headphone controls are on, a phone call pauses the workout, and so does an
 
 ### What is not proven about headphone controls
 
-Nobody has pressed a headphone button with this app on a real iPhone. The simulator has no headphones and no lock screen. Three things are untested:
+Nobody has pressed a headphone button with this app on a real iPhone. The simulator has no headphones, and no test looks for Now Playing on its lock screen. Three things are untested:
 
 - Whether iOS shows the app on the lock screen when the app plays only silence between cues.
 - Whether a press reaches the app while the workout is paused or waits for **Start** or **Next**, and the phone is locked.
@@ -197,13 +337,17 @@ xcodebuild test -project IntervalTracker.xcodeproj -scheme IntervalTracker \
 	-destination 'platform=iOS Simulator,name=iPhone 16 Pro Max' CODE_SIGNING_ALLOWED=NO
 ```
 
-CI runs both on every push, plus a build for the device architecture. The UI tests attach a screenshot of each screen, and CI uploads the screenshots as the `test-results` artifact.
+The tests for the ChatGPT feature answer every request from a stand-in. One test contacts OpenAI, and it runs only when you ask for it.
+
+CI runs both on every push, plus a build for the device architecture. The UI tests attach a screenshot of each screen, and CI uploads the screenshots as the `test-results` artifact. Three of the UI tests lock the simulator and read the Live Activity from the lock screen.
 
 ## Change the project
 
 `project.yml` is the source of the Xcode project. After you add or remove a file outside Xcode, run `xcodegen generate` and commit the result.
 
-[About the design](docs/design.md) explains how the timer keeps time, how the cues are scheduled, and how the two audio modes differ.
+The project has two products. `IntervalTracker` is the app. `IntervalTrackerWidgets` is the extension that draws the Live Activity, and the app carries it inside.
+
+[About the design](docs/design.md) explains how the timer keeps time, how the cues are scheduled, how the two audio modes differ, how the workout gets onto the lock screen, and how the app signs in to ChatGPT.
 
 ## Release a version
 

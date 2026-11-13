@@ -7,6 +7,7 @@ struct IntervalTrackerApp: App {
     @State private var store: LibraryStore
     @State private var history: HistoryStore
     @State private var run: RunModel
+    @State private var chatGPT: ChatGPTModel
 
     init() {
         let log = AudioLog()
@@ -15,14 +16,17 @@ struct IntervalTrackerApp: App {
         let history = HistoryStore(fileURL: Self.historyURL())
         _history = State(initialValue: history)
         let run = RunModel(
-            player: CuePlayer(bank: SoundBank(log: log), log: log), remote: HeadphoneRemote(log: log))
+            player: CuePlayer(bank: SoundBank(log: log), log: log), remote: HeadphoneRemote(log: log),
+            liveActivity: LiveActivityController(log: log))
         run.onRunOver = history.record
         _run = State(initialValue: run)
+        _chatGPT = State(initialValue: .forThisLaunch())
     }
 
     var body: some Scene {
         WindowGroup {
             RootView(store: store, history: history, run: run, log: log)
+                .environment(chatGPT)
                 .preferredColorScheme(.dark)
         }
     }

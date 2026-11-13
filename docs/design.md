@@ -73,11 +73,36 @@ For one phase change at time T:
 
 All of these numbers are in `CueTiming` in `Cues.swift`.
 
+### What the heads-up sounds like
+
+In an interval timer, a warm-up or a rest that work follows can say that work is coming. With the default of 30 seconds, and the phase ending at T:
+
+| When | What |
+| --- | --- |
+| T − 30.5 s | Music dips |
+| T − 30 s | Voice: "Get ready. Thirty seconds." |
+| T − 27.8 s | Music returns |
+| T − 3.5 s | Music dips again for the countdown, as in the table above |
+
+With 10 seconds the voice says "Get ready. Ten seconds." at T − 10 s and the music returns at T − 8 s. A 5-second countdown dips the music at T − 5.5 s, so the two never run together.
+
+`Timeline.headsUp(in:_:)` is the one place that decides which phase gets a heads-up and when. It gives a phase one when all of these hold:
+
+- The phase is a warm-up or a rest.
+- The next phase is work. A rest before the cool-down or before the finish gets none.
+- The phase is at least 15 seconds longer than the notice. Otherwise the heads-up would follow straight after "Rest".
+
+`CueSchedule` asks that function where to put the voice. `Session.snapshot` asks it too, and reports `RunProgress.isHeadsUp` from that instant to the end of the phase. The caption on the run screen, the badge on the lock screen and the alert all follow from `isHeadsUp`, so none of them repeats the rule. A stretch routine has no warm-up, no rest and no work. The rule never matches there, and nothing has to ask which kind of plan it has. The count-in of a stretch also has the caption "Get ready". That is the count-in's own caption. `isHeadsUp` is false in a count-in, so the card shows no badge and does not alert.
+
+The notice is `CuePreferences.headsUp`: off, 10 seconds or 30 seconds. The library file stores it as seconds. Versions from before the heads-up wrote no such value, so a file without it reads as 30 seconds.
+
+`isHeadsUp` does not depend on the voice. With voice cues off the screen and the Live Activity still change, and nothing is spoken.
+
 ### How long a spoken phrase may be
 
 An interval timer speaks a fixed set of phrases. A routine speaks the names its user typed. The schedule still has to know how long each phrase lasts, and it cannot ask the speech engine, because the package has none.
 
-So the slot comes from the text alone. It is 0.4 s plus 0.06 s for each character, rounded up to a tenth of a second, and never below 1.5 s or above 4.0 s. Every interval phrase is short enough to get 1.5 s, which is what it had before routines existed. "Hip Flexor Couch Stretch, left side" gets 2.5 s.
+So the slot comes from the text alone. It is 0.4 s plus 0.06 s for each character, rounded up to a tenth of a second, and never below 1.5 s or above 4.0 s. Every phrase that names an interval phase is short enough to get 1.5 s, which is what it had before routines existed. "Get ready. Thirty seconds." gets 2.0 s, and in the simulator it takes 1.75 s. "Hip Flexor Couch Stretch, left side" gets 2.5 s.
 
 Two limits follow from the slot:
 
@@ -126,6 +151,52 @@ Three things have to hold.
 - **Recovery is one code path.** `RunModel` calls `CuePlayer.reconcile` ten times a second with what the run needs: nothing, standby, or a schedule to play. `reconcile` compares that with what it last queued and repairs any difference. A route change or a skip only marks the queued state as unknown, and the next call rebuilds it.
 
 Standby means the run is on but has nothing to play. A paused run is on standby. So is a waiting run, once the tone and the name that began the wait have sounded. Waiting has no audio code of its own.
+
+## How the workout shows outside the app
+
+A Live Activity is a view that iOS draws on the lock screen and in the Dynamic Island for an app that is not on screen. The view lives in an app extension, `IntervalTrackerWidgets`. The app hands iOS a value, and iOS draws the view from that value when it likes, also while the app is suspended.
+
+`Shared/RunActivity.swift` is compiled into both the app and the extension. It holds that value, `RunActivityAttributes.ContentState`, and the colours of the phases. The value is plain: a title, a caption, what is up next, a colour key, what stands in the clock's place, and whether the heads-up is on. The extension does not import `IntervalCore` and decides nothing about a run.
+
+### Why a run sends so few updates
+
+The clock's place is one of four cases.
+
+| Case | What it carries | Who moves it |
+| --- | --- | --- |
+| Counting | The two dates the phase runs between | iOS. `Text(timerInterval:)` and `ProgressView(timerInterval:)` tick by themselves |
+| Paused | The time left, as text | Nothing |
+| Waiting | The length of the hold and that the run waits for **Start**, or the rep count and that it waits for **Next** | Nothing |
+| Finished | The time worked | Nothing |
+
+So the value is the same at every instant inside one phase. The two dates come from `Session.phaseEnd(at:)`, which adds the end of the segment to the session's one date. It never uses `now`, so two calls in the same phase return the same date to the last bit.
+
+`RunModel` calls `LiveActivityController.reconcile` ten times a second, next to the audio. `reconcile` builds the value, compares it with the last one, and returns when they are equal. A run sends one update for each change of phase, pause, resume, wait, heads-up and finish. Norwegian 4x4 sends 14 in 38 minutes: 9 changes of phase, 4 heads-ups and the finish. A timed stretch sends three: its wait for **Start**, its count-in and its hold.
+
+A wait carries which tap it waits for as a key, `start` or `next`, the way the colour is a key. The extension turns the key into the badge and its symbol. A run that is paused at a wait shows what the wait shows in the clock's place, the length of the hold or the rep count, and not an empty clock.
+
+### Why one task talks to ActivityKit
+
+`Activity.update` and `Activity.end` are async. Two updates started on two ticks could land in either order. So `reconcile` only records the card that is wanted and makes sure one task is running. The task takes the newest wanted card, shows it, and looks again. A change that arrives during an update is shown next. A change that was replaced before its turn is skipped.
+
+`SystemActivityDisplay` is the only code that calls ActivityKit. The controller reaches it through the `RunActivityDisplay` protocol, and the app tests put a recorder in its place to check the order.
+
+### When the activity starts and ends
+
+| The run | The activity |
+| --- | --- |
+| Starts | Requested. iOS allows a request only while the app is in front, and Start is a tap in the app |
+| Changes phase or state | Updated |
+| Reaches its heads-up | Updated with an alert, which lights a locked screen and opens the Dynamic Island. The alert carries a silent sound file, because the system's alert sound would play over the voice and an alert cannot have no sound. It alerts once for each run through the phase, so a skip and its Undo do not alert again |
+| Finishes | Updated, then ended, and left on the lock screen for two minutes |
+| Is ended, or **Done** is tapped | Removed at once |
+| Is brought back by Undo after the finish | Requested again, because an ended activity takes no updates |
+
+A session is not saved, so a crash or a force quit leaves an activity that counts down to a run that no longer exists. Every launch removes all activities of the app before it does anything else.
+
+Nothing else in the app depends on the activity. If Live Activities are turned off, or iOS refuses the request, the controller writes one line to the log, Settings shows the reason, and the next change of phase tries again. That is also what happens if the extension is missing from the installed app.
+
+A paused run, and in mixing mode a waiting run, release the audio, so iOS may suspend the app. The card is right anyway, because those states do not change with time.
 
 ## Why headphone controls need a second audio mode
 
@@ -179,6 +250,93 @@ A wait has one thing to do. So the small back and forward buttons keep their pla
 
 The cost is height. A stretch name can be 40 characters, so the title block is two lines tall on every screen, and an interval timer shows more empty space than it used to.
 
+The heads-up uses the caption line, which is always there. During it the line reads "Get ready" in place of the round. In a warm-up the line is empty until then.
+
+## How a description becomes a workout
+
+**Describe a workout** sends the text you type to OpenAI's Responses API and gets back JSON. A language model can return anything, so its answer is treated like a file from an unknown version of the app. It is decoded, checked, and only then becomes a `Workout`.
+
+`WorkoutBlueprint` in the package is that JSON, decoded and not yet checked. `WorkoutBlueprint.workout()` is the only code that knows how an answer maps to a workout. It builds the workout through the same failable initialisers that the editor and the library file use, so a generated workout cannot hold a value that a hand-built one could not.
+
+| In the answer | What `workout()` does |
+| --- | --- |
+| A number above a limit, such as 500 rounds | Uses the limit |
+| A warm-up, rest, or cool-down of zero or less | Leaves the phase out |
+| A stretch name longer than 40 characters | Cuts it to 40 |
+| More than 99 stretches | Keeps the first 99 |
+| A stretch with both a hold and reps | Counts it in reps |
+| No name, no work time, no rounds, no stretches, or a stretch with no name or no amount | Fails with a `BlueprintError` that names what was wrong |
+
+The model never chooses the count-in of a routine. A generated routine gets the count-in that a new routine has in the editor. A stretch waits for Start, so the model has no pause to plan, and the instructions tell it not to add get-ready steps as stretches.
+
+The JSON Schema of the answer and the instructions for the model are constants next to `workout()`. The instructions state the same limits that `workout()` enforces, with the numbers taken from the package. A change to the workout model is then a change to one file.
+
+The schema is in the strict form that OpenAI's structured output takes. Every property is required, an absent value is null, and no other property is allowed. OpenAI does not say whether a request that a ChatGPT plan pays for may carry a schema. If the server refuses the schema, `WorkoutGenerator` sends the request once more with the schema written into the instructions. `workout()` checks the answer in both cases, so the app does not depend on the server holding the model to the schema.
+
+An interval timer has one work length and one rest length. A pyramid cannot be stored. The instructions tell the model to choose one length and to say so in `note`, and the result screen shows the note above the total.
+
+## How the app signs in to ChatGPT
+
+The app uses OpenAI's "Sign in with ChatGPT" flow for open-source apps. It is OAuth with PKCE and a public client. No secret is involved, so there is none in this repository. The request for a workout then goes to `POST https://api.openai.com/v1/responses` with the token from the sign-in, and OpenAI counts it against the user's plan.
+
+The app does not use the Codex CLI's client id or the `chatgpt.com/backend-api` route. OpenAI's documentation tells other apps not to.
+
+### Why the app runs a listener on 127.0.0.1
+
+OpenAI ends a sign-in by sending the browser to `http://127.0.0.1:<port>/auth/callback`. It accepts no other kind of redirect address, and it has no device-code flow. The system sign-in sheet, `ASWebAuthenticationSession`, tells an app only about a redirect to a custom scheme or to an HTTPS address. So the sheet cannot hand the app the answer.
+
+`LoopbackCallback` fills the gap. Before the sheet opens, the app starts a small HTTP listener on 127.0.0.1, on a port that the system chooses, and puts that port in the redirect address. When ChatGPT sends the browser there, the listener hands the request to the app and answers with a redirect to `intervals-auth://done`. The sheet watches for that scheme and closes.
+
+The listener is bound to the loopback address, so no other device can reach it. A hosted test proves that the listener's port is still free on the machine's network address. The listener stops when the sign-in succeeds, when the user cancels, and after ten minutes.
+
+`NWParameters.acceptLocalOnly` is not set. With it, the simulator reset every connection before the listener saw a request.
+
+### Why there is a second route through Safari
+
+Nobody has seen the sheet reach the listener on a real iPhone. So Settings also offers **Sign in with Safari**, which does not depend on it.
+
+Safari is a separate app. While the user signs in there, Intervals is in the background, and iOS may suspend it. Two things can then happen when ChatGPT sends Safari to the redirect address.
+
+| Intervals is | Safari shows | The user |
+| --- | --- | --- |
+| Still running | The listener's page: "Signed in. Go back to Intervals." | Goes back to the app |
+| Suspended | An error, with the redirect address in the address bar | Copies the address and pastes it into the app |
+
+A pasted address and a request to the listener are read by the same function, `SignInAttempt.grant(from:)`. It checks the `state` value against the attempt in progress, so an address from another attempt is turned away.
+
+### What is stored, and where
+
+Everything about the account is one value, `Vault`, kept as one Keychain item: an id for this install, the client id that OpenAI issued, the tokens, and the API key. Nothing about the account is in `UserDefaults` or in a file. No token, code, or key is written to a log.
+
+What the screens show is derived from the vault and never stored beside it.
+
+| The vault holds | The account is |
+| --- | --- |
+| No tokens and no key | Signed out |
+| No tokens and a key | Key only |
+| Tokens whose scope has `chatgpt.tokens.use.direct` | Signed in, and the plan pays |
+| Tokens without that scope | Signed in without plan usage. The key pays if there is one. |
+
+A valid sign-in does not by itself allow plan usage. Only the scope that came back with the tokens does.
+
+`ChatGPTAccount` is an actor, so the Keychain and the token responses are never handled on the main thread. `WorkoutGenerator` is an actor for the same reason: it reads the stream and builds the workout away from the main thread. `ChatGPTModel` is the main-actor object that the screens observe.
+
+### Why refreshes wait for each other
+
+An access token lasts one hour. A refresh returns a new access token and a new refresh token, and the old refresh token stops working. Two refreshes at the same time would leave one caller with a dead token, and OpenAI treats a reused refresh token as a reason to end the session.
+
+So `ChatGPTAccount` keeps the refresh in progress, and every caller that needs a token waits for that one request. A token within two minutes of its end is refreshed before use.
+
+| The refresh | What the app does |
+| --- | --- |
+| Succeeds | Stores the new tokens |
+| Is refused with `invalid_grant`, `refresh_token_expired`, `refresh_token_reused`, or `refresh_token_invalidated` | Deletes the tokens, keeps the client id, and asks the user to sign in again |
+| Fails for any other reason, such as no connection | Keeps the tokens and reports that OpenAI could not be reached |
+
+**Sign out** deletes the tokens and the client id first, then tells OpenAI to revoke the refresh token. The client id belongs to one ChatGPT user, and the next person to sign in may be someone else. The id for the install stays.
+
+The app checks the `nonce` in the ID token against the sign-in attempt. It does not check the token's signature. The token comes straight from OpenAI's token endpoint over TLS, and OpenID Connect accepts that in place of the signature check.
+
 ## What a running timer costs
 
 The digits change once a second, so the run screen redraws once a second. `Session.zeroDate` is the instant elapsed time was zero, and the screen redraws on the whole seconds after it, which is exactly when a digit changes. `Session.haltDate` is the instant the run next stops by itself, at a gate or at the finish. The screen is not redrawn after it, because a waiting run shows the same thing until you tap. A paused run is not redrawn either.
@@ -198,6 +356,17 @@ Measured on an iPhone 16 Pro Max simulator with iOS 27.2 and a Debug build:
 | Paused | 1.6% and 1.7% |
 
 Each figure is the app's CPU time over about 19 seconds, and each row shows two runs. A waiting run costs what a paused run costs. What is left is probably the ten audio checks a second, but that was not profiled.
+
+The Live Activity was measured against the commit before it, on the same simulator with a Debug build. Each figure is the app's CPU time over 19 seconds of a Norwegian 4x4 warm-up, as the median and the range of five runs. The two builds took turns.
+
+| | Before | With the Live Activity |
+| --- | --- | --- |
+| Run screen in front | 3.0% (2.8% to 3.7%) | 3.0% (2.4% to 3.5%) |
+| Behind the home screen, with the Dynamic Island showing | 2.5% (2.2% to 2.7%) | 1.6% (1.6% to 1.6%) |
+
+In front the two builds do not differ. The Mac ran other work during these runs, which is the likely reason for the spread. Behind the home screen the new build used less in all five pairs. A 10-second `sample` of each build puts the difference on the main thread, in SwiftUI's render of the run screen: 37 samples before and 13 after. Why SwiftUI does less there was not found.
+
+In a stretch routine the Live Activity was checked with a 15-second `sample` of a waiting run, with the run screen in front. `LiveActivityController.reconcile` took 2 of 5,843 main-thread samples while the run waited for **Next**, and 10 of 11,005 while it waited for **Start**. Three alternating runs of each build were also timed in those states, but the Mac was running other work and the runs of one build differed by more than the two builds did, so they show nothing.
 
 The history needs one more check on each of the ten ticks a second, a snapshot that says whether the workout has finished. Five runs of a counting warm-up with the check and five without, taken in turn over 30 seconds each, gave a median of 2.8% and 2.6% of one core. The ranges were 2.4% to 3.5% with the check and 2.5% to 4.7% without, on a Mac that was busy with other work, so the check has no cost that this measurement can show.
 
@@ -248,6 +417,21 @@ Lowering other apps' music means adding `.duckOthers` to the audio session, and 
 
 Once one strategy passes the audio check in the README, delete the other two and the picker.
 
+### The Live Activity on a phone
+
+The UI tests lock the simulator and read the card from the lock screen. They show that the card starts with the run, says to get ready, follows the run into work, shows the finish, comes back with Undo, and goes away with the run. In a routine they show that the card waits for **Next** with the rep count, and waits for **Start** with the length of the hold, which does not count down. They also show that a launch removes the card of a run that was force quit. Screenshots show the Dynamic Island in its compact and expanded forms, and that the alert opens it.
+
+No UI test asserts on the count-in or the hold of a stretch on the lock screen. Both end by themselves, and a slow machine could miss them. The app tests cover what the card carries in those two phases, and two screenshots taken two seconds apart show the hold counting down on the lock screen.
+
+What only a phone can show:
+
+- Whether the alert lights the screen of a locked phone, and whether it stays silent. The simulator plays no alert sound either way.
+- Whether the card keeps up for a whole workout on a locked phone. The app updates it from the background, so this rests on the same thing as the cues: the audio keeps the app awake.
+- Whether AltStore installs the extension. AltStore signs the app again with the owner's Apple Account and may ask whether to keep app extensions. If the extension is removed, the app is expected to run with no card, but that path has never run.
+- What the minimal form of the Dynamic Island looks like. iOS shows it only when two apps have an activity.
+
+The audio check in Settings uses 10 seconds of notice, so it shows the first two in one minute on a phone.
+
 ### Headphone presses
 
 Exclusive mode rests on one assumption. It is that iOS makes this app the Now Playing app when all the app plays is a silent loop and short cues, and keeps it there while the run is paused or waiting and the phone is locked. A stretch routine depends on that assumption before every stretch, because the press for **Start** or **Next** arrives during a wait. No simulator can show that.
@@ -268,3 +452,32 @@ What only a phone can show:
 The Headphone check in Settings walks through the first two. `HeadphoneRemote` writes a line to the audio log for every command it receives, so a failed check shows whether the press arrived.
 
 If silence does not make the app Now Playing, the fix is in one place: the silent buffer in `SoundBank` becomes noise far below hearing. If a paused run loses the lock screen, the fix is in `CuePlayer.standBy`.
+
+### Building workouts with ChatGPT
+
+One test contacts OpenAI, `LiveOpenAITests`, and it is skipped unless `TEST_RUNNER_LIVE_OPENAI=1` is set, because a person has to sign in. Nobody has signed in to ChatGPT from the app on a phone. The protocol comes from OpenAI's documentation and from three open-source clients that implement it.
+
+What is proven without an account:
+
+- What the app sends. Hosted tests read the sign-in address, the code exchange, the refresh, the revocation, and the request for a workout, and compare each with the documented fields.
+- What the app does with each documented answer: the tokens, a scope without plan usage, each refresh failure, each error code, a stream that ends early, and a refused schema.
+- That the system sign-in sheet reaches the listener on the simulator. A UI test signs in through the real sheet and the real listener. Only ChatGPT's page and the token endpoint are stand-ins.
+- That a signed simulator build stores the vault in the Keychain and reads it back. An unsigned build has no Keychain, so CI skips those two tests.
+
+What one account showed. `LiveOpenAITests` ran against OpenAI on 12 November 2026 in the simulator. It drives `ChatGPTModel` with the real transport, the real listener, and a vault in memory. It prints the sign-in address, and the address is opened in a browser on the Mac, whose loopback interface the simulator shares. `Scripts/chatgpt-probe.py` sends the same requests without the app and ran the same day:
+
+- OpenAI registered a client it had never seen and issued it an `oaiapp_` identifier. It granted all six scopes, with a one-hour access token.
+- The plan may be used by other apps, and a plan request may carry a strict JSON Schema with `store: false` and `stream: true`. The fallback that writes the schema into the instructions was not needed.
+- The plan listed `gpt-6.1-sol`, `gpt-6-astra`, `gpt-6.1-terra`, `gpt-6-sol`, `gpt-6-luna`, `gpt-5.6-sol`, `gpt-5.6-terra` and `gpt-5.6-luna`. `ModelList.smallest` picks `gpt-6-luna` from that list, and a test pins it.
+- The app turned the plan's answer to "15-minute hip mobility routine" into a routine of eight stretches through `WorkoutBlueprint`.
+- Revoking the refresh token succeeded.
+
+What only an account can still show:
+
+- Whether another plan may be used by other apps. The probe checked one.
+- Whether the smallest model is found when OpenAI renames its models. The model list does not say which model is the smallest, so `ModelList.smallest` goes by the names "luna", "nano", and "mini", and otherwise takes the first model listed.
+
+What only a phone can show:
+
+- Whether the sign-in sheet reaches the listener there. If it does not, the Safari route still works, and the fix is in `ChatGPTModel.signIn`.
+- Whether an app that AltStore signed can use the Keychain. It should, because signing gives the app its default Keychain group.

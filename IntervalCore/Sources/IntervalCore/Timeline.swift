@@ -284,6 +284,18 @@ struct Timeline: Equatable, Sendable {
         return segments[first..<end]
     }
 
+    /// The instant in `segment` from which the run says that work is coming, or nil when the segment
+    /// gets no heads-up. A warm-up or a rest gets one when work follows it and it is long enough that
+    /// the heads-up does not come right at its start. A stretch routine has no such phase.
+    func headsUp(in segment: Segment, _ headsUp: HeadsUp) -> TimeInterval? {
+        guard let lead = headsUp.lead, segment.duration >= lead + CueTiming.headsUpMargin,
+              segment.id.index + 1 < segments.count, case .work = segments[segment.id.index + 1].phase else { return nil }
+        switch segment.phase {
+        case .warmUp, .rest: return segment.end - lead
+        case .work, .coolDown, .ready, .getReady, .hold: return nil
+        }
+    }
+
     /// What follows the segment, or from a wait or a count-in what follows the hold it leads into.
     func upNext(after id: SegmentID) -> Segment? {
         guard let phase = segments[id.index...].firstIndex(where: { !$0.phase.isLeadIn }) else { return nil }

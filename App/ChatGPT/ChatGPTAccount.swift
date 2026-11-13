@@ -121,6 +121,8 @@ actor ChatGPTAccount {
               let refreshToken = tokens.refreshToken,
               let claims = tokens.idToken.flatMap(IDTokenClaims.init), claims.nonce == attempt.nonce
         else { throw .refused }
+        // The user cancelled while the code was exchanged. A cancelled sign-in keeps nothing.
+        if Task.isCancelled { return }
         vault.clientID = grant.clientID
         vault.session = Vault.Session(
             accessToken: tokens.accessToken, refreshToken: refreshToken, scope: tokens.scope ?? "",

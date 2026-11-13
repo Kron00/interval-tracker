@@ -46,6 +46,8 @@ final class ChatGPTModel {
 
     private enum SignInEvent {
         case callback(String, pasted: Bool)
+        /// The code was exchanged for tokens, or the exchange failed with this problem.
+        case exchanged(SignInProblem?)
         case sheetClosed
         case cancelled
         case timedOut
@@ -99,46 +101,51 @@ final class ChatGPTModel {
             feed.yield(.timedOut)
         }
 
-        var outcome: Result<SignInGrant, SignInProblem>?
+        // The exchange runs beside this loop, so that Cancel and the time limit still count while
+        // the code is turned into tokens.
+        var exchange: Task<Void, Never>?
         waiting: for await event in events {
             switch event {
             case .callback(let address, let pasted):
+                guard exchange == nil else { continue }
                 do {
-                    outcome = .success(try begun.attempt.grant(from: address))
-                    break waiting
+                    let grant = try begun.attempt.grant(from: address)
+                    listener?.stop()
+                    web.close()
+                    exchange = Task { [account] in
+                        do throws(SignInProblem) {
+                            try await account.finishSignIn(begun.attempt, grant)
+                            feed.yield(.exchanged(nil))
+                        } catch {
+                            feed.yield(.exchanged(error))
+                        }
+                    }
                 } catch {
                     if error == .denied || error == .refused {
-                        outcome = .failure(error)
+                        signInProblem = error.message
                         break waiting
                     }
                     // Not an answer to this attempt. A stray request to the listener is ignored, and
                     // a wrong paste can be corrected.
                     if pasted { signInProblem = error.message }
                 }
-            case .sheetClosed, .cancelled:
+            case .exchanged(let problem):
+                signInProblem = problem?.message
+                break waiting
+            case .sheetClosed:
+                // The sheet also closes when the sign-in page has answered.
+                if exchange == nil { break waiting }
+            case .cancelled:
                 break waiting
             case .timedOut:
-                outcome = .failure(.timedOut)
+                signInProblem = SignInProblem.timedOut.message
                 break waiting
             }
         }
         timeLimit.cancel()
+        exchange?.cancel()
         listener?.stop()
         web.close()
-
-        switch outcome {
-        case .success(let grant):
-            do {
-                try await account.finishSignIn(begun.attempt, grant)
-                signInProblem = nil
-            } catch {
-                signInProblem = error.message
-            }
-        case .failure(let problem):
-            signInProblem = problem.message
-        case nil:
-            break
-        }
         attempt = nil
         await accountChanged()
     }
@@ -163,7 +170,12 @@ final class ChatGPTModel {
     }
 
     func loadModels() async {
-        guard canPay, let listed = try? await generator.models() else { return }
+        guard canPay else { return }
+        guard let listed = try? await generator.models() else {
+            // A failed refresh ends the sign-in, and the screens have to show that.
+            summary = await account.summary
+            return
+        }
         choose(from: listed)
     }
 

@@ -52,7 +52,7 @@ The owner updates the app from AltStore. A merge that changes the app must show 
 - **Every screen is dark.**
 - **A released library file must keep loading.** If you change the file format, decode the shapes that released versions wrote.
 - Validate at the boundary only: the failable initialisers in the package and the `Decodable` code. Editors hold plain drafts and convert on Save.
-- **A model's answer becomes a workout in one function.** `WorkoutBlueprint.workout()` is the only code that maps model output to a `Workout`. The schema and the instructions sit beside it. The model never chooses the gaps of a routine.
+- **A model's answer becomes a workout in one function.** `WorkoutBlueprint.workout()` is the only code that maps model output to a `Workout`. The schema and the instructions sit beside it. The model never chooses the count-in of a routine.
 - **No test or script in CI contacts OpenAI.** Tests pass a stub as `OpenAITransport`. UI tests launch the app with `-aiStub signedIn` or `-aiStub signedOut`, which swaps in `StubOpenAI` and an in-memory vault. Never sign in from a test.
 - **Tokens and the API key live in the Keychain only**, as one `Vault`. Never log a token, a sign-in code, or the key. Derive the account state from the vault. Do not store it.
 - **One token refresh at a time.** Every refresh kills the old refresh token, so every caller waits for the refresh in `ChatGPTAccount`. Do not refresh anywhere else.

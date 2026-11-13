@@ -110,6 +110,15 @@ struct BlueprintTests {
         #expect(timer == Intervals(warmUp: nil, work: try span(30), rest: nil, rounds: try count(3), coolDown: nil))
     }
 
+    @Test func aWorkoutNameIsTrimmedAndCutToThirtyCharacters() throws {
+        #expect(try built(intervalsJSON(#""workSeconds": 30, "rounds": 4"#, name: "  Hills  ")).name == "Hills")
+        let long = String(repeating: "Hill sprints ", count: 400)
+        // Thirty characters end after "Hill sprints Hill sprints Hill", and the cut leaves no space at the end.
+        #expect(try built(intervalsJSON(#""workSeconds": 30, "rounds": 4"#, name: long)).name == "Hill sprints Hill sprints Hill")
+        let name = try built(#"{"kind": "routine", "name": "\#(String(repeating: "x", count: 5000))", "stretches": [{"name": "Pigeon", "holdSeconds": 30}]}"#).name
+        #expect(name.count == 30)
+    }
+
     @Test func aStretchNameIsTrimmedAndCutToFortyCharacters() throws {
         let long = String(repeating: "Stretch ", count: 8)
         let made = try stretches(built(routineJSON(

@@ -116,6 +116,23 @@ final class ChatGPTModelTests: XCTestCase {
         XCTAssertTrue(refused, "the port stayed open after the sign-in was cancelled")
     }
 
+    func testCancellingWhileTheCodeIsExchangedLeavesTheUserSignedOut() async throws {
+        let model = model()
+        let (running, page) = try await startSignIn(model)
+        transport.delay = .seconds(30)
+        transport.queue(.tokens(access: "access-1", refresh: "refresh-1", nonce: page["nonce"]), Self.modelList)
+        model.paste("\(try XCTUnwrap(page["redirect_uri"]))?code=a&state=\(try XCTUnwrap(page["state"]))&client_id=oaiapp_1")
+        try await waitUntil { self.transport.requests.count == 1 }
+        XCTAssertEqual(model.status, .signingIn, "Cancel is still offered while the code is exchanged")
+
+        model.cancelSignIn()
+        await running.value
+
+        XCTAssertEqual(model.status, .signedOut)
+        XCTAssertNil(model.signInProblem, "the user cancelled, so there is nothing to explain")
+        XCTAssertEqual(model.models, [])
+    }
+
     func testARefusalOnTheSignInPageEndsTheSignInWithAReason() async throws {
         let model = model()
         let (running, page) = try await startSignIn(model)
@@ -151,6 +168,19 @@ final class ChatGPTModelTests: XCTestCase {
 
         XCTAssertEqual(outcome, .failure(.signInAgain))
         XCTAssertEqual(model.status, .signedOut)
+        XCTAssertFalse(model.canPay)
+    }
+
+    func testASignInThatEndedWhileTheModelsWereLoadedShowsAsSignedOut() async {
+        let model = model(signedInVault(at: clock))
+        await model.load()
+        XCTAssertEqual(model.status, .planUsage)
+        clock.advance(by: 3600)
+        transport.queue(.error(400, code: "refresh_token_expired"))
+
+        await model.loadModels()
+
+        XCTAssertEqual(model.status, .signedOut, "Settings has to offer the sign-in again")
         XCTAssertFalse(model.canPay)
     }
 

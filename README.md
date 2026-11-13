@@ -159,7 +159,7 @@ You can describe a workout in words. ChatGPT turns the description into an inter
 
 Nothing is saved until you tap **Save**. Only the text you type is sent to OpenAI.
 
-An interval timer has one work length and one rest length. If you ask for rounds of different lengths, such as a pyramid, ChatGPT chooses one length and says so in a note above the total. A generated stretch routine gets the same **Get ready** and **Switch sides** gaps as a routine you build by hand. To change them, tap **Edit**.
+An interval timer has one work length and one rest length. If you ask for rounds of different lengths, such as a pyramid, ChatGPT chooses one length and says so in a note above the total. A generated stretch routine works as one you build by hand does: each hold waits for **Start** and then counts in for 3 seconds. To change the count-in, tap **Edit**.
 
 ### Choose what pays for it
 

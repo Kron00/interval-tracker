@@ -39,10 +39,15 @@ public struct WorkoutBlueprint: Decodable, Equatable, Sendable {
         self = blueprint
     }
 
+    /// A generated name is a title on a card and in a navigation bar. The instructions ask for this
+    /// length, and a longer name is cut to it.
+    public static let maximumNameLength = 30
+
     /// The workout this blueprint describes. A number above the package's limit becomes the limit. A
     /// length of zero or less means the phase is absent. Anything that leaves no workout to run is an error.
     public func workout() throws(BlueprintError) -> Workout {
-        let name = (name ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        let name = String((name ?? "").trimmingCharacters(in: .whitespacesAndNewlines).prefix(Self.maximumNameLength))
+            .trimmingCharacters(in: .whitespaces)
         guard !name.isEmpty else { throw .unnamed }
         switch kind {
         case .intervals:
@@ -143,9 +148,9 @@ extension WorkoutBlueprint {
         itself. Do not add pauses, rests or get-ready steps as stretches.
 
         Set "kind", fill the part that matches it, and set the other part to null.
-        "name" is a short title of at most 30 characters.
+        "name" is a short title of at most \(maximumNameLength) characters.
         When the description asks for a total time, choose lengths that add up close to it. In a \
-        routine, count the pause before each stretch, and count an each-side stretch two times.
+        routine, count an each-side stretch two times.
         "note" is one short sentence for the user when you had to change or assume something, for \
         example when rounds of different lengths became rounds of one length. Otherwise it is null.
         """

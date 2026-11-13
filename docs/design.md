@@ -194,7 +194,7 @@ The cost is height. A stretch name can be 40 characters, so the title block is t
 | A stretch with both a hold and reps | Counts it in reps |
 | No name, no work time, no rounds, no stretches, or a stretch with no name or no amount | Fails with a `BlueprintError` that names what was wrong |
 
-The model never chooses the gaps of a routine. A generated routine gets the gaps that a new routine has in the editor. The gaps exist so that the voice can name each stretch, and the package already knows how long that takes.
+The model never chooses the count-in of a routine. A generated routine gets the count-in that a new routine has in the editor. A stretch waits for Start, so the model has no pause to plan, and the instructions tell it not to add get-ready steps as stretches.
 
 The JSON Schema of the answer and the instructions for the model are constants next to `workout()`. The instructions state the same limits that `workout()` enforces, with the numbers taken from the package. A change to the workout model is then a change to one file.
 

@@ -1,4 +1,5 @@
 import Darwin
+import Network
 import XCTest
 @testable import IntervalTracker
 
@@ -61,6 +62,28 @@ final class LoopbackCallbackTests: XCTestCase {
             second.stop()
         }
         XCTAssertNotEqual(first.port, second.port)
+    }
+
+    /// Another app on the phone can connect and never finish its request. Stopping the listener
+    /// has to drop that connection, not leave it open for as long as the other app likes.
+    func testAnUnfinishedRequestIsDroppedWhenTheListenerStops() async throws {
+        let listener = try await LoopbackCallback.start(reply: .redirect(WebSignIn.done)) { _ in }
+        let port = try XCTUnwrap(NWEndpoint.Port(rawValue: listener.port))
+        let connection = NWConnection(host: .ipv4(.loopback), port: port, using: .tcp)
+        defer { connection.cancel() }
+        let closed = expectation(description: "the listener closed the connection")
+        connection.stateUpdateHandler = { state in
+            guard case .ready = state else { return }
+            connection.send(content: Data("GET /auth/callback?code=".utf8), completion: .contentProcessed { _ in
+                connection.receive(minimumIncompleteLength: 1, maximumLength: 1024) { data, _, isComplete, error in
+                    if data == nil, isComplete || error != nil { closed.fulfill() }
+                }
+                // After the listener has taken the connection in, so that the stop is what closes it.
+                DispatchQueue.global().asyncAfter(deadline: .now() + 0.3) { listener.stop() }
+            })
+        }
+        connection.start(queue: .global())
+        await fulfillment(of: [closed], timeout: 5)
     }
 
     func testNothingAnswersAfterTheListenerStops() async throws {

@@ -16,13 +16,25 @@ final class LoopbackCallback: @unchecked Sendable {
     /// The port the system chose.
     let port: UInt16
     private let listener: NWListener
+    private let unanswered: Unanswered
 
     private static let queue = DispatchQueue(label: "LoopbackCallback")
     private static let longestRequest = 65_536
+    /// A browser sends its request at once. Anything slower is not a browser.
+    private static let requestTimeLimit: DispatchTimeInterval = .seconds(10)
 
-    private init(listener: NWListener, port: UInt16) {
+    /// The connections whose request has not arrived yet. Another app on the phone can open one and
+    /// send nothing, so they are dropped when the listener stops or the time limit passes. A
+    /// connection that is being answered is left alone, or the browser would lose its reply.
+    /// Touched only on `queue`.
+    private final class Unanswered: @unchecked Sendable {
+        var connections: [ObjectIdentifier: NWConnection] = [:]
+    }
+
+    private init(listener: NWListener, port: UInt16, unanswered: Unanswered) {
         self.listener = listener
         self.port = port
+        self.unanswered = unanswered
     }
 
     /// Starts listening. `received` gets the path and query of every request for the callback path,
@@ -32,9 +44,15 @@ final class LoopbackCallback: @unchecked Sendable {
         // Bound to the loopback address, so nothing on the network can reach the listener.
         parameters.requiredLocalEndpoint = .hostPort(host: .ipv4(.loopback), port: .any)
         let listener = try NWListener(using: parameters)
+        let unanswered = Unanswered()
         listener.newConnectionHandler = { connection in
+            let id = ObjectIdentifier(connection)
+            unanswered.connections[id] = connection
+            queue.asyncAfter(deadline: .now() + requestTimeLimit) {
+                unanswered.connections.removeValue(forKey: id)?.cancel()
+            }
             connection.start(queue: queue)
-            read(connection, Data(), reply: reply, received: received)
+            read(connection, Data(), unanswered, reply: reply, received: received)
         }
         return try await withCheckedThrowingContinuation { continuation in
             listener.stateUpdateHandler = { state in
@@ -42,7 +60,7 @@ final class LoopbackCallback: @unchecked Sendable {
                 switch state {
                 case .ready:
                     guard let port = listener.port?.rawValue else { return }
-                    result = .success(LoopbackCallback(listener: listener, port: port))
+                    result = .success(LoopbackCallback(listener: listener, port: port, unanswered: unanswered))
                 case .failed(let error), .waiting(let error):
                     listener.cancel()
                     result = .failure(error)
@@ -60,15 +78,22 @@ final class LoopbackCallback: @unchecked Sendable {
 
     func stop() {
         listener.cancel()
+        Self.queue.async { [unanswered] in
+            for connection in unanswered.connections.values { connection.cancel() }
+            unanswered.connections = [:]
+        }
     }
 
-    private static func read(_ connection: NWConnection, _ buffered: Data, reply: Reply,
+    private static func read(_ connection: NWConnection, _ buffered: Data, _ unanswered: Unanswered, reply: Reply,
                              received: @escaping @Sendable (String) -> Void) {
         connection.receive(minimumIncompleteLength: 1, maximumLength: 16_384) { data, _, isComplete, error in
+            // Dropped by `stop` or by the time limit while this read was out.
+            guard unanswered.connections[ObjectIdentifier(connection)] != nil else { return }
             let buffered = buffered + (data ?? Data())
             // The reply waits for the end of the headers. Closing with part of the request unread
             // can reset the connection before the browser has the reply.
             if let head = buffered.range(of: Data("\r\n\r\n".utf8)) {
+                unanswered.connections[ObjectIdentifier(connection)] = nil
                 let request = String(decoding: buffered[..<head.lowerBound], as: UTF8.self)
                 let target = callbackTarget(ofRequest: request)
                 if let target { received(target) }
@@ -77,9 +102,10 @@ final class LoopbackCallback: @unchecked Sendable {
                     close(connection)
                 })
             } else if error != nil || isComplete || buffered.count > longestRequest {
+                unanswered.connections[ObjectIdentifier(connection)] = nil
                 connection.cancel()
             } else {
-                read(connection, buffered, reply: reply, received: received)
+                read(connection, buffered, unanswered, reply: reply, received: received)
             }
         }
     }

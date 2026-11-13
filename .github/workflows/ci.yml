@@ -1,0 +1,60 @@
+name: CI
+
+on:
+  push:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  ios:
+    runs-on: macos-26
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Toolchain
+        run: |
+          xcodebuild -version
+          xcrun simctl list devices available | grep iPhone
+
+      - name: Timer logic tests
+        run: swift test --package-path IntervalCore
+
+      - name: App and UI tests on the simulator
+        run: |
+          set -o pipefail
+          mkdir -p build
+          xcodebuild test \
+            -project IntervalTracker.xcodeproj \
+            -scheme IntervalTracker \
+            -destination 'platform=iOS Simulator,name=iPhone 17 Pro' \
+            -resultBundlePath build/Result.xcresult \
+            CODE_SIGNING_ALLOWED=NO | tee build/test.log
+
+      - name: Export screenshots
+        if: always()
+        run: |
+          xcrun xcresulttool export attachments \
+            --path build/Result.xcresult \
+            --output-path build/screenshots
+          python3 Scripts/name-screenshots.py build/screenshots
+
+      - name: Build for the device architecture
+        run: |
+          xcodebuild build \
+            -project IntervalTracker.xcodeproj \
+            -scheme IntervalTracker \
+            -destination 'generic/platform=iOS' \
+            CODE_SIGNING_ALLOWED=NO
+
+      - name: Upload screenshots and log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: |
+            build/screenshots
+            build/test.log

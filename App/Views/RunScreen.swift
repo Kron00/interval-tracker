@@ -38,7 +38,9 @@ struct RunScreen: View {
                         skip: { run.skip(progress.segment) },
                         restart: { run.restart(progress.segment) },
                         undo: undo,
-                        end: run.end)
+                        end: run.end,
+                        endIsKept: HistoryStore.records(session.workout.id)
+                            ? { History.keeps(.endedEarly, worked: session.worked(at: $0)) } : nil)
                 case .finished(let worked):
                     FinishedView(name: session.workout.name, worked: worked, undo: undo, close: run.end)
                 }
@@ -87,6 +89,8 @@ struct ActiveRunView: View {
     let restart: () -> Void
     let undo: (() -> Void)?
     let end: () -> Void
+    /// Whether the history keeps the run if it is ended at a date. nil for a run that is never recorded.
+    let endIsKept: ((Date) -> Bool)?
 
     @Environment(\.verticalSizeClass) private var verticalSizeClass
     @Environment(\.openURL) private var openURL
@@ -143,9 +147,25 @@ struct ActiveRunView: View {
                 .ignoresSafeArea()
                 .onTapGesture { confirmingEnd = false }
             VStack(spacing: 14) {
-                Text("End this workout?")
-                    .font(.system(.title2, design: .rounded, weight: .bold))
-                    .padding(.bottom, 6)
+                VStack(spacing: 8) {
+                    Text("End this workout?")
+                        .font(.system(.title2, design: .rounded, weight: .bold))
+                    if let endIsKept {
+                        // The answer changes while the dialog is open, and a waiting or paused
+                        // run screen is not redrawn. So the line keeps its own time.
+                        TimelineView(.periodic(from: .now, by: 1)) { context in
+                            Text(endIsKept(context.date)
+                                ? "It will be saved to History as ended early."
+                                : "Under a minute of work, so it won't be saved to History.")
+                                .font(.system(.body, design: .rounded))
+                                .multilineTextAlignment(.center)
+                                .lineLimit(2, reservesSpace: true)
+                                .opacity(0.8)
+                                .accessibilityIdentifier("endHistoryNote")
+                        }
+                    }
+                }
+                .padding(.bottom, 6)
                 Button("Keep going") { confirmingEnd = false }
                     .buttonStyle(RunButtonStyle(isProminent: true))
                     .accessibilityIdentifier("keepGoingButton")

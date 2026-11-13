@@ -114,10 +114,16 @@ public struct History: Equatable, Sendable {
         return try encoder.encode(File(records: records))
     }
 
-    /// Keeps every completed run, and a run ended early only after `minimumWork`. The oldest
-    /// entries make room once there are more than `limit`.
+    /// Whether the history keeps a run with this outcome and this much work: every completed run,
+    /// and a run ended early only after `minimumWork`. `add` goes by it, and so does the line that
+    /// tells a user what ending a run will do.
+    public static func keeps(_ outcome: WorkoutRecord.Outcome, worked: TimeInterval) -> Bool {
+        outcome == .completed || worked >= minimumWork
+    }
+
+    /// Adds a run that `keeps` lets in. The oldest entries make room once there are more than `limit`.
     public mutating func add(_ record: WorkoutRecord) {
-        guard record.outcome == .completed || record.worked >= Self.minimumWork else { return }
+        guard Self.keeps(record.outcome, worked: record.worked) else { return }
         records = Self.newestFirst(records + [record])
     }
 

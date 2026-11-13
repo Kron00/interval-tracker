@@ -28,9 +28,13 @@ final class HistoryStore {
         }
     }
 
-    /// The audio check in Settings is a test of the phone, not a workout, so it is left out.
+    /// The audio check in Settings is a test of the phone, not a workout, so no run of it is recorded.
+    static func records(_ workout: Workout.ID) -> Bool {
+        workout != Workout.audioCheck.id
+    }
+
     func record(_ record: WorkoutRecord) {
-        guard record.workoutID != Workout.audioCheck.id else { return }
+        guard Self.records(record.workoutID) else { return }
         update { $0.add(record) }
     }
 

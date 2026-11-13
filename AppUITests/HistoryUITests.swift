@@ -28,6 +28,8 @@ final class HistoryUITests: XCTestCase {
         app.buttons["endButton"].tap()
         let confirm = app.buttons["confirmEndButton"]
         XCTAssertTrue(confirm.waitForExistence(timeout: Self.patience))
+        XCTAssertEqual(app.staticTexts["endHistoryNote"].label, "Under a minute of work, so it won't be saved to History.")
+        snap(app, "64-end-not-saved")
         confirm.tap()
 
         openHistory(app)
@@ -40,6 +42,27 @@ final class HistoryUITests: XCTestCase {
         let relaunched = launch("-uiTestingKeepLibrary")
         openHistory(relaunched)
         XCTAssertTrue(relaunched.buttons["historyRow-Norwegian 4x4"].waitForExistence(timeout: Self.patience))
+    }
+
+    /// The dialog is opened in the first seconds and left open, so the test sees its line change
+    /// when the run reaches a minute of work.
+    func testTheEndDialogSaysWhenTheRunWillBeSavedAndItIsSaved() {
+        let app = launch("-uiTesting")
+        start("20/20 HIIT", in: app)
+        app.buttons["endButton"].tap()
+        let note = app.staticTexts["endHistoryNote"]
+        XCTAssertTrue(note.waitForExistence(timeout: Self.patience))
+        XCTAssertEqual(note.label, "Under a minute of work, so it won't be saved to History.")
+
+        let saved = expectation(for: NSPredicate(format: "label == %@", "It will be saved to History as ended early."), evaluatedWith: note)
+        wait(for: [saved], timeout: 60 + Self.patience)
+        snap(app, "65-end-saved")
+        app.buttons["confirmEndButton"].tap()
+
+        openHistory(app)
+        let row = app.buttons["historyRow-20/20 HIIT"]
+        XCTAssertTrue(row.waitForExistence(timeout: Self.patience), "the dialog said the run would be saved")
+        XCTAssertTrue(row.label.contains("Ended early"), row.label)
     }
 
     func testHistoryListsRunsByDayAndDeletesThem() {

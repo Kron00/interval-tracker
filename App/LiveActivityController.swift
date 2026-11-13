@@ -8,7 +8,8 @@ extension RunActivityAttributes: ActivityAttributes {}
 extension RunActivityAttributes.ContentState {
     /// What the Live Activity shows for `session` at `now`. The value is the same for every `now`
     /// inside one phase, so comparing it with the last one tells whether anything has to be sent.
-    init(_ session: Session, at now: Date) {
+    /// `revision` is what the button of a waiting run hands back with its tap.
+    init(_ session: Session, at now: Date, revision: Int = 0) {
         let snapshot = session.snapshot(at: now)
         switch snapshot {
         case .finished(let worked):
@@ -21,7 +22,8 @@ extension RunActivityAttributes.ContentState {
             } else {
                 let face = progress.awaited ?? ClockText.remaining(progress.phaseRemaining)
                 clock = progress.isPaused
-                    ? .paused(face) : .waiting(face, for: progress.phase.pendingHold == nil ? .next : .start)
+                    ? .paused(face)
+                    : .waiting(face, for: progress.phase.pendingHold == nil ? .next : .start, wait: revision)
             }
             self.init(title: progress.phase.title, caption: progress.phase.caption, upNext: progress.upNextText,
                       tone: RunTone(snapshot), clock: clock, isHeadsUp: progress.isHeadsUp)
@@ -61,7 +63,7 @@ final class LiveActivityController {
     @ObservationIgnored private var wanted: RunActivityCard?
     @ObservationIgnored private var shown: RunActivityCard?
     /// The one task that talks to the display. Updates are async, and a second task could overtake the first.
-    @ObservationIgnored private(set) var worker: Task<Void, Never>?
+    @ObservationIgnored private var worker: Task<Void, Never>?
     @ObservationIgnored private var lastNote: String?
     /// The end of the phase whose heads-up last alerted. A skip and its Undo come back into the
     /// same heads-up after the voice has spoken, and the card must not alert a second time.
@@ -81,13 +83,18 @@ final class LiveActivityController {
         self.init(display: SystemActivityDisplay(), log: log)
     }
 
-    func reconcile(_ session: Session?, at now: Date) {
-        let card = session.map { RunActivityCard(name: $0.workout.name, state: .init($0, at: now)) }
+    func reconcile(_ session: Session?, at now: Date, revision: Int = 0) {
+        let card = session.map { RunActivityCard(name: $0.workout.name, state: .init($0, at: now, revision: revision)) }
         guard card != wanted else { return }
         wanted = card
         if worker == nil {
             worker = Task { await catchUp() }
         }
+    }
+
+    /// Returns once the display shows the newest card.
+    func settle() async {
+        while let worker { await worker.value }
     }
 
     /// Shows the newest card each time round, so a change that arrives during an update is neither

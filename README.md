@@ -112,7 +112,7 @@ If the run screen ever shows **No sound**, the app could not start its audio. It
 - **Undo** appears for 6 seconds after a skip, a **Start**, a **Next**, or a restart, also on the finish screen.
 - **Pause** stops the clock. The screen turns grey and reads PAUSED. With headphone controls off, it also releases your music.
 - **How to** appears for a stretch that has a link while a routine waits and while the workout is paused. It opens the link. No hold counts down in either state, so a video costs you no time.
-- The X asks before it ends the workout.
+- The X asks before it ends the workout. The question also says whether the workout will be saved to **History**.
 - The finish screen shows the time you worked. Skipped time and paused time do not count. Restarted time counts twice.
 
 ### In a stretch routine, tap Start for every hold
@@ -135,6 +135,8 @@ The time you worked includes the count-ins and the time you spent on reps. It do
 ## Look at your history
 
 The app records every workout you finish. It also records a workout you end early, if you worked for at least 60 seconds. The audio check is never recorded.
+
+When you tap the X during a workout, the question says which of the two will happen: "It will be saved to History as ended early." or "Under a minute of work, so it won't be saved to History."
 
 To open **History**, tap the clock button at the top left of the library.
 
@@ -166,19 +168,21 @@ Hold and drag a stretch to move it. Swipe a stretch left to delete it.
 You can describe a workout in words. ChatGPT turns the description into an interval timer or a stretch routine, and you read it before you save it.
 
 1. Tap **+**, then **Describe a workout**.
-2. Tap **Continue with ChatGPT** and sign in. The first time, ChatGPT asks whether Intervals may use your plan. Approve it.
+2. Tap **Continue with ChatGPT**. iOS asks whether Intervals may use a website to sign in. Tap **Continue** and sign in. The first time, ChatGPT asks whether Intervals may use your plan. Approve it.
 3. Type what you want, for example "15-minute hip mobility routine". You can also tap one of the examples.
 4. Tap **Generate**. To stop waiting, tap **Cancel**.
 5. Read the result, then choose what to do with it.
 
 | Button | What it does |
 | --- | --- |
-| **Save** | Adds the workout to **My workouts** |
-| **Edit** | Opens the workout in the editor, where you can change it and save it |
+| **Save** | Adds the workout to **My workouts** and opens it, with **Start** on the screen |
+| **Edit** | Opens the workout in the editor, where you can change it and save it. **Cancel** in the editor goes back to the result |
 | **Try again** | Asks for another answer to the same description |
 | **Reword** | Goes back to the description so that you can change it |
 
 Nothing is saved until you tap **Save**. Only the text you type is sent to OpenAI.
+
+**Try again** does not cost you the answer you have. A new answer replaces it only when the new answer arrives. If you tap **Cancel** while you wait, you are back at the answer you had. If the request fails, the app says why above that answer, and you can still save it.
 
 An interval timer has one work length and one rest length. If you ask for rounds of different lengths, such as a pyramid, ChatGPT chooses one length and says so in a note above the total. A generated stretch routine works as one you build by hand does: each hold waits for **Start** and then counts in for 3 seconds. To change the count-in, tap **Edit**.
 
@@ -261,14 +265,16 @@ iOS draws the countdown, so it keeps ticking while the app does nothing.
 | --- | --- |
 | Counts down | The time left and a bar that fills |
 | Is paused | **Paused** and the time left |
-| Waits for **Start** | **Waiting for Start** and the length of the hold. Nothing counts until you tap **Start** in the app |
-| Waits for **Next** | **Waiting for Next** and the number of reps |
+| Waits for **Start** | A **Start** button and the length of the hold. Nothing counts until you tap **Start**, on the card or in the app |
+| Waits for **Next** | A **Next** button and the number of reps |
 | Has finished | **Workout complete** and the time you worked, for two minutes |
 
 In a stretch routine, the card follows each stretch through its wait, its count-in and its hold. During the count-in it reads "Get ready" beside the name of the workout.
 
+While the routine waits, you do not have to open the app. Tap **Start** or **Next** on the card. The button does what the big white button in the app does, and **Undo** in the app takes it back. In the Dynamic Island, touch and hold the island to see the button. The card can take a few seconds to change after a tap, because iOS has to wake the app first. A second tap does no harm.
+
 <p align="center">
-  <img src="docs/screenshots/56-waiting-for-start-lock-screen.jpg" width="30%" alt="Lock screen card for Child's Pose that shows 0:45 and Waiting for Start">
+  <img src="docs/screenshots/56-waiting-for-start-lock-screen.jpg" width="30%" alt="Lock screen card for Child's Pose that shows 0:45 and a Start button">
 </p>
 
 The card goes away when you end the workout or tap **Done**.
@@ -288,11 +294,13 @@ In **Settings**, **Get ready before work** sets the notice to **Off**, **10 s**,
 
 ### What is not proven about the Live Activity
 
-The simulator draws the lock screen and the Dynamic Island, and the UI tests check both. Three things need a real iPhone:
+The simulator draws the lock screen and the Dynamic Island, and the UI tests check both. They also tap **Start** and **Next** on the card. Five things need a real iPhone:
 
 - Whether the alert lights the screen of a locked phone.
 - Whether the card follows a whole workout on a locked phone. The app updates the card from the background, which works only while the audio keeps the app awake.
 - Whether AltStore installs the extension that draws the card.
+- Whether **Start** on the card of a locked phone is followed by the count-in beeps when headphone controls are off. The routine releases the audio while it waits, and iOS may have suspended the app by the time you tap.
+- How soon the card changes after a tap. The simulator took 2 to 3 seconds.
 
 The audio check covers the first two. See [Check the audio on your phone](#check-the-audio-on-your-phone).
 
@@ -312,7 +320,7 @@ iOS sends headphone presses only to an app that plays audio alone. So while head
 
 A workout that is paused, or that waits for **Start** or **Next**, keeps its audio for 15 minutes so that a press can reach it on a locked phone. After 15 minutes it lets go, and you carry on in the app.
 
-With headphone controls off, a routine that waits releases your music, and **Start** and **Next** are only on the screen. iOS may suspend the app if you lock the phone during a wait.
+With headphone controls off, a routine that waits releases your music. **Start** and **Next** are then on the screen and on the card of the lock screen. iOS may suspend the app if you lock the phone during a wait, and it wakes the app when you tap the card.
 
 While headphone controls are on, a phone call pauses the workout, and so does another app that starts to play.
 

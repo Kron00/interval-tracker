@@ -58,15 +58,88 @@ final class DescribeFlowUITests: XCTestCase {
         XCTAssertTrue(save.waitForExistence(timeout: Self.patience))
         save.tap()
 
+        let start = app.buttons["startButton"]
+        XCTAssertTrue(start.waitForExistence(timeout: Self.patience), "Save opens the workout, ready to start")
+        XCTAssertTrue(app.navigationBars["Hip Mobility"].exists)
+        XCTAssertEqual(app.staticTexts["detailTotal"].label, "11:57 + reps")
+        XCTAssertTrue(app.staticTexts["Hip Circles"].exists)
+        XCTAssertFalse(save.exists, "the result has closed")
+        XCTAssertFalse(app.staticTexts["generationNote"].exists)
+        snap(app, "74-generated-saved")
+        app.buttons["Close"].tap()
+
         let row = app.buttons["timerRow-Hip Mobility"]
         XCTAssertTrue(row.waitForExistence(timeout: Self.patience))
         XCTAssertTrue(row.label.contains("8 stretches · 4 each side"), row.label)
         XCTAssertTrue(row.label.contains("11:57 + reps"), row.label)
-        snap(app, "74-generated-saved")
         app.terminate()
 
         let relaunched = launch(signedIn: true, keepLibrary: true)
         XCTAssertTrue(relaunched.buttons["timerRow-Hip Mobility"].waitForExistence(timeout: Self.patience))
+    }
+
+    /// The third example. An interval timer has one work length and one rest length, and this
+    /// description needs no more than that.
+    func testTryAgainKeepsTheAnswerUntilANewOneArrives() {
+        let app = launch(signedIn: true, replies: "answer never busy answer")
+        openDescribe(app)
+        let field = element(app, "describeField")
+        XCTAssertTrue(app.buttons["example-3"].waitForExistence(timeout: Self.patience))
+        app.buttons["example-3"].tap()
+        XCTAssertEqual(field.value as? String, "30-minute run: 1 minute hard, 2 minutes easy")
+        snap(app, "70c-example-run")
+        app.buttons["generateButton"].tap()
+
+        let save = app.buttons["saveGeneratedButton"]
+        let tryAgain = app.buttons["tryAgainButton"]
+        let cancel = app.buttons["cancelGenerationButton"]
+        let total = app.staticTexts["detailTotal"]
+        let failure = app.staticTexts["generationFailure"]
+        XCTAssertTrue(save.waitForExistence(timeout: Self.patience))
+        XCTAssertTrue(app.navigationBars["1-2 Run"].exists)
+        XCTAssertEqual(total.label, "30:00", "ten rounds of 1:00 hard and 2:00 easy")
+        XCTAssertTrue(app.staticTexts["10 × 1:00"].exists)
+        XCTAssertTrue(app.staticTexts["10 × 2:00"].exists)
+        snap(app, "72c-result-run")
+
+        tryAgain.tap()
+        XCTAssertTrue(cancel.waitForExistence(timeout: Self.patience))
+        XCTAssertFalse(save.exists)
+        cancel.tap()
+        XCTAssertTrue(save.waitForExistence(timeout: Self.patience), "Cancel during a retry goes back to the answer")
+        XCTAssertTrue(app.navigationBars["1-2 Run"].exists)
+        XCTAssertEqual(total.label, "30:00")
+        XCTAssertFalse(failure.exists)
+        XCTAssertFalse(app.buttons["generateButton"].exists, "and not to the description")
+
+        tryAgain.tap()
+        XCTAssertTrue(failure.waitForExistence(timeout: Self.patience), "a retry that fails says so")
+        XCTAssertEqual(failure.label, "OpenAI is limiting requests right now. Wait a minute, then try again.")
+        XCTAssertEqual(app.staticTexts["keptAnswerNote"].label, "1-2 Run is the answer you already had. You can still save it.")
+        XCTAssertTrue(app.navigationBars["1-2 Run"].exists)
+        XCTAssertEqual(total.label, "30:00", "the earlier answer is still shown")
+        XCTAssertTrue(save.isHittable)
+        snap(app, "72d-retry-failed")
+
+        tryAgain.tap()
+        XCTAssertTrue(save.waitForExistence(timeout: Self.patience))
+        XCTAssertFalse(failure.exists, "a retry that succeeds shows the new answer alone")
+        XCTAssertEqual(total.label, "30:00")
+
+        app.buttons["editGeneratedButton"].tap()
+        XCTAssertTrue(app.textFields["nameField"].waitForExistence(timeout: Self.patience))
+        app.buttons["saveButton"].tap()
+        // Changing an answer before saving it is a common way through this screen. It ends where
+        // Save on the result ends: on the workout, with Start.
+        XCTAssertTrue(app.buttons["startButton"].waitForExistence(timeout: Self.patience), "Save in the editor opens the workout, ready to start")
+        XCTAssertTrue(app.navigationBars["1-2 Run"].exists)
+        XCTAssertEqual(app.staticTexts["detailTotal"].label, "30:00")
+        XCTAssertFalse(save.exists, "the result has closed")
+        snap(app, "75b-edited-and-saved")
+        app.buttons["Close"].tap()
+        let row = app.buttons["timerRow-1-2 Run"]
+        XCTAssertTrue(row.waitForExistence(timeout: Self.patience))
+        XCTAssertTrue(row.label.contains("30:00"), row.label)
     }
 
     func testAGeneratedTimerOpensInTheEditorAndIsNotSavedByItself() {
@@ -99,6 +172,15 @@ final class DescribeFlowUITests: XCTestCase {
         XCTAssertTrue(app.buttons["saveButton"].isEnabled)
         snap(app, "75-generated-in-editor")
         app.buttons["Cancel"].tap()
+        let save = app.buttons["saveGeneratedButton"]
+        XCTAssertTrue(save.waitForExistence(timeout: Self.patience), "Cancel in the editor goes back to the answer")
+        XCTAssertTrue(save.isHittable)
+        XCTAssertTrue(app.navigationBars["Bike Tabata"].exists)
+        XCTAssertEqual(app.staticTexts["detailTotal"].label, "11:50")
+        XCTAssertFalse(name.exists)
+        snap(app, "75a-back-at-the-result")
+
+        app.buttons["describeCloseButton"].tap()
         XCTAssertTrue(app.buttons["timerRow-Norwegian 4x4"].waitForExistence(timeout: Self.patience))
         XCTAssertFalse(app.buttons["timerRow-Bike Tabata"].exists, "nothing is saved until Save")
     }
@@ -161,8 +243,12 @@ final class DescribeFlowUITests: XCTestCase {
         waitFor(status, toRead: "Build workouts with ChatGPT")
 
         app.buttons["continueWithChatGPT"].tap()
-        let allow = XCUIApplication(bundleIdentifier: "com.apple.springboard").buttons["Continue"]
+        let springboard = XCUIApplication(bundleIdentifier: "com.apple.springboard")
+        let allow = springboard.buttons["Continue"]
         XCTAssertTrue(allow.waitForExistence(timeout: Self.patience), "iOS asks before it opens a sign-in sheet")
+        let question = springboard.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "Wants to Use")).firstMatch
+        XCTAssertTrue(question.label.hasPrefix("“Intervals” Wants to Use"), "iOS names the app as the home screen does: \(question.label)")
+        attach(XCUIScreen.main.screenshot(), "76a-sign-in-question")
         allow.tap()
 
         let notice = app.alerts["You're using your ChatGPT plan"]
@@ -184,12 +270,14 @@ final class DescribeFlowUITests: XCTestCase {
         snap(app, "70b-describe-signed-out")
     }
 
-    private func launch(signedIn: Bool, keepLibrary: Bool = false) -> XCUIApplication {
+    /// `replies` is what the stand-in for OpenAI gives the descriptions in turn: "answer", "never"
+    /// or "busy". Every description after them is answered. With none, the first is never answered.
+    private func launch(signedIn: Bool, keepLibrary: Bool = false, replies: String? = nil) -> XCUIApplication {
         let app = XCUIApplication()
         app.launchArguments = [
             keepLibrary ? "-uiTestingKeepLibrary" : "-uiTesting", "-undoWindow", "20",
             "-aiStub", signedIn ? "signedIn" : "signedOut",
-        ]
+        ] + (replies.map { ["-aiStubReplies", $0] } ?? [])
         app.launch()
         return app
     }
@@ -227,7 +315,11 @@ final class DescribeFlowUITests: XCTestCase {
     }
 
     private func snap(_ app: XCUIApplication, _ name: String) {
-        let attachment = XCTAttachment(screenshot: app.screenshot())
+        attach(app.screenshot(), name)
+    }
+
+    private func attach(_ screenshot: XCUIScreenshot, _ name: String) {
+        let attachment = XCTAttachment(screenshot: screenshot)
         attachment.name = name
         attachment.lifetime = .keepAlways
         add(attachment)

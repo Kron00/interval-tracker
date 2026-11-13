@@ -3,27 +3,48 @@ import SwiftUI
 
 enum DescribeState: Equatable {
     case idle
-    case generating
-    case result(GeneratedWorkout)
     case failed(GenerationFailure)
+    /// `keeping` is the answer that Try again was asked to replace. It is the user's until a new one arrives.
+    case generating(keeping: GeneratedWorkout?)
+    /// `retryFailure` is why Try again brought no new answer. The earlier answer is shown under it.
+    case result(GeneratedWorkout, retryFailure: GenerationFailure?)
+
+    /// Where the sheet goes when the request ends. An answer costs a request, so a retry that
+    /// fails leaves the answer it was to replace.
+    func ended(with outcome: Result<GeneratedWorkout, GenerationFailure>) -> DescribeState {
+        switch (outcome, self) {
+        case (.success(let generated), _): .result(generated, retryFailure: nil)
+        case (.failure(let failure), .generating(let kept?)): .result(kept, retryFailure: failure)
+        case (.failure(let failure), _): .failed(failure)
+        }
+    }
+
+    /// Where Cancel goes while the request is out.
+    var cancelled: DescribeState {
+        if case .generating(let kept?) = self { .result(kept, retryFailure: nil) } else { .idle }
+    }
 }
 
 /// Describe a workout in words and get it back built. Nothing reaches the library until Save.
 struct DescribeSheet: View {
+    /// Save on the result.
     let save: (Workout) -> Void
-    let edit: (Workout) -> Void
+    /// Save in the editor that Edit opens.
+    let saveEdited: (Workout) -> Void
     let close: () -> Void
 
     @Environment(ChatGPTModel.self) private var chatGPT
     @State private var description = ""
     @State private var state = DescribeState.idle
     @State private var generation: Task<Void, Never>?
+    /// The editor opens over this sheet, so Cancel there comes back to the result.
+    @State private var editing: WorkoutDraft?
     @FocusState private var descriptionIsFocused: Bool
 
     private static let examples: [(text: String, symbol: String, tone: Tone)] = [
         ("15-minute hip mobility routine", "figure.flexibility", .stretch),
         ("Tabata on the bike, 8 rounds", "figure.outdoor.cycle", .effort),
-        ("Pyramid intervals: 1, 2, 3, 2, 1 minutes hard with equal rest", "chart.bar.fill", .recover),
+        ("30-minute run: 1 minute hard, 2 minutes easy", "figure.run", .recover),
     ]
 
     var body: some View {
@@ -34,7 +55,7 @@ struct DescribeSheet: View {
                     case .idle: form(failure: nil)
                     case .failed(let failure): form(failure: failure)
                     case .generating: waiting
-                    case .result(let generated): result(generated)
+                    case .result(let generated, let retryFailure): result(generated, retryFailure: retryFailure)
                     }
                 }
                 .padding(20)
@@ -63,7 +84,7 @@ struct DescribeSheet: View {
                     switch state {
                     case .idle, .failed: startBar
                     case .generating: cancelBar
-                    case .result(let generated): resultBar(generated.workout)
+                    case .result(let generated, _): resultBar(generated.workout)
                     }
                 }
                 .padding()
@@ -81,10 +102,13 @@ struct DescribeSheet: View {
         .planUsageNotice(chatGPT)
         .task { await chatGPT.load() }
         .onDisappear { generation?.cancel() }
+        .sheet(item: $editing) { draft in
+            EditorScreen(draft: draft, title: "New \(draft.plan.noun)", save: saveEdited, cancel: { editing = nil })
+        }
     }
 
     private var title: String {
-        if case .result(let generated) = state { generated.workout.name } else { "Describe a workout" }
+        if case .result(let generated, _) = state { generated.workout.name } else { "Describe a workout" }
     }
 
     private func form(failure: GenerationFailure?) -> some View {
@@ -156,8 +180,11 @@ struct DescribeSheet: View {
         }
     }
 
-    private func result(_ generated: GeneratedWorkout) -> some View {
+    private func result(_ generated: GeneratedWorkout, retryFailure: GenerationFailure?) -> some View {
         VStack(spacing: 22) {
+            if let retryFailure {
+                FailureCard(failure: retryFailure, keptAnswer: generated.workout.name)
+            }
             if let note = generated.note {
                 HStack(alignment: .firstTextBaseline, spacing: 12) {
                     Image(systemName: "sparkles")
@@ -210,7 +237,7 @@ struct DescribeSheet: View {
     private func resultBar(_ workout: Workout) -> some View {
         HStack(spacing: 12) {
             Button {
-                edit(workout)
+                editing = WorkoutDraft(workout)
             } label: {
                 Label("Edit", systemImage: "pencil")
                     .font(.headline)
@@ -245,20 +272,18 @@ struct DescribeSheet: View {
         let asked = asked
         guard !asked.isEmpty else { return }
         descriptionIsFocused = false
-        show(.generating)
+        let kept: GeneratedWorkout? = if case .result(let generated, _) = state { generated } else { nil }
+        show(.generating(keeping: kept))
         generation = Task {
             let outcome = await chatGPT.generate(asked)
             guard !Task.isCancelled else { return }
-            switch outcome {
-            case .success(let generated): show(.result(generated))
-            case .failure(let failure): show(.failed(failure))
-            }
+            show(state.ended(with: outcome))
         }
     }
 
     private func cancel() {
         generation?.cancel()
-        show(.idle)
+        show(state.cancelled)
     }
 
     private func show(_ next: DescribeState) {
@@ -268,6 +293,8 @@ struct DescribeSheet: View {
 
 private struct FailureCard: View {
     let failure: GenerationFailure
+    /// The name of the earlier answer, when the failure is that of a retry and the answer is still shown.
+    var keptAnswer: String?
 
     var body: some View {
         HStack(alignment: .firstTextBaseline, spacing: 12) {
@@ -277,6 +304,11 @@ private struct FailureCard: View {
                 Text(failure.message)
                     .font(.subheadline)
                     .accessibilityIdentifier("generationFailure")
+                if let keptAnswer {
+                    Text("\(keptAnswer) is the answer you already had. You can still save it.")
+                        .font(.subheadline.weight(.semibold))
+                        .accessibilityIdentifier("keptAnswerNote")
+                }
                 if failure.offersManageUsage {
                     Link("Manage usage", destination: OpenAI.manageUsage)
                         .font(.subheadline.weight(.semibold))

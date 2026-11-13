@@ -173,7 +173,23 @@ So the value is the same at every instant inside one phase. The two dates come f
 
 `RunModel` calls `LiveActivityController.reconcile` ten times a second, next to the audio. `reconcile` builds the value, compares it with the last one, and returns when they are equal. A run sends one update for each change of phase, pause, resume, wait, heads-up and finish. Norwegian 4x4 sends 14 in 38 minutes: 9 changes of phase, 4 heads-ups and the finish. A timed stretch sends three: its wait for **Start**, its count-in and its hold.
 
-A wait carries which tap it waits for as a key, `start` or `next`, the way the colour is a key. The extension turns the key into the badge and its symbol. A run that is paused at a wait shows what the wait shows in the clock's place, the length of the hold or the rep count, and not an empty clock.
+A wait carries which tap it waits for as a key, `start` or `next`, the way the colour is a key. The extension turns the key into a button with that word and its symbol. A run that is paused at a wait shows what the wait shows in the clock's place, the length of the hold or the rep count, and not an empty clock.
+
+### How a tap on the card reaches the run
+
+A waiting run has a button on the card, **Start** or **Next**, where the other states have a badge. The row that holds the badge or the button has the height of the button in every state, so the card is equally tall with either.
+
+The button runs `AdvanceRunIntent`, a `LiveActivityIntent`. `Shared/RunActivity.swift` holds the intent, so the extension can draw the button. iOS runs `perform` in the app's process, also when the phone is locked, and it starts the app in the background if it has to. The app points the intent at its one `RunModel` when it launches. The extension has no run, and its copy of the intent never runs.
+
+A tap arrives some time after iOS drew the card. By then the run may have moved on, and a second tap may follow the first. So a waiting card carries one more plain value, a number that `RunModel` replaces with every change to the run, and the button hands that number back. `RunModel.advance(fromWait:)` does nothing unless the number is still the newest and the run waits and is not paused. A tap that comes late or comes twice therefore changes nothing. It cannot pause or skip a hold that is counting, and a second tap on **Next** cannot also start the stretch that follows. The number is not the place in the workout, because **Undo** comes back to the same place and so does the next workout: a tap that **Undo** overtook would press again, and a tap for one workout would move the next.
+
+A tap that passes this check is a headphone press. `RunModel.handle` gets the play command, `Session.perform` reads it as **Start** or **Next** because the run waits, and **Undo** is offered as for any press. The extension still decides nothing about a run.
+
+`advance(fromWait:)` returns only when the card shows the change. iOS may suspend the app as soon as the intent returns, and an update that was still on its way would be lost.
+
+The intent is also an `AudioPlaybackIntent`, because **Start** leads into a count-in that beeps. In mixing mode a waiting run has released the audio, so the tap may reach an app that iOS has suspended, and the app then has to start its audio from the background. [The Live Activity on a phone](#the-live-activity-on-a-phone) says what is unproven about that.
+
+The button needs no entitlement, no app group and no `UsageDescription` key.
 
 ### Why one task talks to ActivityKit
 
@@ -218,7 +234,7 @@ Two parts of exclusive mode need a reason.
 
 - **A run on standby keeps its audio.** With no audio, iOS suspends the app, and a suspended app cannot receive the press that would resume it or move it on. So the engine and the silent loop keep running while the run is paused or waiting, with no cue queued. After 15 minutes `CuePlayer` gives the audio up, so a forgotten workout does not hold it all day.
 
-In mixing mode a waiting run releases the audio, so your music plays at full volume while you do your reps. If you lock the phone during a wait, iOS may suspend the app. That is acceptable, because without headphone controls **Start** and **Next** are on the screen and you unlock the phone to tap them.
+In mixing mode a waiting run releases the audio, so your music plays at full volume while you do your reps. If you lock the phone during a wait, iOS may suspend the app. That is acceptable, because without headphone controls **Start** and **Next** are on the screen and on the card of the Live Activity, and iOS wakes the app for a tap on the card.
 - **An interruption pauses the run and the app does not take the audio back.** Mixing retries every second, which is harmless when audio mixes. In exclusive mode a retry would cut off the call, or stop the music you just started in another app. The run resumes when iOS reports that the interruption ended and playback should resume, or when you tap Resume.
 
 `HeadphoneRemote` is the only file that imports MediaPlayer. It publishes the current phase to the lock screen and turns the five remote commands into `RunCommand` values. While the run waits, the lock screen reads "0:45 · Waiting for Start" or "10 reps · Waiting for Next" under the name of the stretch. `Session.perform` decides what each command does, so that part is tested on a Mac. `RunModel` only forwards the command and reconciles.
@@ -248,6 +264,8 @@ A countdown leaves no time for a video, so the How to button is hidden while the
 
 A wait has one thing to do. So the small back and forward buttons keep their places, go dim, and do nothing until the clock counts again.
 
+The question that the X asks is drawn over the run screen and moves nothing under it. Its line about the history has room for two lines of text whichever sentence it shows.
+
 The cost is height. A stretch name can be 40 characters, so the title block is two lines tall on every screen, and an interval timer shows more empty space than it used to.
 
 The heads-up uses the caption line, which is always there. During it the line reads "Get ready" in place of the round. In a warm-up the line is empty until then.
@@ -273,7 +291,21 @@ The JSON Schema of the answer and the instructions for the model are constants n
 
 The schema is in the strict form that OpenAI's structured output takes. Every property is required, an absent value is null, and no other property is allowed. OpenAI does not say whether a request that a ChatGPT plan pays for may carry a schema. If the server refuses the schema, `WorkoutGenerator` sends the request once more with the schema written into the instructions. `workout()` checks the answer in both cases, so the app does not depend on the server holding the model to the schema.
 
-An interval timer has one work length and one rest length. A pyramid cannot be stored. The instructions tell the model to choose one length and to say so in `note`, and the result screen shows the note above the total.
+An interval timer has one work length and one rest length. A pyramid cannot be stored. The instructions tell the model to choose one length and to say so in `note`, and the result screen shows the note above the total. The three examples on the sheet are descriptions that a workout can hold in full.
+
+### What the sheet keeps while it asks again
+
+An answer costs a request, so the sheet does not give one up until it has a better one. `DescribeState` is the whole state of the sheet, and two of its cases carry the answer that the user already has.
+
+| The sheet | What it holds |
+| --- | --- |
+| Asks for the first answer | Nothing |
+| Asks again after **Try again** | The answer on the screen when **Try again** was tapped |
+| Shows an answer | The answer, and the failure of the last retry if that retry failed |
+
+`DescribeState.ended(with:)` and `DescribeState.cancelled` are the only places that decide where the sheet goes next. A retry that succeeds shows the new answer. A retry that fails, or that the user cancels, shows the earlier answer again, with the failure above it if there was one.
+
+**Edit** opens the editor as a sheet over the result, so **Cancel** in the editor leaves the result as it was. **Save**, on the result or in that editor, closes the sheet and opens the detail screen of the saved workout. The new card is the last one in the library and can be below the edge of the screen, and the detail screen is where **Start** is.
 
 ## How the app signs in to ChatGPT
 
@@ -370,6 +402,15 @@ In a stretch routine the Live Activity was checked with a 15-second `sample` of 
 
 The history needs one more check on each of the ten ticks a second, a snapshot that says whether the workout has finished. Five runs of a counting warm-up with the check and five without, taken in turn over 30 seconds each, gave a median of 2.8% and 2.6% of one core. The ranges were 2.4% to 3.5% with the check and 2.5% to 4.7% without, on a Mac that was busy with other work, so the check has no cost that this measurement can show.
 
+The question that the X asks redraws one line once a second while it is open. Three runs of this build and three of the commit before it were timed in turn over 22 seconds each, in the warm-up of 20/20 HIIT, first with the clock counting and then with the question open. A UI test started the workout and then slept.
+
+| | Before | With the line |
+| --- | --- | --- |
+| Warm-up, counting | 5.7%, 6.2% and 11.6% | 3.0%, 8.2% and 8.9% |
+| The question open | 3.6%, 9.6% and 10.7% | 2.0%, 2.7% and 9.6% |
+
+The Mac was busy with other work, and the runs of one build differ by more than the two builds do. So these figures show no cost of the line, and they are too rough to rule a small one out.
+
 The clock digits cut from one second to the next. In an earlier measurement, rolling them with SwiftUI's `numericText` transition took a warm-up from 3.0% to 71% of one core. Where that time goes was not profiled. The title, the captions, the buttons, and the chips do fade, because they change only when the run changes state.
 
 ## Why the history has its own file
@@ -401,6 +442,10 @@ Only the tick checks for a finished workout. The `reconcile` that follows a chan
 
 A run that ends part way is recorded with `Session.worked(at:)`. That is the arithmetic of the finish screen, taken at the moment you end the run. It counts the time you have spent so far in a stretch counted in reps, and it does not count a wait for **Start**.
 
+The question "End this workout?" says what the history will do, because a run of under a minute used to vanish without a word. `History.keeps(_:worked:)` is the rule. `History.add` asks it about a record, and the dialog asks it about the run as it stands. The audio check is never recorded, so its dialog has no such line. `HistoryStore.records(_:)` is that rule, for the store and for the dialog.
+
+The answer can change while the dialog is open, when the work reaches a minute. A run that waits in a stretch counted in reps is working, and its screen is not redrawn. So the line in the dialog is redrawn once a second by itself, for as long as the dialog is open.
+
 ## What is not proven yet
 
 ### Lowering and restoring other apps' music
@@ -419,7 +464,7 @@ Once one strategy passes the audio check in the README, delete the other two and
 
 ### The Live Activity on a phone
 
-The UI tests lock the simulator and read the card from the lock screen. They show that the card starts with the run, says to get ready, follows the run into work, shows the finish, comes back with Undo, and goes away with the run. In a routine they show that the card waits for **Next** with the rep count, and waits for **Start** with the length of the hold, which does not count down. They also show that a launch removes the card of a run that was force quit. Screenshots show the Dynamic Island in its compact and expanded forms, and that the alert opens it.
+The UI tests lock the simulator and read the card from the lock screen. They show that the card starts with the run, says to get ready, follows the run into work, shows the finish, comes back with Undo, and goes away with the run. In a routine they show that the card waits for **Next** with the rep count, and waits for **Start** with the length of the hold, which does not count down. They tap **Next** on the lock screen and **Start** in the opened Dynamic Island, and see the routine move on each time. They also show that a launch removes the card of a run that was force quit. Screenshots show the Dynamic Island in its compact and expanded forms, and that the alert opens it.
 
 No UI test asserts on the count-in or the hold of a stretch on the lock screen. Both end by themselves, and a slow machine could miss them. The app tests cover what the card carries in those two phases, and two screenshots taken two seconds apart show the hold counting down on the lock screen.
 
@@ -429,6 +474,9 @@ What only a phone can show:
 - Whether the card keeps up for a whole workout on a locked phone. The app updates it from the background, so this rests on the same thing as the cues: the audio keeps the app awake.
 - Whether AltStore installs the extension. AltStore signs the app again with the owner's Apple Account and may ask whether to keep app extensions. If the extension is removed, the app is expected to run with no card, but that path has never run.
 - What the minimal form of the Dynamic Island looks like. iOS shows it only when two apps have an activity.
+- Whether a tap on **Start** or **Next** reaches the app on a locked phone, and whether iOS asks for Face ID or the passcode first. The simulator has no passcode.
+- How long a tap takes. In the simulator iOS handed the app two taps on a locked screen 3.3 and 2.2 seconds after they were made, on a Mac that was busy with other work. The app then changed the run and sent the new card within 0.05 seconds. So the wait is before the app runs, and nothing in the app can shorten it.
+- Whether the count-in sounds after **Start** on the card when headphone controls are off. The app may be suspended by then, and it has to start its audio from the background. `AdvanceRunIntent` is an `AudioPlaybackIntent` for that reason. If the audio does not start, the card still counts the hold down, and the run screen shows **No sound** when you open the app.
 
 The audio check in Settings uses 10 seconds of notice, so it shows the first two in one minute on a phone.
 

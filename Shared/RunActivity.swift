@@ -1,7 +1,8 @@
+import AppIntents
 import SwiftUI
 
-/// What the Live Activity shows. The app and the widget extension both compile this file, and it is
-/// all the extension knows about a run.
+/// What the Live Activity shows, and the one tap it hands back. The app and the widget extension
+/// both compile this file, and it is all the extension knows about a run.
 struct RunActivityAttributes: Codable, Hashable {
     struct ContentState: Codable, Hashable {
         var title: String
@@ -19,8 +20,9 @@ struct RunActivityAttributes: Codable, Hashable {
         /// The system draws the countdown from these two dates and ticks it by itself.
         case counting(from: Date, to: Date)
         case paused(String)
-        /// A rep count, or the length of the hold that Start begins.
-        case waiting(String, for: Advance)
+        /// A rep count, or the length of the hold that Start begins. `wait` stands for the run as
+        /// it was when this card was drawn. The button hands it back with its tap.
+        case waiting(String, for: Advance, wait: Int)
         /// The time worked.
         case finished(String)
     }
@@ -31,6 +33,32 @@ struct RunActivityAttributes: Codable, Hashable {
     }
 
     var workoutName: String
+}
+
+/// The tap on Start or Next in the Live Activity. iOS runs `perform` in the app's process, also
+/// for a tap on a locked phone. The extension only draws the button. Start leads into a count-in
+/// that beeps, so the intent is also one that plays audio.
+struct AdvanceRunIntent: LiveActivityIntent, AudioPlaybackIntent {
+    static let title: LocalizedStringResource = "Start or Next"
+    static let isDiscoverable = false
+
+    /// The app sets this when it launches. The extension has no run to hand the tap to.
+    @MainActor static var onPerform: (@MainActor (_ wait: Int) async -> Void)?
+
+    /// The `wait` of the card the button was drawn on.
+    @Parameter(title: "Wait") var wait: Int
+
+    init() {}
+
+    init(wait: Int) {
+        self.wait = wait
+    }
+
+    @MainActor
+    func perform() async throws -> some IntentResult {
+        await Self.onPerform?(wait)
+        return .result()
+    }
 }
 
 /// The colour family a run is drawn in, on the run screen and in the Live Activity.

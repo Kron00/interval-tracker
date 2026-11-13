@@ -29,6 +29,7 @@ targets:
       path: App/Info.plist
       properties:
         CFBundleDisplayName: Intervals
+        CFBundleName: Intervals
         CFBundleShortVersionString: $(MARKETING_VERSION)
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         NSSupportsLiveActivities: true

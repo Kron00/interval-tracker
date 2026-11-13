@@ -19,6 +19,7 @@ struct IntervalTrackerApp: App {
             player: CuePlayer(bank: SoundBank(log: log), log: log), remote: HeadphoneRemote(log: log),
             liveActivity: LiveActivityController(log: log))
         run.onRunOver = history.record
+        AdvanceRunIntent.onPerform = { [weak run] in await run?.advance(fromWait: $0) }
         _run = State(initialValue: run)
         _chatGPT = State(initialValue: .forThisLaunch())
     }

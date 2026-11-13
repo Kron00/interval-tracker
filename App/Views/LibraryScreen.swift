@@ -148,11 +148,16 @@ struct LibraryScreen: View {
                 cancel: { self.sheet = nil })
         case .describe:
             DescribeSheet(
+                // The new card is the last one in the list and can be off the screen, so the
+                // workout opens as a tap on its card would open it.
                 save: { workout in
                     store.update { $0.save(workout) }
-                    self.sheet = nil
+                    self.sheet = .detail(workout)
                 },
-                edit: { self.sheet = .editor(WorkoutDraft($0)) },
+                saveEdited: { workout in
+                    store.update { $0.save(workout) }
+                    self.sheet = .detail(workout)
+                },
                 close: { self.sheet = nil })
         case .settings:
             SettingsScreen(

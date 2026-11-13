@@ -74,11 +74,13 @@ final class LiveActivityContentTests: XCTestCase {
     }
 
     /// Daily Stretch opens on Cat-Cow, 10 reps. Child's Pose for 0:45 and Cobra for 0:30 follow.
+    /// Cat-Cow is the first segment of the run. Each timed stretch is three, a wait, a count-in and
+    /// a hold, so Child's Pose waits at the second segment and Cobra at the fifth.
     func testAStretchCountedInRepsWaitsForNextWithItsCount() {
         var session = Session(.dailyStretch, cues: CuePreferences(), startingAt: start)
         let waiting = State(
             title: "Cat-Cow", caption: "Stretch 1 of 10", upNext: "Child's Pose 0:45", tone: .stretch,
-            clock: .waiting("10 reps", for: .next), isHeadsUp: false)
+            clock: .waiting("10 reps", for: .next, wait: 0), isHeadsUp: false)
         XCTAssertEqual(State(session, at: start), waiting)
         XCTAssertEqual(State(session, at: start + 900), waiting)
 
@@ -92,7 +94,7 @@ final class LiveActivityContentTests: XCTestCase {
         session.perform(.next, at: start + 8)
         let waiting = State(
             title: "Child's Pose", caption: "Stretch 2 of 10", upNext: "Cobra 0:30", tone: .prepare,
-            clock: .waiting("0:45", for: .start), isHeadsUp: false)
+            clock: .waiting("0:45", for: .start, wait: 0), isHeadsUp: false)
         XCTAssertEqual(State(session, at: start + 8), waiting)
         XCTAssertEqual(State(session, at: start + 900), waiting, "nothing counts until Start")
 
@@ -111,7 +113,7 @@ final class LiveActivityContentTests: XCTestCase {
 
         XCTAssertEqual(State(session, at: start + 5000), State(
             title: "Cobra", caption: "Stretch 3 of 10", upNext: "Hip Flexor Couch Stretch 0:45", tone: .prepare,
-            clock: .waiting("0:30", for: .start), isHeadsUp: false), "the hold ends by itself and the next stretch waits")
+            clock: .waiting("0:30", for: .start, wait: 0), isHeadsUp: false), "the hold ends by itself and the next stretch waits")
     }
 
     func testAStretchReachedWhilePausedShowsItsLengthAndNotAnEmptyClock() {
@@ -134,7 +136,7 @@ final class LiveActivityContentTests: XCTestCase {
         var session = Session(workout, cues: CuePreferences(), startingAt: start)
         XCTAssertEqual(State(session, at: start + 60), State(
             title: "Calf", caption: "Stretch 1 of 1", upNext: "Finish", tone: .prepare,
-            clock: .waiting("0:05", for: .start), isHeadsUp: false))
+            clock: .waiting("0:05", for: .start, wait: 0), isHeadsUp: false))
 
         session.perform(.next, at: start + 60)
         XCTAssertEqual(State(session, at: start + 67.9).clock, .counting(from: start + 63, to: start + 68))
@@ -257,11 +259,11 @@ final class LiveActivityControllerTests: XCTestCase {
         await reconcile(at: 50, 51, 52.9, 53, 60, 97.9, 98, 98.1, 500)
 
         XCTAssertEqual(display.shown.map(\.state.clock), [
-            .waiting("10 reps", for: .next),
-            .waiting("0:45", for: .start),
+            .waiting("10 reps", for: .next, wait: 0),
+            .waiting("0:45", for: .start, wait: 0),
             .counting(from: start + 50, to: start + 53),
             .counting(from: start + 53, to: start + 98),
-            .waiting("0:30", for: .start),
+            .waiting("0:30", for: .start, wait: 0),
         ])
         XCTAssertEqual(display.shown.map(\.state.title), ["Cat-Cow", "Child's Pose", "Child's Pose", "Child's Pose", "Cobra"])
         XCTAssertEqual(display.events.count, 6, "the launch clears, then one card for each state")
@@ -355,7 +357,7 @@ final class LiveActivityControllerTests: XCTestCase {
     }
 
     private func settle(_ controller: LiveActivityController) async {
-        while let worker = controller.worker { await worker.value }
+        await controller.settle()
     }
 
     private func card(_ session: Session, at second: TimeInterval) -> RunActivityCard {

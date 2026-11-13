@@ -111,6 +111,7 @@ If the run screen ever shows **No sound**, the app could not start its audio. It
 
 - Tap a workout, then **Start**.
 - The forward button skips the current phase. The back button restarts it. From a hold, the back button goes to the count-in before the hold, so you have time to get back into position.
+- A skip is quiet. Your music dips at the tap, and one second later the app sounds the tone of the phase you landed on and says its name. Tap the forward button several times in a row and you hear only where you stopped. Skip the last phase and the finish screen shows at once, with the finish tone one second later.
 - **Undo** appears for 6 seconds after a skip, a **Start**, a **Next**, or a restart, also on the finish screen.
 - **Pause** stops the clock. The screen turns grey and reads PAUSED. With headphone controls off, it also releases your music.
 - **How to** appears for a stretch that has a link while a routine waits and while the workout is paused. It opens the link. No hold counts down in either state, so a video costs you no time.
@@ -126,7 +127,7 @@ Nothing in a stretch routine starts by itself.
 - A stretch on each side waits two times, once for the left side and once for the right side.
 - A stretch counted in reps shows the number of reps and no clock. Do the reps at your own pace, then tap **Next**.
 
-While the routine waits, the big white button is **Start** or **Next**, and the back and forward buttons are dimmed.
+While the routine waits, the big white button is **Start** or **Next**, and the back button is dimmed. The forward button is **Skip stretch**. It leaves the stretch without a count-in, and the next stretch waits. One side counts as one stretch, so a skip from the left side lands on the right side. Tap it several times to skip several stretches. **Undo** takes back the last one.
 
 To leave a stretch early, tap the forward button during the count-in or the hold. The next stretch then waits.
 
@@ -351,7 +352,7 @@ Headphone controls are off until you turn them on. In **Settings**, turn on **He
 | Press | What it does |
 | --- | --- |
 | One press | Pause or resume. While a stretch routine waits, one press is **Start** or **Next** |
-| Two presses | Skip the current phase. In a stretch routine this leaves the stretch, and the next one waits. While the routine waits, two presses are **Start** or **Next** |
+| Two presses | Skip the current phase. In a stretch routine this leaves the stretch, and the next one waits. While the routine waits, two presses skip the stretch |
 | Three presses | Restart the current phase. From a hold this goes back to the count-in. While a stretch routine waits, three presses do nothing |
 
 The lock screen shows the current phase as Now Playing, with the same three controls. While a stretch routine waits, it reads "Waiting for Start" or "Waiting for Next". This is separate from the card in [See the workout while you use other apps](#see-the-workout-while-you-use-other-apps), which shows with headphone controls on or off.

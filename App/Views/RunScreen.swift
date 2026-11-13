@@ -39,6 +39,7 @@ struct RunScreen: View {
                         pause: run.pause,
                         resume: run.resume,
                         skip: { run.skip(progress.segment) },
+                        forward: { run.forward(progress.segment) },
                         restart: { run.restart(progress.segment) },
                         undo: undo,
                         end: run.end,
@@ -91,6 +92,7 @@ struct ActiveRunView: View {
     let pause: () -> Void
     let resume: () -> Void
     let skip: () -> Void
+    let forward: () -> Void
     let restart: () -> Void
     let undo: (() -> Void)?
     let end: () -> Void
@@ -355,11 +357,10 @@ struct ActiveRunView: View {
 
     /// Laid out like a music player, because the headphone presses mean the same things: previous
     /// restarts, play and pause, next moves on. While the run waits, Start or Next takes the big
-    /// button. A wait has nothing to restart or to skip, so the small buttons beside it go dim and
-    /// the one thing left to do is the only thing to hit.
+    /// button. A wait has nothing to restart, so the back button goes dim. The forward button stays
+    /// lit and skips the stretch, so a routine can be skipped through without doing each stretch.
     private var controls: some View {
         let primary = Primary(progress)
-        let advanceIsPrimary = primary.advances
         return HStack(spacing: 12) {
             iconButton("End", "xmark", identifier: "endButton") { confirmingEnd = true }
             iconButton("Restart", "backward.end.fill", identifier: "restartButton", action: restart)
@@ -379,11 +380,7 @@ struct ActiveRunView: View {
             .buttonStyle(RunButtonStyle(isProminent: true))
             .accessibilityIdentifier("primaryButton")
 
-            iconButton(progress.phase.advanceTitle, "forward.end.fill", identifier: "skipButton", action: skip)
-                .disabled(advanceIsPrimary)
-                .opacity(advanceIsPrimary ? 0.3 : 1)
-                .accessibilityHidden(advanceIsPrimary)
-                .animation(Motion.change, value: advanceIsPrimary)
+            iconButton(progress.forwardTitle, "forward.end.fill", identifier: "skipButton", action: forward)
         }
     }
 
@@ -439,8 +436,6 @@ private enum Primary {
             self = .pause
         }
     }
-
-    var advances: Bool { self == .start || self == .next }
 
     var title: String {
         switch self {

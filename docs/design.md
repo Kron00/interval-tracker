@@ -29,7 +29,7 @@ Each segment is one `Phase`. A phase knows its own title, caption, colour family
 Three rules treat the wait and the count-in as part of the hold they lead into:
 
 - Restart from a hold goes back to the start of its count-in, so you have time to get back into position.
-- Next from a count-in ends the whole stretch, hold included. Next always means "the next stretch".
+- Next from a count-in, and **Skip stretch** from a wait, end the whole stretch, hold included. The forward button always means "the next stretch".
 - "Up next" names what follows the hold, from the wait and from the count-in too.
 
 ## How a routine waits for Start
@@ -50,6 +50,8 @@ An interval timer moves on by itself. A stretch routine starts nothing by itself
 **Start** adds one to the count and moves the date, so elapsed time carries on from the gate. The count-in and the hold then run by themselves. When the hold runs out, elapsed time reaches the next gate and stops there. No timer has to fire for that. The last timed hold has no gate after it, so the workout finishes by itself.
 
 **Next** during a count-in or a hold leaves the count alone and moves the date to the end of the hold. The run is then at the next gate.
+
+**Skip stretch** in a wait for **Start** adds one to the count, as **Start** does, and moves the date to the end of the hold, as **Next** does. The count-in and the hold count as skipped, so neither is worked, and the run is at the next gate. One side is one stretch, so a skip from the left side lands on the wait of the right side. In a wait for **Next**, **Skip stretch** is **Next**. `Session.forward` is the one function for it, and `Timeline.skipPoint` says where it lands.
 
 Restart leaves the count alone too. It moves the date back to the start of the count-in. A waiting run ignores restart, because a wait has nothing to restart.
 
@@ -72,6 +74,33 @@ For one phase change at time T:
 | End of the slot + 0.2 s | Music returns |
 
 All of these numbers are in `CueTiming` in `Cues.swift`.
+
+### What a skip sounds like
+
+A skip by hand moves the run at once. The screen, the clock, the Live Activity and **Undo** change at the tap, and nothing sounds then. You skip Round one at S, and the run lands on Rest.
+
+| When | What |
+| --- | --- |
+| S | Music dips. The screen shows REST |
+| S + 1 s | Phase tone |
+| S + 1.5 s | Voice: "Rest" |
+| End of the slot + 0.2 s | Music returns |
+
+You skip Rest at S + 0.5 s, before the tone. The run lands on Round two, the music stays down, and the tone sounds at S + 1.5 s and "Round two" at S + 2 s. Nothing about Rest sounds.
+
+`Session` records where the last skip landed, in elapsed time. The date cannot say it: a run that got to the start of Rest by time passing has the same date as one that skipped there. `CueSchedule` moves the tone and the name of the phase there to `CueTiming.settle`, one second, after the skip, and starts the dip at the skip. Each skip makes a new schedule, and `CuePlayer` queues the new schedule in place of the old one, so a run of taps is silent and only the last landing sounds. A locked phone still answers every tap with the dip. The music stays down from one tap to the next, so **Dip, then restart audio** does not restart the audio at each tap.
+
+The usual rules apply, counted from the moved tone:
+
+- No countdown beep sounds in the two seconds after the tone, or while the name plays.
+- A name that cannot finish before its phase ends is dropped.
+- A phase too short for the moved tone and two quiet seconds after it is not announced. The next phase's own tone announces it, so two tones never sound one on top of the other. A wait has no length but holds the run, so a landing on a wait is always announced.
+
+Skipping to the finish shows the finish screen at once. The finish tone sounds one second after the tap, and "Workout complete" one second after that.
+
+A pause during that second holds the announcement back with the clock. After **Resume** the rest of the second runs, then the tone. **Undo** before the announcement takes it back too, because the schedule of the restored run replaces it.
+
+A skip by hand is the forward button, a double press, **Next** in a stretch counted in reps, and **Skip stretch**. **Start**, **Restart** and **Resume** sound at once, and so does every phase that begins by itself. **Start** and **Restart** clear the landing.
 
 ### What the heads-up sounds like
 
@@ -140,7 +169,9 @@ The other side of a stretch is one more stretch as far as the sounds go. When th
 
 A hold counted in reps has two sounds, the tone that starts it and its name. It has no countdown, because it has no end to count down to.
 
-The last timed hold ends on the finish tone, and "Workout complete" follows one second later. If the last stretch is counted in reps, they play when you tap **Next**.
+The last timed hold ends on the finish tone, and "Workout complete" follows one second later. If the last stretch is counted in reps, **Next** ends it like a skip, so the finish tone sounds one second after the tap.
+
+**Next** in a stretch counted in reps, **Next** during a count-in or a hold, and **Skip stretch** in a wait all land quietly, as [What a skip sounds like](#what-a-skip-sounds-like) describes. The tone and the name of the stretch they land on come one second after the tap. **Start** in that second begins the count-in at once, and the name is not spoken.
 
 ## How cues keep playing while the phone is locked
 
@@ -150,7 +181,7 @@ Three things have to hold.
 - **Beeps do not depend on timers.** `CuePlayer` queues every remaining sound on an `AVAudioPlayerNode` at an exact host time. The audio thread plays them. Voice phrases are rendered to buffers before the run starts, so a voice cue is queued the same way as a beep.
 - **Recovery is one code path.** `RunModel` calls `CuePlayer.reconcile` ten times a second with what the run needs: nothing, standby, or a schedule to play. `reconcile` compares that with what it last queued and repairs any difference. A route change or a skip only marks the queued state as unknown, and the next call rebuilds it.
 
-Standby means the run is on but has nothing to play. A paused run is on standby. So is a waiting run, once the tone and the name that began the wait have sounded. Waiting has no audio code of its own.
+Standby means the run is on but has nothing to play. A paused run is on standby. So is a waiting run, once the tone and the name that began the wait have sounded. After a skip those come one second late, and the run keeps its audio until they have played. Waiting has no audio code of its own.
 
 ## How the workout shows outside the app
 
@@ -239,7 +270,9 @@ In mixing mode a waiting run releases the audio, so your music plays at full vol
 
 `HeadphoneRemote` is the only file that imports MediaPlayer. It publishes the current phase to the lock screen and turns the five remote commands into `RunCommand` values. While the run waits, the lock screen reads "0:45 · Waiting for Start" or "10 reps · Waiting for Next" under the name of the stretch. `Session.perform` decides what each command does, so that part is tested on a Mac. `RunModel` only forwards the command and reconciles.
 
-iOS reports a single press as play, pause, or a toggle of the two. A wait has nothing to pause. A press that paused a wait would also do harm, because **Start** keeps a paused run paused, and the count-in would begin paused. So while the run waits and is not paused, `Session.perform` treats those three commands as next, which is **Start** or **Next** on the screen. At every other time they pause and resume. A call can still pause a waiting run. A press then resumes the run, and the run goes back to its wait.
+iOS reports a single press as play, pause, or a toggle of the two. A wait has nothing to pause. A press that paused a wait would also do harm, because **Start** keeps a paused run paused, and the count-in would begin paused. So while the run waits and is not paused, `Session.perform` treats those three commands as **Start** or **Next** on the screen. At every other time they pause and resume. A call can still pause a waiting run. A press then resumes the run, and the run goes back to its wait.
+
+A double press arrives as next, which is the forward button: a skip, and in a wait **Skip stretch**. A run paused at a wait stays paused after **Skip stretch**, and waits at the next stretch.
 
 ## Why nothing on the run screen moves
 
@@ -256,13 +289,13 @@ A wait changes what six blocks draw:
 | How to button | Hidden | Shown |
 | Big white button | Pause | Start, or Next |
 | Small back button | Restart | Dimmed, and does nothing |
-| Small forward button | Next | Dimmed, and does nothing |
+| Small forward button | Next | **Skip stretch**: leaves the stretch, and the next one waits |
 
 Before **Start**, the clock block shows the length of the hold. You see what you are about to start, and the digits are already the size and in the place they have when the countdown begins. They are dimmed, so a clock that has not started does not look like one that has stopped. The waiting screen takes the amber of the count-in and the hold takes green, so the two differ at a glance.
 
 A countdown leaves no time for a video, so the How to button is hidden while the count-in or the hold counts. A wait and a pause show it. Nothing counts down in either, so opening a video costs no time and the app does not have to rewind anything. The button's place stays empty when the stretch has no link.
 
-A wait has one thing to do. So the small back and forward buttons keep their places, go dim, and do nothing until the clock counts again.
+A wait has nothing to restart, so the small back button keeps its place, goes dim, and does nothing until the clock counts again. The small forward button stays lit as **Skip stretch**, so a routine can be skipped through one stretch at a time without starting any of them. Its icon is the same in every state. Only its accessibility label changes, from "Next" to "Skip stretch". `RunProgress.forwardTitle` holds that label, and `Phase.advanceTitle` stays the word for ending the phase, which the lock screen reads.
 
 The question that the X asks is drawn over the run screen and moves nothing under it. Its line about the history has room for two lines of text whichever sentence it shows.
 
@@ -582,6 +615,7 @@ What only a phone can show:
 - Whether the lock screen shows the card at all.
 - Whether a press arrives while the run is paused or waits for **Start** or **Next**, and the phone is locked.
 - Whether iOS reports the end of a call in a way that lets the run resume.
+- How a skip feels on a locked phone with a double press. iOS reports a double press after it waits for a third, so the one second of a quiet landing comes on top of that delay. Whether the dip at each press is enough to tell that a press arrived, with each of the three ducking methods.
 
 The Headphone check in Settings walks through the first two. `HeadphoneRemote` writes a line to the audio log for every command it receives, so a failed check shows whether the press arrived.
 

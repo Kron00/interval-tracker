@@ -98,7 +98,7 @@ final class LiveActivityContentTests: XCTestCase {
         XCTAssertEqual(State(session, at: start + 8), waiting)
         XCTAssertEqual(State(session, at: start + 900), waiting, "nothing counts until Start")
 
-        session.perform(.next, at: start + 900)
+        session.perform(.play, at: start + 900)
         let countIn = State(
             title: "Child's Pose", caption: "Get ready", upNext: "Cobra 0:30", tone: .prepare,
             clock: .counting(from: start + 900, to: start + 903), isHeadsUp: false)
@@ -119,7 +119,7 @@ final class LiveActivityContentTests: XCTestCase {
     func testAStretchReachedWhilePausedShowsItsLengthAndNotAnEmptyClock() {
         var session = Session(.dailyStretch, cues: CuePreferences(), startingAt: start)
         session.perform(.next, at: start)
-        session.perform(.next, at: start)
+        session.perform(.play, at: start)
         session.pause(at: start + 10)
         XCTAssertEqual(State(session, at: start + 10).clock, .paused("0:38"), "7 of the 45 seconds are done")
 
@@ -138,7 +138,7 @@ final class LiveActivityContentTests: XCTestCase {
             title: "Calf", caption: "Stretch 1 of 1", upNext: "Finish", tone: .prepare,
             clock: .waiting("0:05", for: .start, wait: 0), isHeadsUp: false))
 
-        session.perform(.next, at: start + 60)
+        session.perform(.play, at: start + 60)
         XCTAssertEqual(State(session, at: start + 67.9).clock, .counting(from: start + 63, to: start + 68))
         XCTAssertEqual(State(session, at: start + 68), State(
             title: "Workout complete", caption: nil, upNext: nil, tone: .finished,
@@ -255,7 +255,7 @@ final class LiveActivityControllerTests: XCTestCase {
         await reconcile(at: 0, 0.1, 30)
         session.perform(.next, at: start + 30)
         await reconcile(at: 30, 30.1, 50)
-        session.perform(.next, at: start + 50)
+        session.perform(.play, at: start + 50)
         await reconcile(at: 50, 51, 52.9, 53, 60, 97.9, 98, 98.1, 500)
 
         XCTAssertEqual(display.shown.map(\.state.clock), [

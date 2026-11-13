@@ -2,20 +2,12 @@ import Foundation
 
 /// What a headphone press or a lock-screen button asks of a run.
 public enum RunCommand: Hashable, Sendable {
-    /// A single press arrives as one of these. Each means `next` while the run waits and is not paused.
+    /// A single press arrives as one of these. Each means Start or Next while the run waits and is not paused.
     case play, pause, togglePlayPause
-    /// Ends the segment in progress, or the wait the run is in.
+    /// What the forward button does: `Session.forward`.
     case next
     /// Restarts the segment in progress.
     case previous
-
-    /// A wait has nothing to pause, so the press that pauses a countdown moves a waiting run on.
-    fileprivate var duringAWait: RunCommand {
-        switch self {
-        case .play, .pause, .togglePlayPause, .next: .next
-        case .previous: .previous
-        }
-    }
 }
 
 public struct Session: Equatable, Sendable {
@@ -36,6 +28,10 @@ public struct Session: Equatable, Sendable {
     private var repeated: TimeInterval = 0
     /// Time spent in stretches counted in reps. They have no length of their own.
     private var inReps: TimeInterval = 0
+    /// Where the last skip by hand landed, in elapsed time. The cue schedule announces that place a
+    /// moment after the skip. A run that got there by time passing has the same date, so the date
+    /// cannot tell the two apart.
+    private var landing: TimeInterval?
 
     public init(_ workout: Workout, cues: CuePreferences, startingAt now: Date) {
         self.workout = workout
@@ -54,16 +50,16 @@ public struct Session: Equatable, Sendable {
     }
 
     /// Ends `segment` now and starts what follows. This is also what releases the gate a run waits
-    /// at. From a count-in it ends the stretch, hold included. No-op unless `segment` is the one in
-    /// progress at `now`.
+    /// at: Start in a wait for Start, Next in a stretch counted in reps. From a count-in it ends the
+    /// stretch, hold included. No-op unless `segment` is the one in progress at `now`.
     public mutating func skip(_ segment: SegmentID, at now: Date) {
-        let elapsed = elapsed(at: now)
-        guard let current = timeline.place(at: elapsed, released: released).segment, current.id == segment else { return }
-        let target = timeline.skipPoint(for: current.id)
-        leave(current, at: now)
-        skipped += target - elapsed
-        if current.isGate { released += 1 }
-        move(to: target, at: now)
+        leave(segment, keepingTheStretch: true, at: now)
+    }
+
+    /// What the forward button and a double press do. In a wait for Start it leaves the stretch,
+    /// count-in and hold included, and lands on what follows. Anywhere else it is `skip`.
+    public mutating func forward(_ segment: SegmentID, at now: Date) {
+        leave(segment, keepingTheStretch: false, at: now)
     }
 
     /// Goes back to the start of `segment`, or from a hold to the start of its count-in.
@@ -73,6 +69,7 @@ public struct Session: Equatable, Sendable {
         guard case .inside(let current) = timeline.place(at: elapsed, released: released), current.id == segment else { return }
         let target = timeline.restartPoint(for: current.id)
         repeated += elapsed - target.start
+        landing = nil
         move(to: target.start, at: now)
     }
 
@@ -80,11 +77,14 @@ public struct Session: Equatable, Sendable {
     public mutating func perform(_ command: RunCommand, at now: Date) {
         let place = timeline.place(at: elapsed(at: now), released: released)
         guard let current = place.segment else { return }
-        switch place.isWaiting && !isPaused ? command.duringAWait : command {
+        // A wait has nothing to pause, so the press that pauses a countdown moves a waiting run on.
+        let waits = place.isWaiting && !isPaused
+        switch command {
+        case .play where waits, .pause where waits, .togglePlayPause where waits: skip(current.id, at: now)
         case .play: resume(at: now)
         case .pause: pause(at: now)
         case .togglePlayPause: if isPaused { resume(at: now) } else { pause(at: now) }
-        case .next: skip(current.id, at: now)
+        case .next: forward(current.id, at: now)
         case .previous: restart(current.id, at: now)
         }
     }
@@ -139,7 +139,7 @@ public struct Session: Equatable, Sendable {
 
     /// Every cue up to the next gate, or up to the finish, at its wall-clock time. nil while paused.
     public var cueSchedule: CueSchedule? {
-        zeroDate.map { CueSchedule(timeline, cues, zeroAt: $0, released: released) }
+        zeroDate.map { CueSchedule(timeline, cues, zeroAt: $0, released: released, landing: landing) }
     }
 
     /// Every distinct sound of the whole run in order of first use, whatever gates lie ahead.
@@ -162,11 +162,20 @@ public struct Session: Equatable, Sendable {
         min(ran(at: now), timeline.limit(after: released))
     }
 
-    /// Reps are done at their own pace, so the time spent on them is known only when they are left.
-    /// Time spent waiting for Start is not work and is dropped.
-    private mutating func leave(_ segment: Segment, at now: Date) {
-        guard segment.phase.reps != nil else { return }
-        inReps += ran(at: now) - segment.end
+    /// Start keeps the stretch and begins its count-in, which sounds at once. Every other way of
+    /// leaving a segment by hand lands quietly.
+    private mutating func leave(_ segment: SegmentID, keepingTheStretch: Bool, at now: Date) {
+        let elapsed = elapsed(at: now)
+        guard let current = timeline.place(at: elapsed, released: released).segment, current.id == segment else { return }
+        let starts = keepingTheStretch && current.phase.isWaitForStart
+        let target = starts ? current.end : timeline.skipPoint(for: current.id)
+        // Reps are done at their own pace, so the time spent on them is known only when they are left.
+        // Time spent waiting for Start is not work and is dropped.
+        if current.phase.reps != nil { inReps += ran(at: now) - current.end }
+        skipped += target - elapsed
+        if current.isGate { released += 1 }
+        landing = starts ? nil : target
+        move(to: target, at: now)
     }
 
     private mutating func move(to elapsed: TimeInterval, at now: Date) {
@@ -208,6 +217,9 @@ public struct RunProgress: Equatable, Sendable {
 
     /// The line under the title.
     public var caption: String? { isHeadsUp ? "Get ready" : phase.caption }
+
+    /// What the forward button is called. In a wait it leaves the stretch.
+    public var forwardTitle: String { isWaiting ? "Skip stretch" : phase.advanceTitle }
 
     /// The rep count of a stretch counted in reps, nil for every other phase.
     public var reps: Count? { phase.reps }

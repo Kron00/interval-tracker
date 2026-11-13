@@ -156,24 +156,25 @@ struct CueScheduleTests {
             try timer(warmUp: 3, work: 4, rest: 4, rounds: 3, coolDown: 2),
             try timer(work: 7, rest: 5, rounds: 4, restAfterLastRound: false),
             try routine(getReady: 5, switchSides: 3, [
-                try stretch("Neck Rolls", try reps(4, every: 1), .each),
+                try stretch("Neck Rolls", try reps(4), .each),
                 try stretch("Calf", try hold(1), .each),
-                try stretch("Squat", try reps(1, every: 30)),
+                try stretch("Squat", try reps(1)),
             ]),
         ]
         for workout in workouts {
             for countdown in Countdown.allCases {
                 for voice in [true, false] {
-                    let plan = try schedule(workout, countdown: countdown, voice: voice)
-                    for (earlier, later) in zip(plan.windows, plan.windows.dropFirst()) {
-                        #expect(ms(later.start) - ms(earlier.end) >= 1500)
-                    }
-                    for window in plan.windows {
-                        #expect(!window.sounds.isEmpty)
-                        #expect(window.sounds.map(\.at) == window.sounds.map(\.at).sorted())
-                        for timed in window.sounds {
-                            #expect(timed.at >= window.start)
-                            #expect(ms(timed.at + timed.sound.slot) + 200 <= ms(window.end))
+                    for plan in try legs(workout, countdown: countdown, voice: voice) {
+                        for (earlier, later) in zip(plan.windows, plan.windows.dropFirst()) {
+                            #expect(ms(later.start) - ms(earlier.end) >= 1500)
+                        }
+                        for window in plan.windows {
+                            #expect(!window.sounds.isEmpty)
+                            #expect(window.sounds.map(\.at) == window.sounds.map(\.at).sorted())
+                            for timed in window.sounds {
+                                #expect(timed.at >= window.start)
+                                #expect(ms(timed.at + timed.sound.slot) + 200 <= ms(window.end))
+                            }
                         }
                     }
                 }
@@ -347,7 +348,6 @@ struct UtteranceTests {
 
     @Test func soundSlots() {
         #expect(Sound.tick.slot == 0.12)
-        #expect(Sound.beat.slot == 0.12)
         #expect(Sound.phaseChange.slot == 0.40)
         #expect(Sound.finish.slot == 0.90)
         #expect(voice("Rest").slot == 1.5)

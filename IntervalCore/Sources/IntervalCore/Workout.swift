@@ -62,6 +62,7 @@ public struct Workout: Identifiable, Hashable, Sendable {
         self.id = id; self.name = name; self.plan = plan
     }
 
+    /// The timed length. A stretch counted in reps has none, so it adds nothing here.
     public var totalDuration: TimeInterval { Timeline(plan).total }
 
     /// Every phase of the workout in order, for drawing it.
@@ -93,7 +94,7 @@ public struct Workout: Identifiable, Hashable, Sendable {
         plan: .routine(Routine(
             getReady: literal(seconds: 8), switchSides: literal(seconds: 5),
             stretches: [
-                builtInStretch(1, "Cat-Cow", .reps(literal(count: 10), every: literal(seconds: 5)), .once, video: "1Y0YjXS9sKI"),
+                builtInStretch(1, "Cat-Cow", .reps(literal(count: 10)), .once, video: "1Y0YjXS9sKI"),
                 builtInStretch(2, "Child's Pose", .hold(literal(seconds: 45)), .once, video: "_ZX_zTOBgp8"),
                 builtInStretch(3, "Cobra", .hold(literal(seconds: 30)), .once, video: "Aqyvevt4EUU"),
                 builtInStretch(4, "Hip Flexor Couch Stretch", .hold(literal(seconds: 45)), .each, video: "m2u7jOCMyBg"),
@@ -250,31 +251,32 @@ public struct Stretch: Identifiable, Hashable, Sendable, Codable {
     }
 }
 
-/// How long one side of a stretch lasts. Reps are timed too, so a run never waits for a tap.
-/// In JSON: `{"hold": 45}` or `{"reps": 10, "every": 5}`.
+/// What one side of a stretch asks for: a timed hold, or a number of reps done at your own pace.
+/// In JSON: `{"hold": 45}` or `{"reps": 10}`.
 public enum Amount: Hashable, Sendable, Codable {
     case hold(Span)
-    case reps(Count, every: Span)
+    case reps(Count)
 
-    public var duration: TimeInterval {
+    /// Reps are not timed, so they have no length.
+    var length: TimeInterval {
         switch self {
         case .hold(let span): span.interval
-        case .reps(let count, let every): TimeInterval(count.value) * every.interval
+        case .reps: 0
         }
     }
 
     private enum CodingKeys: String, CodingKey {
-        case hold, reps, every
+        case hold, reps
     }
 
+    /// App version 1.1 paced reps and wrote `{"reps": 10, "every": 5}`. The pace is ignored.
     public init(from decoder: any Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         switch (container.contains(.hold), container.contains(.reps)) {
         case (true, false):
             self = .hold(try container.decode(Span.self, forKey: .hold))
         case (false, true):
-            self = .reps(try container.decode(Count.self, forKey: .reps),
-                         every: try container.decode(Span.self, forKey: .every))
+            self = .reps(try container.decode(Count.self, forKey: .reps))
         default:
             throw DecodingError.dataCorrupted(DecodingError.Context(
                 codingPath: container.codingPath,
@@ -285,11 +287,8 @@ public enum Amount: Hashable, Sendable, Codable {
     public func encode(to encoder: any Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
         switch self {
-        case .hold(let span):
-            try container.encode(span, forKey: .hold)
-        case .reps(let count, let every):
-            try container.encode(count, forKey: .reps)
-            try container.encode(every, forKey: .every)
+        case .hold(let span): try container.encode(span, forKey: .hold)
+        case .reps(let count): try container.encode(count, forKey: .reps)
         }
     }
 }

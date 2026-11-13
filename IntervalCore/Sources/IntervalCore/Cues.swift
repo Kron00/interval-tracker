@@ -34,8 +34,7 @@ public struct Utterance: Hashable, Sendable {
 
 public enum Sound: Hashable, Sendable {
     case tick
-    /// Marks the start of each rep after the first. Softer than `tick`.
-    case beat
+    /// Starts a phase, and ends a timed hold that the run then waits at.
     case phaseChange
     case finish
     case voice(Utterance)
@@ -44,7 +43,7 @@ public enum Sound: Hashable, Sendable {
     /// app's SoundBank must deliver a buffer no longer than this.
     public var slot: TimeInterval {
         switch self {
-        case .tick, .beat: 0.12
+        case .tick: 0.12
         case .phaseChange: 0.40
         case .finish: 0.90
         case .voice(let utterance): utterance.slot
@@ -77,42 +76,24 @@ public struct DuckWindow: Equatable, Sendable {
     public let sounds: [TimedSound]
 }
 
+/// The cues a run plays without help: up to the gate it will wait at, or up to the finish.
 public struct CueSchedule: Equatable, Sendable {
     /// Sorted and disjoint, with at least `mergeGap` between neighbours.
     public let windows: [DuckWindow]
 
-    init(_ timeline: Timeline, _ preferences: CuePreferences, zeroAt: Date) {
-        var cues: [(offset: TimeInterval, sound: Sound)] = []
-        var held: [(start: TimeInterval, end: TimeInterval)] = []
-        for segment in timeline.segments {
-            cues.append((segment.start, .phaseChange))
-            var quietUntil = segment.start + CueTiming.quietHead
-            // A phrase that cannot finish inside its phase would talk over the next tone.
-            if preferences.voice, let words = segment.phase.announcement,
-               CueTiming.voiceDelay + words.slot <= segment.duration {
-                let offset = segment.start + CueTiming.voiceDelay
-                cues.append((offset, .voice(words)))
-                quietUntil = max(quietUntil, offset + words.slot)
-            }
-            if let pulse = segment.phase.pulse {
-                // Beats replace the countdown, and the music stays low for the whole hold rather than
-                // dipping again for every rep.
-                cues += pulse.beats.map { (segment.start + $0, .beat) }
-                held.append((segment.start, segment.end))
-            } else {
-                for secondsBefore in stride(from: preferences.countdown.rawValue, through: 1, by: -1) {
-                    let offset = segment.end - TimeInterval(secondsBefore)
-                    if offset >= quietUntil { cues.append((offset, .tick)) }
-                }
-            }
-        }
-        cues.append((timeline.total, .finish))
-        if preferences.voice {
-            cues.append((timeline.total + CueTiming.finishVoiceDelay, .voice(.workoutComplete)))
+    private typealias Cue = (offset: TimeInterval, sound: Sound)
+
+    init(_ timeline: Timeline, _ preferences: CuePreferences, zeroAt: Date, released: Int) {
+        var cues = Self.cues(in: timeline.leg(after: released), preferences)
+        if let gate = timeline.gate(after: released) {
+            // A gate of no length ends where it starts, and its start already has this tone.
+            if gate.duration > 0 { cues.append((gate.end, .phaseChange)) }
+        } else {
+            cues += Self.finish(of: timeline, preferences)
         }
 
-        let spans = (cues.map { (start: $0.offset, end: $0.offset + $0.sound.slot) } + held).map {
-            (start: max(0, $0.start - CueTiming.duckLead), end: $0.end + CueTiming.duckRelease)
+        let spans = cues.map {
+            (start: max(0, $0.offset - CueTiming.duckLead), end: $0.offset + $0.sound.slot + CueTiming.duckRelease)
         }
         var merged: [(start: TimeInterval, end: TimeInterval)] = []
         for span in spans.sorted(by: { $0.start < $1.start }) {
@@ -131,6 +112,39 @@ public struct CueSchedule: Equatable, Sendable {
             return DuckWindow(start: zeroAt + span.start, end: zeroAt + span.end,
                               sounds: inside.map { TimedSound(at: zeroAt + $0.offset, sound: $0.sound) })
         }
+    }
+
+    static func vocabulary(of timeline: Timeline, _ preferences: CuePreferences) -> [Sound] {
+        var seen: Set<Sound> = []
+        return (cues(in: timeline.segments[...], preferences) + finish(of: timeline, preferences))
+            .map(\.sound).filter { seen.insert($0).inserted }
+    }
+
+    /// In time order.
+    private static func cues(in segments: ArraySlice<Segment>, _ preferences: CuePreferences) -> [Cue] {
+        var cues: [Cue] = []
+        for segment in segments {
+            cues.append((segment.start, .phaseChange))
+            var quietUntil = segment.start + CueTiming.quietHead
+            // A phrase that cannot finish inside its phase would talk over the next tone.
+            if preferences.voice, let words = segment.phase.announcement,
+               CueTiming.voiceDelay + words.slot <= segment.duration {
+                let offset = segment.start + CueTiming.voiceDelay
+                cues.append((offset, .voice(words)))
+                quietUntil = max(quietUntil, offset + words.slot)
+            }
+            for secondsBefore in stride(from: preferences.countdown.rawValue, through: 1, by: -1) {
+                let offset = segment.end - TimeInterval(secondsBefore)
+                if offset >= quietUntil { cues.append((offset, .tick)) }
+            }
+        }
+        return cues
+    }
+
+    private static func finish(of timeline: Timeline, _ preferences: CuePreferences) -> [Cue] {
+        let voice: [Cue] = preferences.voice
+            ? [(timeline.total + CueTiming.finishVoiceDelay, .voice(.workoutComplete))] : []
+        return [(timeline.total, .finish)] + voice
     }
 
     public var isEmpty: Bool { windows.isEmpty }

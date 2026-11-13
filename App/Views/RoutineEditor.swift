@@ -60,7 +60,6 @@ struct StretchDraft: Equatable, Identifiable {
     var usesReps = false
     var holdSeconds = 30
     var reps = 10
-    var repSeconds = 5
     var eachSide = false
     var link = ""
 
@@ -72,19 +71,16 @@ struct StretchDraft: Equatable, Identifiable {
         switch stretch.amount {
         case .hold(let span):
             holdSeconds = span.seconds
-        case .reps(let count, let every):
+        case .reps(let count):
             usesReps = true
             reps = count.value
-            repSeconds = every.seconds
         }
         eachSide = stretch.sides == .each
         link = stretch.howTo?.absoluteString ?? ""
     }
 
     var amount: Amount? {
-        guard usesReps else { return Span(seconds: holdSeconds).map(Amount.hold) }
-        guard let count = Count(reps), let every = Span(seconds: repSeconds) else { return nil }
-        return .reps(count, every: every)
+        usesReps ? Count(reps).map(Amount.reps) : Span(seconds: holdSeconds).map(Amount.hold)
     }
 
     var sides: Sides { eachSide ? .each : .once }
@@ -117,7 +113,7 @@ extension Amount {
     func text(_ sides: Sides) -> String {
         let amount = switch self {
         case .hold(let span): span.clockText
-        case .reps(let count, _): count.value == 1 ? "1 rep" : "\(count.value) reps"
+        case .reps(let count): count.repsText
         }
         return sides == .each ? "\(amount) each side" : amount
     }
@@ -139,7 +135,7 @@ struct RoutineSections: View {
         } header: {
             Text("Gaps")
         } footer: {
-            Text("Get ready comes before every stretch, and the voice names the stretch in it. Switch sides comes between the left and the right side.")
+            Text("Get ready comes before every stretch, and the voice names the stretch in it. Switch sides comes between the left and the right side. Both run by themselves.")
         }
         Section {
             ForEach(Array(draft.stretches.enumerated()), id: \.element.id) { index, stretch in
@@ -165,9 +161,10 @@ struct RoutineSections: View {
         } header: {
             Text("Stretches")
         } footer: {
-            if draft.stretches.count > 1 {
-                Text("Hold and drag a stretch to move it. Swipe left to delete it.")
-            }
+            Text(draft.stretches.count > 1
+                ? "After each stretch the routine waits until you tap Next. Hold and drag a stretch to move it. Swipe left to delete it."
+                : "After each stretch the routine waits until you tap Next.")
+                .accessibilityIdentifier("stretchesFooter")
         }
     }
 
@@ -241,7 +238,7 @@ struct StretchEditor: View {
                 .accessibilityIdentifier("amountPicker")
                 if stretch.usesReps {
                     Stepper("Reps: \(stretch.reps)", value: $stretch.reps, in: 1...99)
-                    Stepper("Seconds per rep: \(stretch.repSeconds)", value: $stretch.repSeconds, in: 1...60)
+                        .accessibilityIdentifier("repsStepper")
                 } else {
                     DurationRow(
                         label: "Length", color: Tone.stretch.tint, identifier: "duration-hold",
@@ -255,7 +252,7 @@ struct StretchEditor: View {
                     .tint(Tone.stretch.tint)
                     .accessibilityIdentifier("eachSideToggle")
             } footer: {
-                if !amountNote.isEmpty { Text(amountNote) }
+                Text(amountNote)
             }
             Section {
                 TextField("https://", text: $stretch.link)
@@ -296,7 +293,8 @@ struct StretchEditor: View {
     }
 
     private var amountNote: String {
-        [stretch.usesReps ? "A soft beat marks each rep." : nil, stretch.eachSide ? "Left side first, then right." : nil]
+        [stretch.usesReps ? "Reps are not timed. Do them at your own pace, then tap Next." : "The hold counts down and beeps at zero.",
+         stretch.eachSide ? "Left side first, then right." : nil]
             .compactMap { $0 }
             .joined(separator: " ")
     }

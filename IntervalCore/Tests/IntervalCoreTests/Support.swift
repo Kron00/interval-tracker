@@ -52,8 +52,8 @@ func hold(_ seconds: Int) throws -> Amount {
     .hold(try span(seconds))
 }
 
-func reps(_ number: Int, every seconds: Int) throws -> Amount {
-    .reps(try count(number), every: try span(seconds))
+func reps(_ number: Int) throws -> Amount {
+    .reps(try count(number))
 }
 
 func stretch(_ name: String, _ amount: Amount, _ sides: Sides = .once, howTo: String? = nil) throws -> Stretch {
@@ -87,27 +87,67 @@ func describe(_ phase: Phase?) -> String {
     }
 }
 
+struct Visit {
+    /// The phase as it first appeared.
+    let progress: RunProgress
+    /// Whether the run stopped in the phase until Next was pressed.
+    var waited = false
+}
+
+struct NeverFinished: Error {}
+
+/// Runs `workout` from start to finish the way its user would: every phase runs out, and Next is
+/// pressed only where the run waits.
+func walk(_ workout: Workout) throws -> [Visit] {
+    var run = session(workout)
+    var visits: [Visit] = []
+    var offset: TimeInterval = 0
+    for _ in 0..<1000 {
+        guard case .active(let progress) = run.snapshot(at: t0 + offset) else { return visits }
+        if visits.last?.progress.segment != progress.segment { visits.append(Visit(progress: progress)) }
+        if progress.isWaiting {
+            visits[visits.count - 1].waited = true
+            run.perform(.next, at: t0 + offset)
+        } else {
+            offset += progress.phaseRemaining
+        }
+    }
+    throw NeverFinished()
+}
+
 struct Step: Equatable, CustomStringConvertible {
     let phase: String
     let start: Int
     let duration: Int
+    let waits: Bool
 
-    init(_ phase: String, start: Int, duration: Int) {
-        self.phase = phase; self.start = start; self.duration = duration
+    init(_ phase: String, start: Int, duration: Int, waits: Bool = false) {
+        self.phase = phase; self.start = start; self.duration = duration; self.waits = waits
     }
 
-    var description: String { "\(phase) @\(start) for \(duration)" }
+    var description: String { "\(phase) @\(start) for \(duration)\(waits ? ", then waits" : "")" }
 }
 
-func steps(of workout: Workout) -> [Step] {
-    let run = session(workout)
-    var steps: [Step] = []
-    var offset: TimeInterval = 0
-    while case .active(let progress) = run.snapshot(at: t0 + offset), steps.count < 1000 {
-        steps.append(Step(describe(progress.phase), start: Int(offset), duration: Int(progress.phaseRemaining)))
-        offset += progress.phaseRemaining
+/// `start` is on the workout's own clock, which stands still during a wait.
+func steps(of workout: Workout) throws -> [Step] {
+    try walk(workout).map {
+        Step(describe($0.progress.phase), start: Int($0.progress.elapsed), duration: Int($0.progress.phaseDuration),
+             waits: $0.waited)
     }
-    return steps
+}
+
+struct NoSuchPhase: Error {}
+
+/// A run of `workout` that has just entered `phase`, reached by pressing Next at `t0` until it shows.
+/// Its offsets then count from the start of that phase.
+func session(_ workout: Workout, in phase: String, cues: CuePreferences = CuePreferences()) throws -> Session {
+    var run = session(workout, cues: cues)
+    for _ in 0..<1000 {
+        guard case .active(let progress) = run.snapshot(at: t0) else { break }
+        if describe(progress.phase) == phase { return run }
+        run.perform(.next, at: t0)
+    }
+    throw NoSuchPhase()
 }
 
 struct Cue: Equatable, CustomStringConvertible {
@@ -142,6 +182,20 @@ func spoken(_ schedule: CueSchedule) -> [String] {
 func schedule(_ workout: Workout = .norwegian4x4,
               countdown: Countdown = .three, voice: Bool = true) throws -> CueSchedule {
     try #require(session(workout, cues: CuePreferences(countdown: countdown, voice: voice)).cueSchedule)
+}
+
+/// The schedule of each leg of a run in which Next is pressed the instant every wait begins. Pressed
+/// then, a leg starts where the one before it stopped, so every cue reads on the workout's own clock.
+func legs(_ workout: Workout, countdown: Countdown = .three, voice: Bool = true) throws -> [CueSchedule] {
+    var run = session(workout, cues: CuePreferences(countdown: countdown, voice: voice))
+    var legs: [CueSchedule] = []
+    for _ in 0..<1000 {
+        legs.append(try #require(run.cueSchedule))
+        let halt = try #require(run.haltDate)
+        guard case .active = run.snapshot(at: halt) else { return legs }
+        run.perform(.next, at: halt)
+    }
+    throw NeverFinished()
 }
 
 func bounds(_ window: DuckWindow) -> [Int] {

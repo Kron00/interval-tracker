@@ -34,7 +34,7 @@ struct SettingsScreen: View {
                 } header: {
                     Text("Headphones")
                 } footer: {
-                    Text("Music from other apps stops during a workout. Press to pause or resume, double-press to skip, triple-press to restart the stretch.")
+                    Text("Music from other apps stops during a workout. Press to pause or resume. Double-press to skip a phase, or to move on from a stretch. Triple-press to restart.")
                 }
 
                 Section("Screen") {

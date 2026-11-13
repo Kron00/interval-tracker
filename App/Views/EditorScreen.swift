@@ -167,7 +167,7 @@ struct EditorScreen: View {
                             Text("Total")
                                 .foregroundStyle(Color.secondary)
                             Spacer()
-                            Text(preview.map { ClockText.remaining($0.totalDuration) } ?? "–")
+                            Text(preview?.totalText ?? "–")
                                 .font(.system(.title, design: .rounded, weight: .bold))
                                 .monospacedDigit()
                                 .accessibilityIdentifier("editorTotal")

@@ -15,8 +15,28 @@ enum Sharing: Equatable {
 
 enum CueDemand: Equatable {
     case none
-    case paused
+    /// The run is on but has nothing to play. It is paused, or it waits for Next.
+    case standby
     case playing(CueSchedule)
+
+    /// `schedule` is the session's own. It is passed in so that it is built once per change of the
+    /// session and not on every tick.
+    init(for session: Session?, playing schedule: CueSchedule?, at now: Date) {
+        guard let session else {
+            self = .none
+            return
+        }
+        guard let schedule else {
+            self = .standby
+            return
+        }
+        // A wait begins on a tone, so it has something to play until that tone has sounded.
+        if let end = schedule.end, end <= now, case .active(let progress) = session.snapshot(at: now), progress.isWaiting {
+            self = .standby
+        } else {
+            self = .playing(schedule)
+        }
+    }
 }
 
 @MainActor
@@ -32,7 +52,7 @@ final class CuePlayer {
     /// Called in exclusive mode when that interruption is over and the system says playback may carry on.
     var onInterruptionEnded: () -> Void = {}
 
-    /// A paused exclusive run holds the audio this long so a press can resume it from a locked phone.
+    /// An exclusive run on standby holds the audio this long so a press can reach it on a locked phone.
     /// After that the audio is released, and iOS may suspend the app.
     static let standbyLimit: TimeInterval = 15 * 60
 
@@ -64,7 +84,7 @@ final class CuePlayer {
         case .playing(let schedule):
             hold = .none
             if let end = schedule.end, end > now { play(schedule, at: now) } else { rest() }
-        case .paused where sharing == .exclusive:
+        case .standby where sharing == .exclusive:
             switch hold {
             case .yielded:
                 rest()
@@ -74,7 +94,7 @@ final class CuePlayer {
             case .standby(let since):
                 if now.timeIntervalSince(since) < Self.standbyLimit { standBy(at: now) } else { rest() }
             }
-        case .paused, .none:
+        case .standby, .none:
             hold = .none
             rest()
         }

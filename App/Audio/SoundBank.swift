@@ -13,7 +13,6 @@ final class SoundBank {
     private static let sampleRate = 44_100.0
     private static let tones: [Sound: (pitches: [Double], gain: Double)] = [
         .tick: ([880], 0.6),
-        .beat: ([660], 0.25),
         .phaseChange: ([1320], 0.6),
         .finish: ([1320, 1760], 0.6),
     ]

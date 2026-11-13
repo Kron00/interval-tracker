@@ -64,6 +64,10 @@ final class RunModel {
     func undoLast() {
         guard let undo else { return }
         change { $0 = undo }
+        // Undo of Start puts the run's clock back. Readings it took since then lie ahead of the clock
+        // now, and the same seconds will be run again.
+        let worked = undo.worked(at: .now)
+        samples.removeAll { $0.second > worked }
     }
     func end() {
         report()
@@ -151,7 +155,7 @@ final class RunModel {
     private func keep(_ reading: HeartRateReading) {
         guard unreportedStart != nil, let session, case .active(let progress) = session.snapshot(at: reading.date),
               !progress.isPaused else { return }
-        samples.append(HeartRateSummary.Sample(second: session.worked(at: reading.date), bpm: reading.bpm))
+        samples.append(HeartRateSummary.Sample(reading, second: session.worked(at: reading.date)))
     }
 
     private func interruptionBegan() {

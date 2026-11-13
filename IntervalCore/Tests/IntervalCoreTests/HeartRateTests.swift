@@ -10,8 +10,10 @@ private func maximum(_ value: Int) throws -> MaxHeartRate {
 
 /// Readings at seconds of the run's own clock.
 private func summary(_ beats: [(second: TimeInterval, bpm: Int)], max value: Int = 200) throws -> HeartRateSummary {
-    try #require(HeartRateSummary(beats.map { HeartRateSummary.Sample(second: $0.second, bpm: $0.bpm) },
-                                  maxHeartRate: try maximum(value)))
+    let samples = try beats.map {
+        HeartRateSummary.Sample(try #require(HeartRateReading(bpm: $0.bpm, at: start)), second: $0.second)
+    }
+    return try #require(HeartRateSummary(samples, maxHeartRate: try maximum(value)))
 }
 
 struct HeartRateTests {
@@ -118,6 +120,12 @@ struct HeartRateTests {
         history.add(WorkoutRecord(startedAt: start, workoutID: Workout.norwegian4x4.id, name: "Norwegian 4x4",
                                   kind: .intervals, worked: 120, planned: 2280, outcome: .endedEarly, heartRate: summary))
         #expect(try History(json: try history.json()) == history)
+    }
+
+    @Test func aSampleIsMadeOnlyFromAReadingSoItsHeartRateIsOneTheFileTakesBack() throws {
+        #expect(HeartRateReading(bpm: 0, at: start) == nil)
+        let sample = HeartRateSummary.Sample(try #require(HeartRateReading(bpm: 120, at: start)), second: 3)
+        #expect(sample.bpm == 120 && sample.second == 3)
     }
 
     @Test func readingsInAnyOrderGiveTheSameSummary() throws {

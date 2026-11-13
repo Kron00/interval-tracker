@@ -115,9 +115,19 @@ public struct HeartRateSummary: Hashable, Sendable, Codable {
         public let second: TimeInterval
         public let bpm: Int
 
-        public init(second: TimeInterval, bpm: Int) {
+        /// Made from a reading, so its heart rate is one the history file takes back.
+        public init(_ reading: HeartRateReading, second: TimeInterval) {
+            self.second = second
+            bpm = reading.bpm
+        }
+
+        private init(second: TimeInterval, bpm: Int) {
             self.second = second
             self.bpm = bpm
+        }
+
+        func capped(at longest: TimeInterval) -> Sample {
+            Sample(second: min(max(second, 0), longest), bpm: bpm)
         }
     }
 
@@ -140,7 +150,7 @@ public struct HeartRateSummary: Hashable, Sendable, Codable {
     public init?(_ samples: [Sample], maxHeartRate: MaxHeartRate) {
         guard !samples.isEmpty else { return nil }
         let readings = samples
-            .map { Sample(second: min(max($0.second, 0), WorkoutRecord.longest), bpm: $0.bpm) }
+            .map { $0.capped(at: WorkoutRecord.longest) }
             .sorted { $0.second < $1.second }
         let beats = readings.map(\.bpm)
         average = Self.mean(beats)

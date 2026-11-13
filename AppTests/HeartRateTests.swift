@@ -146,6 +146,34 @@ final class RunHeartRateTests: XCTestCase {
         XCTAssertNil(reports.last?.heartRate, "a run with no reading has no heart rate")
     }
 
+    /// Undo of Start puts the run's clock back to the wait. The seconds read since then are run again,
+    /// so they must not also count as time in a zone.
+    func testUndoOfStartDropsTheReadingsItTookBack() async throws {
+        let source = ScriptedHeartRateSource()
+        let monitor = HeartRateMonitor.scripted(source)
+        monitor.remember(StubHeartRateSource.monitor)
+        monitor.maxHeartRate = try XCTUnwrap(MaxHeartRate(200))
+        let run = makeRun(monitor)
+        source.send(.link(.connected))
+
+        run.start(.dailyStretch, cues: CuePreferences())
+        run.handle(.play)
+        guard case .active(let waiting)? = run.session?.snapshot(at: .now), waiting.isWaiting else {
+            return XCTFail("Next on Cat-Cow should leave the run waiting for Start")
+        }
+        run.handle(.play)
+        source.send(.beat(bpm: 150))
+        try await Task.sleep(for: .milliseconds(1500))
+        source.send(.beat(bpm: 150))
+        run.undoLast()
+        source.send(.beat(bpm: 110))
+        run.end()
+
+        let heartRate = try XCTUnwrap(reports.first?.heartRate)
+        XCTAssertLessThan(heartRate.secondsInZone.reduce(0, +), 0.5,
+                          "the second and a half before Undo is not time in a zone")
+    }
+
     func testTheLiveActivityCarriesTheHeartRateOfARunWithAMonitor() async throws {
         let source = ScriptedHeartRateSource()
         let monitor = HeartRateMonitor.scripted(source)

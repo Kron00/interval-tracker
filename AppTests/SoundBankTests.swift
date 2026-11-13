@@ -16,10 +16,21 @@ final class SoundBankTests: XCTestCase {
 
     func testVoicePhrasesRenderWithinTheirSlots() async throws {
         let phrases = try await rendered(.norwegian4x4)
-        XCTAssertEqual(phrases.count, 8, "warm-up, rounds one to three, last round, rest, cool-down, complete")
+        XCTAssertEqual(phrases.count, 9, "warm-up, get ready, rounds one to three, last round, rest, cool-down, complete")
         for phrase in phrases {
             XCTAssertLessThanOrEqual(seconds(of: phrase.buffer), phrase.sound.slot + 0.001, "\(phrase.sound)")
             XCTAssertGreaterThan(seconds(of: phrase.buffer), 0.15, "\(phrase.sound)")
+        }
+    }
+
+    /// The heads-up is two short sentences with a pause between them, which is the longest an
+    /// interval timer says. A buffer that fills its slot to the last sample was cut.
+    func testBothHeadsUpPhrasesAreSpokenInFull() async throws {
+        for headsUp in [HeadsUp.ten, .thirty] {
+            let phrases = try await rendered(.norwegian4x4, cues: CuePreferences(headsUp: headsUp))
+            let phrase = try XCTUnwrap(phrases.first { "\($0.sound)".contains("Get ready") }, "\(headsUp)")
+            let slot = Int(phrase.sound.slot * phrase.buffer.format.sampleRate)
+            XCTAssertLessThan(Int(phrase.buffer.frameLength), slot, "\(phrase.sound) ran to \(phrase.sound.slot) s and was cut")
         }
     }
 
@@ -36,13 +47,13 @@ final class SoundBankTests: XCTestCase {
         }
     }
 
-    private func rendered(_ workout: Workout) async throws -> [(sound: Sound, buffer: AVAudioPCMBuffer)] {
+    private func rendered(_ workout: Workout, cues: CuePreferences = CuePreferences()) async throws -> [(sound: Sound, buffer: AVAudioPCMBuffer)] {
         guard AVSpeechSynthesisVoice(language: "en-US") != nil else {
             throw XCTSkip("This simulator has no en-US speech voice.")
         }
         let log = AudioLog()
         let bank = SoundBank(log: log)
-        let vocabulary = Session(workout, cues: CuePreferences(), startingAt: .now).vocabulary
+        let vocabulary = Session(workout, cues: cues, startingAt: .now).vocabulary
         let voices = vocabulary.filter { if case .voice = $0 { true } else { false } }
 
         // The simulator's speech service can time out for a minute after boot, most often on CI. The bank

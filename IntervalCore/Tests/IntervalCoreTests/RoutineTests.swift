@@ -467,7 +467,7 @@ struct RoutineCueTests {
         #expect(try session(.dailyStretch, in: "hold Pigeon right 5/10").vocabulary == whole)
         #expect(try schedule(.dailyStretch).vocabulary == [.phaseChange, voice("Cat-Cow")])
 
-        #expect(session().vocabulary == (try schedule().vocabulary))
+        #expect(session().vocabulary == (try schedule(headsUp: .thirty).vocabulary))
         #expect(session(.dailyStretch, cues: CuePreferences(countdown: .off, voice: false)).vocabulary == [.phaseChange, .finish])
     }
 

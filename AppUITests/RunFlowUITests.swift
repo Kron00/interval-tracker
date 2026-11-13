@@ -442,6 +442,20 @@ final class RunFlowUITests: XCTestCase {
         assertNothingMoved(in: app, since: wideWaiting, "in landscape from waiting for Start to the hold")
         assertNothingMoved(in: app, since: wide, "in landscape from an interval timer to a stretch routine")
         rotate(app, to: .portrait)
+
+        app.buttons["endButton"].tap()
+        app.buttons["confirmEndButton"].tap()
+        startAudioCheck(in: app)
+        XCTAssertFalse(caption.exists, "a warm-up has no caption until its heads-up")
+        assertNothingMoved(in: app, since: running, "in the warm-up of the audio check")
+        XCTAssertTrue(caption.waitForExistence(timeout: Self.patience), "ten seconds before work the caption says to get ready")
+        snap(app, "34-heads-up")
+        // The heads-up lasts ten seconds, and a slow machine can take longer than that over the
+        // checks. A pause keeps the heads-up, so they are made on a run that cannot move on.
+        setPaused(true, with: primary)
+        XCTAssertEqual(caption.label, "Get ready")
+        XCTAssertTrue(app.staticTexts["in Warm-up"].exists)
+        assertNothingMoved(in: app, since: running, "when the heads-up begins")
     }
 
     func testBuildingARoutineAndRunningItToTheEnd() {
@@ -584,6 +598,207 @@ final class RunFlowUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Workout complete"].waitForExistence(timeout: Self.patience), "the last hold reaches zero and the workout finishes by itself")
         XCTAssertTrue(app.buttons["doneButton"].exists)
         XCTAssertTrue(app.staticTexts["timeWorked"].label.hasPrefix("0:"), app.staticTexts["timeWorked"].label)
+    }
+
+    /// The simulator draws the lock screen, so this shows that the Live Activity starts, follows the
+    /// run and ends. It cannot show that a locked phone lights up for the heads-up.
+    func testTheLockScreenFollowsARunToItsEnd() throws {
+        let app = launch("-uiTesting")
+        startAudioCheck(in: app)
+
+        try showLockScreen()
+        let card = springboard.staticTexts.matching(NSPredicate(format: "label BEGINSWITH %@", "Audio check")).firstMatch
+        XCTAssertTrue(card.waitForExistence(timeout: Self.patience), "the lock screen shows the workout")
+        // Under an app's first activity iOS asks whether to allow it, and then whether to always allow it.
+        for answer in ["Allow", "Always Allow"] {
+            let button = springboard.buttons[answer]
+            if button.waitForExistence(timeout: 2) { button.tap() }
+        }
+        snapLockScreen("50-lock-screen")
+
+        XCTAssertTrue(springboard.staticTexts["GET READY"].waitForExistence(timeout: Self.patience), "ten seconds before work the card says to get ready")
+        snapLockScreen("52-heads-up")
+        XCTAssertTrue(springboard.staticTexts["WORK"].waitForExistence(timeout: Self.patience), "the card follows the run into the next phase")
+        snapLockScreen("50a-lock-screen-work")
+        XCTAssertTrue(springboard.staticTexts["WORKOUT COMPLETE"].waitForExistence(timeout: 60), "the card shows the finish while the phone stays locked")
+        XCTAssertTrue(springboard.staticTexts["TIME WORKED"].exists)
+        XCTAssertTrue(springboard.staticTexts["1:00"].exists)
+        snapLockScreen("55-finished-lock-screen")
+
+        app.activate()
+        let done = app.buttons["doneButton"]
+        XCTAssertTrue(done.waitForExistence(timeout: Self.patience))
+        done.tap()
+        try showLockScreen()
+        XCTAssertTrue(card.waitForNonExistence(timeout: Self.patience), "Done takes a finished workout off the lock screen")
+    }
+
+    func testTheDynamicIslandShowsTheRunAndOpensForTheHeadsUp() throws {
+        let app = launch("-uiTesting")
+        startAudioCheck(in: app)
+        let started = Date.now
+
+        XCUIDevice.shared.press(.home)
+        // The Dynamic Island takes a few seconds to draw an app's first activity.
+        Thread.sleep(forTimeInterval: 6)
+        attach(XCUIScreen.main.screenshot(), "51-dynamic-island")
+        expandTheDynamicIsland()
+        attach(XCUIScreen.main.screenshot(), "51a-dynamic-island-expanded")
+        collapseTheDynamicIsland()
+
+        // The heads-up comes 20 seconds into the check. Its alert opens the island with no touch.
+        Thread.sleep(until: started + 21)
+        attach(XCUIScreen.main.screenshot(), "52a-heads-up-dynamic-island")
+        Thread.sleep(until: started + 27)
+        attach(XCUIScreen.main.screenshot(), "52b-heads-up-compact")
+
+        // A force quit leaves the activity behind. The next launch has to clear it.
+        app.terminate()
+        try showLockScreen()
+        let card = springboard.staticTexts.matching(NSPredicate(format: "label BEGINSWITH %@", "Audio check")).firstMatch
+        XCTAssertTrue(card.waitForExistence(timeout: Self.patience), "the activity outlives the app")
+        app.launch()
+        XCTAssertTrue(app.buttons["settingsButton"].waitForExistence(timeout: Self.patience))
+        try showLockScreen()
+        XCTAssertTrue(card.waitForNonExistence(timeout: Self.patience), "a launch clears the activity of a run that no longer exists")
+    }
+
+    func testTheLockScreenShowsAPausedRunAndARoutineThatWaits() throws {
+        let app = launch("-uiTesting")
+        let end = app.buttons["endButton"]
+        let primary = app.buttons["primaryButton"]
+        let skip = app.buttons["skipButton"]
+        let done = app.buttons["doneButton"]
+
+        // A finished workout's activity has ended, so Undo has to start a new one.
+        startAudioCheck(in: app)
+        setPaused(true, with: primary)
+        for _ in 0..<6 where !done.exists { skip.tap() }
+        XCTAssertTrue(done.waitForExistence(timeout: Self.patience))
+        app.buttons["undoButton"].tap()
+        XCTAssertTrue(end.waitForExistence(timeout: Self.patience))
+        try showLockScreen()
+        XCTAssertTrue(springboard.staticTexts["PAUSED"].waitForExistence(timeout: Self.patience), "Undo brings the activity back with the run")
+        XCTAssertTrue(springboard.staticTexts["WORK"].exists)
+        XCTAssertTrue(springboard.staticTexts["0:10"].exists)
+        XCTAssertFalse(springboard.staticTexts["WORKOUT COMPLETE"].exists)
+        snapLockScreen("53-paused-lock-screen")
+
+        app.activate()
+        XCTAssertTrue(end.waitForExistence(timeout: Self.patience))
+        end.tap()
+        app.buttons["confirmEndButton"].tap()
+        let stretch = app.buttons["timerRow-Daily Stretch"]
+        XCTAssertTrue(stretch.waitForExistence(timeout: Self.patience))
+        stretch.tap()
+        app.buttons["startButton"].tap()
+        XCTAssertTrue(app.staticTexts["repCount"].waitForExistence(timeout: Self.patience))
+        waitFor(primary, toRead: "Next")
+        try showLockScreen()
+        XCTAssertTrue(springboard.staticTexts["WAITING FOR NEXT"].waitForExistence(timeout: Self.patience))
+        XCTAssertTrue(springboard.staticTexts["CAT-COW"].exists)
+        XCTAssertTrue(springboard.staticTexts["10 reps"].exists)
+        XCTAssertTrue(springboard.staticTexts["Up next: Child's Pose 0:45"].exists)
+        snapLockScreen("54-waiting-for-next-lock-screen")
+
+        showDynamicIsland(of: app)
+        attach(XCUIScreen.main.screenshot(), "54a-waiting-for-next-dynamic-island")
+        expandTheDynamicIsland()
+        attach(XCUIScreen.main.screenshot(), "54b-waiting-for-next-dynamic-island-expanded")
+        collapseTheDynamicIsland()
+
+        app.activate()
+        XCTAssertTrue(end.waitForExistence(timeout: Self.patience))
+        primary.tap()
+        waitFor(primary, toRead: "Start")
+        try showLockScreen()
+        XCTAssertTrue(springboard.staticTexts["WAITING FOR START"].waitForExistence(timeout: Self.patience), "the next stretch waits on the lock screen too")
+        XCTAssertTrue(springboard.staticTexts["CHILD'S POSE"].exists)
+        XCTAssertTrue(springboard.staticTexts["Up next: Cobra 0:30"].exists)
+        XCTAssertFalse(springboard.staticTexts["WAITING FOR NEXT"].exists)
+        Thread.sleep(forTimeInterval: 3)
+        XCTAssertTrue(springboard.staticTexts["0:45"].exists, "the card shows the length of the hold, and nothing counts until Start")
+        snapLockScreen("56-waiting-for-start-lock-screen")
+
+        showDynamicIsland(of: app)
+        attach(XCUIScreen.main.screenshot(), "56a-waiting-for-start-dynamic-island")
+        expandTheDynamicIsland()
+        attach(XCUIScreen.main.screenshot(), "56b-waiting-for-start-dynamic-island-expanded")
+        collapseTheDynamicIsland()
+
+        // The count-in lasts three seconds and the hold 45, so nothing is asserted about either here.
+        // The screenshots are for looking at: the island right after Start, then the hold twice.
+        app.activate()
+        XCTAssertTrue(end.waitForExistence(timeout: Self.patience))
+        primary.tap()
+        XCUIDevice.shared.press(.home)
+        // The app takes a moment to shrink into the island.
+        Thread.sleep(forTimeInterval: 1)
+        attach(XCUIScreen.main.screenshot(), "57-after-start-dynamic-island")
+        try showLockScreen()
+        snapLockScreen("58-hold-lock-screen")
+        Thread.sleep(forTimeInterval: 2)
+        attach(XCUIScreen.main.screenshot(), "58a-hold-lock-screen-later")
+
+        app.activate()
+        XCTAssertTrue(end.waitForExistence(timeout: Self.patience))
+        end.tap()
+        app.buttons["confirmEndButton"].tap()
+        XCTAssertTrue(stretch.waitForExistence(timeout: Self.patience))
+        try showLockScreen()
+        XCTAssertTrue(springboard.staticTexts["CHILD'S POSE"].waitForNonExistence(timeout: Self.patience), "ending the workout takes the activity off the lock screen")
+        snapLockScreen("59-ended-lock-screen")
+    }
+
+    private let springboard = XCUIApplication(bundleIdentifier: "com.apple.springboard")
+
+    /// Locks the simulator and wakes its screen, which leaves it on the lock screen.
+    private func showLockScreen() throws {
+        let lock = NSSelectorFromString("pressLockButton")
+        guard XCUIDevice.shared.responds(to: lock) else {
+            throw XCTSkip("This Xcode cannot lock the simulator, so the lock screen cannot be shown.")
+        }
+        // A test that fails on the lock screen would leave the simulator locked, and the next test
+        // run could not bring its app to the front.
+        addTeardownBlock { XCUIApplication().activate() }
+        XCUIDevice.shared.perform(lock)
+        Thread.sleep(forTimeInterval: 1.5)
+        XCUIDevice.shared.press(.home)
+        Thread.sleep(forTimeInterval: 1.5)
+    }
+
+    /// The card cross-fades from one state to the next, and its new text can be read before the fade is over.
+    private func snapLockScreen(_ name: String) {
+        Thread.sleep(forTimeInterval: 1)
+        attach(XCUIScreen.main.screenshot(), name)
+    }
+
+    /// Leaves the app for the home screen, where its activity shows in the Dynamic Island.
+    private func showDynamicIsland(of app: XCUIApplication) {
+        app.activate()
+        XCTAssertTrue(app.buttons["endButton"].waitForExistence(timeout: Self.patience))
+        XCUIDevice.shared.press(.home)
+        Thread.sleep(forTimeInterval: 4)
+    }
+
+    private func expandTheDynamicIsland() {
+        springboard.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.03)).press(forDuration: 1.2)
+        Thread.sleep(forTimeInterval: 1)
+    }
+
+    private func collapseTheDynamicIsland() {
+        springboard.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.7)).tap()
+    }
+
+    private func startAudioCheck(in app: XCUIApplication) {
+        let settings = app.buttons["settingsButton"]
+        XCTAssertTrue(settings.waitForExistence(timeout: Self.patience))
+        settings.tap()
+        XCTAssertTrue(app.navigationBars["Settings"].waitForExistence(timeout: Self.patience))
+        let check = app.buttons["audioCheckButton"]
+        for _ in 0..<6 where !check.isHittable { app.swipeUp() }
+        check.tap()
+        XCTAssertTrue(app.staticTexts["phaseTitle"].waitForExistence(timeout: Self.patience))
     }
 
     private func launch(_ argument: String) -> XCUIApplication {

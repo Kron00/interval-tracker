@@ -972,6 +972,44 @@ struct CommandTests {
     }
 }
 
+struct PhaseEndTests {
+    @Test func itIsOneDateForTheWholePhase() {
+        let run = session()
+        #expect(run.phaseEnd(at: t0) == t0 + 300)
+        #expect(run.phaseEnd(at: t0 + 123.456) == t0 + 300)
+        #expect(run.phaseEnd(at: t0 + 299.999) == t0 + 300)
+        #expect(run.phaseEnd(at: t0 + 300) == t0 + 540, "work has begun")
+    }
+
+    @Test func itMovesWithAPauseAndASkip() throws {
+        var run = session()
+        run.pause(at: t0 + 100)
+        #expect(run.phaseEnd(at: t0 + 500) == nil, "a paused clock is not counting")
+        run.resume(at: t0 + 1000)
+        #expect(run.phaseEnd(at: t0 + 1000) == t0 + 1200)
+
+        run.skip(try progress(run, at: 1000).segment, at: t0 + 1000)
+        #expect(run.phaseEnd(at: t0 + 1000) == t0 + 1240, "four minutes of work from the skip")
+    }
+
+    /// Daily Stretch opens on reps. Child's Pose follows: a wait for Start, a 3-second count-in, a 45-second hold.
+    @Test func aRoutineHasOneOnlyBetweenStartAndTheEndOfTheHold() {
+        var run = session(.dailyStretch)
+        #expect(run.phaseEnd(at: t0 + 8) == nil, "the reps wait for Next")
+        run.perform(.next, at: t0 + 8)
+        #expect(run.phaseEnd(at: t0 + 60) == nil, "the hold waits for Start")
+        run.perform(.next, at: t0 + 60)
+        #expect(run.phaseEnd(at: t0 + 60) == t0 + 63, "the count-in")
+        #expect(run.phaseEnd(at: t0 + 62.9) == t0 + 63)
+        #expect(run.phaseEnd(at: t0 + 63) == t0 + 108, "the hold")
+        #expect(run.phaseEnd(at: t0 + 108) == nil, "the next stretch waits for Start")
+    }
+
+    @Test func aFinishedRunHasNone() {
+        #expect(session().phaseEnd(at: t0 + 2280) == nil)
+    }
+}
+
 struct ClockTextTests {
     @Test(arguments: [
         (240, "4:00"),

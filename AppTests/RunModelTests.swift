@@ -254,7 +254,8 @@ final class RunModelTests: XCTestCase {
 
     private func makeRun() -> RunModel {
         let log = AudioLog()
-        return RunModel(player: CuePlayer(bank: SoundBank(log: log), log: log), remote: HeadphoneRemote(log: log))
+        return RunModel(player: CuePlayer(bank: SoundBank(log: log), log: log), remote: HeadphoneRemote(log: log),
+                        liveActivity: LiveActivityController(display: RecordingDisplay(), log: log))
     }
 
     private func progress(_ run: RunModel) throws -> RunProgress {

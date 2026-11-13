@@ -6,7 +6,7 @@ on:
 
 concurrency:
   group: ci-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 jobs:
   ios:
@@ -58,3 +58,24 @@ jobs:
           path: |
             build/screenshots
             build/test.log
+
+  release:
+    name: Publish to the AltStore source
+    needs: ios
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: macos-26
+    timeout-minutes: 20
+    permissions:
+      contents: write
+    concurrency:
+      group: release
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Build the .ipa, create the release, update the source
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: Scripts/release-on-merge.sh

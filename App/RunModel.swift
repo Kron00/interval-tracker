@@ -58,6 +58,7 @@ final class RunModel {
     func pause() { change { $0?.pause(at: .now) } }
     func resume() { change { $0?.resume(at: .now) } }
     func skip(_ segment: SegmentID) { jump { $0?.skip(segment, at: .now) } }
+    func forward(_ segment: SegmentID) { jump { $0?.forward(segment, at: .now) } }
     func restart(_ segment: SegmentID) { jump { $0?.restart(segment, at: .now) } }
 
     /// Restores the session the skip or restart changed, so the run is where it would be had the button never been pressed.

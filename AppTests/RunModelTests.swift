@@ -91,7 +91,7 @@ final class RunModelTests: XCTestCase {
         let run = makeRun()
         defer { run.end() }
         run.start(.dailyStretch, cues: CuePreferences())
-        run.handle(.next)
+        run.handle(.play)
         let waiting = run.session
 
         run.handle(.previous)
@@ -106,7 +106,7 @@ final class RunModelTests: XCTestCase {
         let cobra = try XCTUnwrap(Stretch(name: "Cobra", amount: .hold(try XCTUnwrap(Span(seconds: 30))), sides: .once, howTo: nil))
         let routine = try XCTUnwrap(Routine(countIn: Span(seconds: 30), stretches: [cobra]))
         run.start(Workout(name: "Test", plan: .routine(routine)), cues: CuePreferences())
-        run.handle(.next)
+        run.handle(.play)
         Thread.sleep(forTimeInterval: 1.2)
         let before = try progress(run)
         XCTAssertEqual(before.phase.caption, "Get ready")
@@ -158,7 +158,7 @@ final class RunModelTests: XCTestCase {
         defer { remote.reconcile(nil, at: start) }
 
         session.perform(.next, at: start + 2)
-        session.perform(.next, at: start + 4)
+        session.perform(.play, at: start + 4)
         remote.reconcile(session, at: start + 5)
         var card = try XCTUnwrap(center.nowPlayingInfo)
         XCTAssertEqual(card[MPMediaItemPropertyTitle] as? String, "Child's Pose")
@@ -201,7 +201,7 @@ final class RunModelTests: XCTestCase {
         XCTAssertEqual(card[MPMediaItemPropertyArtist] as? String, "0:45 · Waiting for Start")
         XCTAssertEqual(card[MPNowPlayingInfoPropertyPlaybackRate] as? Double, 0)
 
-        session.perform(.next, at: start + 70)
+        session.perform(.play, at: start + 70)
         remote.reconcile(session, at: start + 80)
         card = try XCTUnwrap(center.nowPlayingInfo)
         XCTAssertEqual(card[MPMediaItemPropertyArtist] as? String, "Stretch 2 of 10")
@@ -228,10 +228,11 @@ final class RunModelTests: XCTestCase {
 
         session.perform(.next, at: start + 100)
         let waitingToStart = try XCTUnwrap(session.cueSchedule)
-        XCTAssertEqual(demand(at: 100.5), .playing(waitingToStart))
-        XCTAssertEqual(demand(at: 103), .standby, "nothing sounds until Start")
+        XCTAssertEqual(demand(at: 100.5), .playing(waitingToStart), "Next landed quietly, and the wait is named a second later")
+        XCTAssertEqual(demand(at: 103), .playing(waitingToStart), "the name runs from 101.5 to 103")
+        XCTAssertEqual(demand(at: 103.3), .standby, "nothing sounds until Start")
 
-        session.perform(.next, at: start + 110)
+        session.perform(.play, at: start + 110)
         let hold = try XCTUnwrap(session.cueSchedule)
         XCTAssertEqual(demand(at: 111), .playing(hold), "the count-in is ticking")
         XCTAssertEqual(demand(at: 130), .playing(hold), "a hold that is counting has its countdown still to come")
@@ -241,6 +242,76 @@ final class RunModelTests: XCTestCase {
         session.pause(at: start + 200)
         XCTAssertEqual(demand(at: 200), .standby)
         XCTAssertEqual(CueDemand(for: nil, playing: nil, at: start), .none)
+    }
+
+    func testAWaitReachedBySkipStretchKeepsItsAudioUntilItHasBeenNamed() throws {
+        let start = Date(timeIntervalSinceReferenceDate: 0)
+        var session = Session(.dailyStretch, cues: CuePreferences(), startingAt: start)
+        session.perform(.play, at: start + 10)
+        session.forward(try progress(session, at: start + 20).segment, at: start + 20)
+        XCTAssertEqual(try progress(session, at: start + 20).phase.title, "Cobra")
+        let landed = try XCTUnwrap(session.cueSchedule)
+        func demand(at offset: TimeInterval) -> CueDemand {
+            CueDemand(for: session, playing: landed, at: start + offset)
+        }
+
+        XCTAssertEqual(demand(at: 20), .playing(landed), "the music dips at the tap")
+        XCTAssertEqual(demand(at: 20.9), .playing(landed), "the tone is still to come")
+        XCTAssertEqual(demand(at: 22.9), .playing(landed), "the name is being spoken")
+        XCTAssertEqual(demand(at: 23.3), .standby)
+    }
+
+    /// The player queues what remains of the schedule it is given, and starts both of its nodes again
+    /// when the schedule changes. So what a skip queued is gone once Undo hands it the old schedule.
+    func testUndoBeforeTheLandingIsAnnouncedLeavesNothingOfItToPlay() throws {
+        let run = makeRun()
+        defer { run.end() }
+        run.start(.norwegian4x4, cues: CuePreferences(headsUp: .off))
+        Thread.sleep(forTimeInterval: 2.5)
+        let tap = Date.now
+        run.skip(try progress(run).segment)
+        let skipped = try XCTUnwrap(run.session?.cueSchedule)
+        XCTAssertEqual(CueDemand(for: run.session, playing: skipped, at: .now), .playing(skipped))
+        let landing = try XCTUnwrap(skipped.remaining(after: .now).windows.first?.sounds.first)
+        XCTAssertEqual(landing.sound, .phaseChange)
+        XCTAssertEqual(landing.at.timeIntervalSince(tap), 1, accuracy: 0.2, "the skip is announced a second after the tap")
+
+        run.undoLast()
+        let restored = try XCTUnwrap(run.session?.cueSchedule)
+        XCTAssertNotEqual(restored, skipped, "a new schedule, so the player queues again")
+        XCTAssertEqual(try progress(run).phase.title, "Warm-up")
+        let next = try XCTUnwrap(restored.remaining(after: .now).windows.first?.sounds.first)
+        XCTAssertGreaterThan(next.at.timeIntervalSinceNow, 290, "the warm-up has begun, and its own countdown is the next sound")
+    }
+
+    func testSkipStretchFromAWaitCanBeTakenBack() throws {
+        let run = makeRun()
+        defer { run.end() }
+        run.start(.dailyStretch, cues: CuePreferences())
+        run.handle(.play)
+        XCTAssertEqual(try progress(run).phase.title, "Child's Pose")
+
+        run.forward(try progress(run).segment)
+        XCTAssertEqual(try progress(run).phase.title, "Cobra")
+        XCTAssertTrue(try progress(run).isWaiting, "Child's Pose was skipped, not started")
+        XCTAssertNotNil(run.undo)
+
+        run.forward(try progress(run).segment)
+        XCTAssertEqual(try progress(run).phase.title, "Hip Flexor Couch Stretch")
+        run.undoLast()
+        XCTAssertEqual(try progress(run).phase.title, "Cobra", "Undo takes back only the last skip")
+        XCTAssertTrue(try progress(run).isWaiting)
+    }
+
+    func testADoublePressInAWaitSkipsTheStretch() throws {
+        let run = makeRun()
+        defer { run.end() }
+        run.start(.dailyStretch, cues: CuePreferences())
+        run.handle(.play)
+        run.handle(.next)
+        XCTAssertEqual(try progress(run).phase.title, "Cobra")
+        XCTAssertTrue(try progress(run).isWaiting)
+        XCTAssertNotNil(run.undo)
     }
 
     func testAnIntervalTimerIsNeverOnStandbyWhileItRuns() throws {
@@ -256,6 +327,11 @@ final class RunModelTests: XCTestCase {
         let log = AudioLog()
         return RunModel(player: CuePlayer(bank: SoundBank(log: log), log: log), remote: HeadphoneRemote(log: log),
                         liveActivity: LiveActivityController(display: RecordingDisplay(), log: log), heartRate: .scripted())
+    }
+
+    private func progress(_ session: Session, at date: Date) throws -> RunProgress {
+        guard case .active(let progress) = session.snapshot(at: date) else { throw NotActive() }
+        return progress
     }
 
     private func progress(_ run: RunModel) throws -> RunProgress {

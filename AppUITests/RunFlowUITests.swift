@@ -364,6 +364,7 @@ final class RunFlowUITests: XCTestCase {
         let undo = app.buttons["undoButton"]
         XCTAssertTrue(phase.waitForExistence(timeout: Self.patience))
         let running = frames(in: app)
+        XCTAssertNotNil(running["heartRate"], "the stand-in monitor is remembered, so the readout has its slot")
         snap(app, "30-running")
 
         setPaused(true, with: primary)
@@ -863,7 +864,7 @@ final class RunFlowUITests: XCTestCase {
         Thread.sleep(forTimeInterval: 2)
     }
 
-    private static let fixedInPlace = ["phaseTitle", "clock", "totalRemaining", "primaryButton", "skipButton", "heartRate"]
+    private static let fixedInPlace = ["phaseTitle", "clock", "totalRemaining", "primaryButton", "skipButton"]
 
     private func frames(in app: XCUIApplication) -> [String: CGRect] {
         // Every change on the run screen animates for a quarter of a second.
@@ -876,11 +877,16 @@ final class RunFlowUITests: XCTestCase {
         for digits in [app.staticTexts["timeRemaining"], app.staticTexts["holdLength"]] where digits.exists {
             frames["digits"] = digits.frame
         }
+        // The heart-rate readout has a slot only while a monitor is remembered.
+        let heartRate = app.descendants(matching: .any)["heartRate"]
+        if heartRate.exists { frames["heartRate"] = heartRate.frame }
         return frames
     }
 
     private func assertNothingMoved(in app: XCUIApplication, since before: [String: CGRect], _ when: String) {
-        for (identifier, now) in frames(in: app) {
+        let after = frames(in: app)
+        XCTAssertEqual(before["heartRate"] == nil, after["heartRate"] == nil, "the heart-rate readout came or went \(when)")
+        for (identifier, now) in after {
             guard let was = before[identifier] else { continue }
             // The total is set against the right edge and is as wide as its digits, so "8:21" is narrower than "38:00".
             let leftEdge = identifier == "totalRemaining" ? 0 : now.minX - was.minX

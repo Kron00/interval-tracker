@@ -28,10 +28,9 @@ public struct Session: Equatable, Sendable {
     private var repeated: TimeInterval = 0
     /// Time spent in stretches counted in reps. They have no length of their own.
     private var inReps: TimeInterval = 0
-    /// Where the last skip by hand landed, in elapsed time. The cue schedule announces that place a
-    /// moment after the skip. A run that got there by time passing has the same date, so the date
-    /// cannot tell the two apart.
-    private var landing: TimeInterval?
+    /// Where the run was last moved by hand, in elapsed time. A run that got there by time passing
+    /// has the same date, so the date cannot tell the two apart, and the two sound different.
+    private var arrival: Arrival?
 
     public init(_ workout: Workout, cues: CuePreferences, startingAt now: Date) {
         self.workout = workout
@@ -69,7 +68,7 @@ public struct Session: Equatable, Sendable {
         guard case .inside(let current) = timeline.place(at: elapsed, released: released), current.id == segment else { return }
         let target = timeline.restartPoint(for: current.id)
         repeated += elapsed - target.start
-        landing = nil
+        arrival = .restart(target.start)
         move(to: target.start, at: now)
     }
 
@@ -139,7 +138,7 @@ public struct Session: Equatable, Sendable {
 
     /// Every cue up to the next gate, or up to the finish, at its wall-clock time. nil while paused.
     public var cueSchedule: CueSchedule? {
-        zeroDate.map { CueSchedule(timeline, cues, zeroAt: $0, released: released, landing: landing) }
+        zeroDate.map { CueSchedule(timeline, cues, zeroAt: $0, released: released, arrival: arrival) }
     }
 
     /// Every distinct sound of the whole run in order of first use, whatever gates lie ahead.
@@ -174,7 +173,7 @@ public struct Session: Equatable, Sendable {
         if current.phase.reps != nil { inReps += ran(at: now) - current.end }
         skipped += target - elapsed
         if current.isGate { released += 1 }
-        landing = starts ? nil : target
+        arrival = starts ? nil : .landing(target)
         move(to: target, at: now)
     }
 

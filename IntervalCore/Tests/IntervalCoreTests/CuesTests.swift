@@ -3,10 +3,10 @@ import IntervalCore
 import Testing
 
 struct CueScheduleTests {
-    @Test func startBurstOfNorwegian4x4() throws {
+    @Test func theStartOfNorwegian4x4IsItsNameWithNoTone() throws {
         let first = try #require(try schedule().windows.first)
         #expect(bounds(first) == [0, 2200])
-        #expect(cues(first) == [Cue(0, .phaseChange), Cue(500, voice("Warm up"))])
+        #expect(cues(first) == [Cue(500, voice("Warm up"))], "nothing starts with the tone")
     }
 
     @Test func firstBoundaryOfNorwegian4x4() throws {
@@ -35,7 +35,7 @@ struct CueScheduleTests {
             0, 296_500, 536_500, 716_500, 956_500, 1_136_500,
             1_376_500, 1_556_500, 1_796_500, 1_976_500, 2_276_500,
         ])
-        #expect(cues(plan).count == 52)
+        #expect(cues(plan).count == 51)
     }
 
     @Test func lastRoundReplacesTheFinalRoundNumber() throws {
@@ -47,7 +47,7 @@ struct CueScheduleTests {
 
     @Test func aSingleRoundIsAnnouncedByNumber() throws {
         #expect(cues(try schedule(try timer(work: 60))) == [
-            Cue(0, .phaseChange), Cue(500, voice("Round one")),
+            Cue(500, voice("Round one")),
             Cue(57_000, .tick), Cue(58_000, .tick), Cue(59_000, .tick),
             Cue(60_000, .finish), Cue(61_000, voice("Workout complete")),
         ])
@@ -56,7 +56,7 @@ struct CueScheduleTests {
     @Test func twentySecondPhasesKeepTheirOwnWindows() throws {
         let plan = try schedule(.hiit2020)
         #expect(plan.windows.count == 21)
-        #expect(cues(plan).count == 102)
+        #expect(cues(plan).count == 101)
 
         let firstRest = plan.windows[2]
         #expect(bounds(firstRest) == [316_500, 322_200])
@@ -77,7 +77,7 @@ struct CueScheduleTests {
         let plan = try schedule(try timer(work: 4, rest: 4, rounds: 2, restAfterLastRound: false))
         #expect(plan.windows.map(bounds) == [[0, 14_700]])
         #expect(cues(plan) == [
-            Cue(0, .phaseChange), Cue(500, voice("Round one")),
+            Cue(500, voice("Round one")),
             Cue(2000, .tick), Cue(3000, .tick),
             Cue(4000, .phaseChange), Cue(4500, voice("Rest")),
             Cue(6000, .tick), Cue(7000, .tick),
@@ -89,7 +89,7 @@ struct CueScheduleTests {
 
     @Test func aTwoSecondPhaseHasNoTicks() throws {
         #expect(cues(try schedule(try timer(work: 2))) == [
-            Cue(0, .phaseChange), Cue(500, voice("Round one")),
+            Cue(500, voice("Round one")),
             Cue(2000, .finish), Cue(3000, voice("Workout complete")),
         ])
     }
@@ -97,7 +97,6 @@ struct CueScheduleTests {
     @Test func aPhaseTooShortForItsPhraseKeepsTheToneAndDropsTheVoice() throws {
         let plan = try schedule(try timer(work: 1, rest: 1, rounds: 2, restAfterLastRound: false))
         #expect(cues(plan) == [
-            Cue(0, .phaseChange),
             Cue(1000, .phaseChange),
             Cue(2000, .phaseChange),
             Cue(3000, .finish), Cue(4000, voice("Workout complete")),
@@ -106,7 +105,7 @@ struct CueScheduleTests {
 
     @Test func aThreeSecondPhaseKeepsOnlyTheLastTick() throws {
         #expect(cues(try schedule(try timer(work: 3), countdown: .five)) == [
-            Cue(0, .phaseChange), Cue(500, voice("Round one")),
+            Cue(500, voice("Round one")),
             Cue(2000, .tick),
             Cue(3000, .finish), Cue(4000, voice("Workout complete")),
         ])
@@ -117,7 +116,7 @@ struct CueScheduleTests {
         #expect(!plan.vocabulary.contains(.tick))
         #expect(bounds(plan.windows[1]) == [299_500, 302_200])
         #expect(cues(plan.windows[1]) == [Cue(300_000, .phaseChange), Cue(300_500, voice("Round one"))])
-        #expect(cues(plan).count == 22)
+        #expect(cues(plan).count == 21)
     }
 
     @Test func countdownFiveStartsTwoSecondsEarlier() throws {
@@ -130,20 +129,20 @@ struct CueScheduleTests {
         ])
     }
 
-    @Test func withoutVoiceTheWindowClosesRightAfterTheTone() throws {
+    @Test func withoutVoiceTheStartIsSilentAndTheWindowClosesRightAfterTheTone() throws {
         let plan = try schedule(voice: false)
-        #expect(bounds(plan.windows[0]) == [0, 600])
-        #expect(bounds(plan.windows[1]) == [296_500, 300_600])
-        #expect(cues(plan.windows[1]) == [
+        #expect(!plan.isDucked(at: t0), "the start has no tone and no name, so the music stays up")
+        #expect(bounds(plan.windows[0]) == [296_500, 300_600])
+        #expect(cues(plan.windows[0]) == [
             Cue(297_000, .tick), Cue(298_000, .tick), Cue(299_000, .tick), Cue(300_000, .phaseChange),
         ])
         #expect(bounds(try #require(plan.windows.last)) == [2_276_500, 2_281_100])
-        #expect(plan.vocabulary == [.phaseChange, .tick, .finish])
+        #expect(plan.vocabulary == [.tick, .phaseChange, .finish])
     }
 
     @Test func vocabularyListsEveryDistinctSoundInOrderOfFirstUse() throws {
         #expect(try schedule().vocabulary == [
-            .phaseChange, voice("Warm up"), .tick, voice("Round one"), voice("Rest"),
+            voice("Warm up"), .tick, .phaseChange, voice("Round one"), voice("Rest"),
             voice("Round two"), voice("Round three"), voice("Last round"), voice("Cool down"),
             .finish, voice("Workout complete"),
         ])
@@ -184,6 +183,22 @@ struct CueScheduleTests {
                     }
                 }
             }
+        }
+    }
+
+    @Test func inEveryBuiltInWorkoutTheToneSoundsOnlyWhereAPhaseRanOut() throws {
+        for workout in [Workout.norwegian4x4, .hiit2020, .audioCheck, .dailyStretch] {
+            let visits = try walk(workout)
+            // A wait or a stretch counted in reps has no length and ends on a tap. A count-in leads
+            // into its own hold. The last phase ends on the finish tone.
+            let ranOut = visits.dropLast().filter { visit in
+                if case .getReady = visit.progress.phase { return false }
+                return visit.progress.phaseDuration > 0
+            }
+            let expected = ranOut.map { Int((($0.progress.elapsed + $0.progress.phaseDuration) * 1000).rounded()) }
+            let tones = try legs(workout).flatMap(cues).filter { $0.sound == .phaseChange }.map(\.ms)
+            #expect(tones == expected, "\(workout.name)")
+            #expect(!tones.contains(0), "\(workout.name) starts with no tone")
         }
     }
 }
@@ -287,7 +302,7 @@ struct CueProjectionTests {
         let todo = try #require(run.cueSchedule).remaining(after: now)
         let first = try #require(todo.windows.first)
         #expect(first.start == now)
-        #expect(cues(first) == [Cue(101_000, .phaseChange), Cue(101_500, voice("Round one"))], "nothing sounds in the first second")
+        #expect(cues(first) == [Cue(101_500, voice("Round one"))], "nothing sounds in the first second, and no tone after it")
         #expect(ms(first.end) == 103_200)
         #expect(todo.isDucked(at: now))
     }
@@ -359,7 +374,7 @@ struct UtteranceTests {
 }
 
 struct QuietSkipTests {
-    @Test func everySkipThroughEveryWorkoutIsSilentForOneSecondAndKeepsTheMusicDown() throws {
+    @Test func everySkipThroughEveryWorkoutIsSilentForOneSecondAndDipsTheMusicForAnAnnouncement() throws {
         let workouts = [
             .norwegian4x4, .hiit2020, .audioCheck, .dailyStretch,
             try timer(work: 1, rest: 1, rounds: 5),
@@ -376,8 +391,19 @@ struct QuietSkipTests {
                     run.forward(progress.segment, at: now)
                     let plan = try #require(run.cueSchedule)
                     let todo = plan.remaining(after: now)
-                    #expect(todo.windows.flatMap(\.sounds).allSatisfy { $0.at >= now + 1 }, "\(workout.name) at \(ms(now))")
-                    #expect(plan.isDucked(at: now), "\(workout.name) at \(ms(now))")
+                    let sounds = todo.windows.flatMap(\.sounds)
+                    #expect(sounds.allSatisfy { $0.at >= now + 1 }, "\(workout.name) at \(ms(now))")
+                    // The landing's own sound: its name half a second after the settle, or the finish tone at it.
+                    let announced = sounds.first.map { first in
+                        switch first.sound {
+                        case .voice: ms(first.at) == ms(now) + 1500
+                        case .finish: ms(first.at) == ms(now) + 1000
+                        case .tick, .phaseChange: false
+                        }
+                    } ?? false
+                    if announced {
+                        #expect(plan.isDucked(at: now), "\(workout.name) at \(ms(now))")
+                    }
                     for (earlier, later) in zip(plan.windows, plan.windows.dropFirst()) {
                         #expect(ms(later.start) - ms(earlier.end) >= 1500)
                     }
@@ -399,7 +425,7 @@ struct QuietSkipTests {
         let second = try #require(run.cueSchedule)
 
         let todo = second.remaining(after: t0 + 100.5)
-        #expect(cues(todo.windows[0]) == [Cue(101_500, .phaseChange), Cue(102_000, voice("Rest"))])
+        #expect(cues(todo.windows[0]) == [Cue(102_000, voice("Rest"))])
         #expect(!spoken(todo).contains("Round one"))
         #expect(first.isDucked(at: t0 + 100.5) && second.isDucked(at: t0 + 100.5), "the music stays down from one skip to the next")
     }
@@ -417,20 +443,24 @@ struct QuietSkipTests {
     @Test func aLandingTooCloseToTheEndOfItsPhaseIsLeftToTheNextTone() throws {
         var run = session(try timer(work: 20, rest: 2, rounds: 2, restAfterLastRound: false))
         run.skip(try progress(run, at: 5).segment, at: t0 + 5)
-        #expect(cues(try #require(run.cueSchedule).remaining(after: t0 + 5)) == [
+        let plan = try #require(run.cueSchedule)
+        #expect(cues(plan.remaining(after: t0 + 5)) == [
             Cue(7000, .phaseChange), Cue(7500, voice("Last round")),
             Cue(24_000, .tick), Cue(25_000, .tick), Cue(26_000, .tick),
             Cue(27_000, .finish), Cue(28_000, voice("Workout complete")),
         ])
+        #expect(!plan.isDucked(at: t0 + 5), "a landing with nothing to announce makes no sound and no dip")
+        #expect(plan.isDucked(at: t0 + 6.5), "the music goes down for the next tone as usual")
     }
 
-    @Test func aLandingThatJustFitsKeepsItsToneAndItsName() throws {
+    @Test func aLandingThatJustFitsKeepsItsName() throws {
         var run = session(try timer(work: 20, rest: 3, rounds: 2, restAfterLastRound: false))
         run.skip(try progress(run, at: 5).segment, at: t0 + 5)
         let todo = try #require(run.cueSchedule).remaining(after: t0 + 5)
-        #expect(cues(todo).prefix(4) == [
-            Cue(6000, .phaseChange), Cue(6500, voice("Rest")), Cue(8000, .phaseChange), Cue(8500, voice("Last round")),
+        #expect(cues(todo).prefix(3) == [
+            Cue(6500, voice("Rest")), Cue(8000, .phaseChange), Cue(8500, voice("Last round")),
         ])
+        #expect(todo.isDucked(at: t0 + 5))
     }
 
     @Test func aPauseDuringTheSecondHoldsTheAnnouncementBack() throws {
@@ -441,7 +471,7 @@ struct QuietSkipTests {
         run.resume(at: t0 + 200)
 
         let todo = try #require(run.cueSchedule).remaining(after: t0 + 200)
-        #expect(cues(todo.windows[0]) == [Cue(200_600, .phaseChange), Cue(201_100, voice("Round one"))])
+        #expect(cues(todo.windows[0]) == [Cue(201_100, voice("Round one"))])
     }
 
     @Test func aSkipWhilePausedIsAnnouncedOneSecondAfterResume() throws {
@@ -450,34 +480,35 @@ struct QuietSkipTests {
         run.skip(try progress(run, at: 100).segment, at: t0 + 150)
         run.resume(at: t0 + 200)
         #expect(cues(try #require(run.cueSchedule).remaining(after: t0 + 200).windows[0]) == [
-            Cue(201_000, .phaseChange), Cue(201_500, voice("Round one")),
+            Cue(201_500, voice("Round one")),
         ])
     }
 
-    @Test func restartSoundsAtOnceEvenBeforeALandingWasAnnounced() throws {
+    @Test func restartNamesThePhaseAtOnceWithNoToneEvenBeforeALandingWasAnnounced() throws {
         var run = session()
         run.skip(try progress(run, at: 100).segment, at: t0 + 100)
         run.restart(try progress(run, at: 100.5).segment, at: t0 + 100.5)
         #expect(cues(try #require(run.cueSchedule).remaining(after: t0 + 100.5).windows[0]) == [
-            Cue(100_500, .phaseChange), Cue(101_000, voice("Round one")),
+            Cue(101_000, voice("Round one")),
         ])
     }
 
-    @Test func withoutVoiceALandingIsTheToneAlone() throws {
+    @Test func withoutVoiceALandingMakesNoSoundAndNoDip() throws {
         var run = session(cues: CuePreferences(voice: false, headsUp: .off))
         run.skip(try progress(run, at: 100).segment, at: t0 + 100)
         let todo = try #require(run.cueSchedule).remaining(after: t0 + 100)
+        #expect(!todo.isDucked(at: t0 + 100))
         let first = try #require(todo.windows.first)
-        #expect(bounds(first) == [100_000, 101_600])
-        #expect(cues(first) == [Cue(101_000, .phaseChange)])
+        #expect(bounds(first) == [336_500, 340_600], "the next sound is the countdown at the end of Round one")
+        #expect(cues(first) == [Cue(337_000, .tick), Cue(338_000, .tick), Cue(339_000, .tick), Cue(340_000, .phaseChange)])
     }
 
     @Test func aLandingKeepsTheCountdownClearOfItsName() throws {
         var run = session(try timer(work: 20, rest: 5, rounds: 2, restAfterLastRound: false), cues: CuePreferences(countdown: .five))
         run.skip(try progress(run, at: 5).segment, at: t0 + 5)
         let todo = try #require(run.cueSchedule).remaining(after: t0 + 5)
-        #expect(cues(todo).prefix(5) == [
-            Cue(6000, .phaseChange), Cue(6500, voice("Rest")), Cue(8000, .tick), Cue(9000, .tick), Cue(10_000, .phaseChange),
-        ], "the beeps at 5, 6 and 7 s would sound over the tone and the name")
+        #expect(cues(todo).prefix(4) == [
+            Cue(6500, voice("Rest")), Cue(8000, .tick), Cue(9000, .tick), Cue(10_000, .phaseChange),
+        ], "the beeps at 5, 6 and 7 s would sound in the settle or over the name")
     }
 }

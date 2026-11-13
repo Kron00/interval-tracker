@@ -881,10 +881,8 @@ struct RestartTests {
 
         let todo = try #require(run.cueSchedule).remaining(after: now)
         let first = try #require(todo.windows.first)
-        #expect(bounds(first) == [20_000, 23_600])
-        #expect(cues(first) == [
-            Cue(20_000, .tick), Cue(21_000, .tick), Cue(22_000, .tick), Cue(23_000, .phaseChange),
-        ])
+        #expect(bounds(first) == [20_000, 22_320])
+        #expect(cues(first) == [Cue(20_000, .tick), Cue(21_000, .tick), Cue(22_000, .tick)], "the hold begins with no tone")
     }
 
     @Test func aFinishedIntervalRunCountsRestartedTimeAgain() throws {

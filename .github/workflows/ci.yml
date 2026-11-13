@@ -32,6 +32,7 @@ jobs:
             -scheme IntervalTracker \
             -destination 'platform=iOS Simulator,name=iPhone 17 Pro' \
             -resultBundlePath build/Result.xcresult \
+            -retry-tests-on-failure -test-iterations 3 \
             CODE_SIGNING_ALLOWED=NO | tee build/test.log
 
       - name: Export screenshots

@@ -81,7 +81,7 @@ Locked-screen playback, music ducking, and headphone presses need a real iPhone.
 
 The simulator does draw the lock screen and the Dynamic Island. Three UI tests lock it and read the Live Activity there, and one of them taps the button on the card.
 
-The ChatGPT feature needs a real account, and the sign-in sheet needs a real iPhone. The simulator proves the sheet, the listener, and every request against stand-ins. `LiveOpenAITests` runs the app's own sign-in and generation against OpenAI. It is skipped unless `TEST_RUNNER_LIVE_OPENAI=1` is set, and it needs a person to open the address it prints, so run it when you change a request. Nobody has signed in from the app on a phone. `docs/design.md` lists what is unproven. The Keychain tests run only in a signed build, so run them once without `CODE_SIGNING_ALLOWED=NO` when you change `KeychainVaultStore`.
+The ChatGPT feature needs a real account, and the sign-in sheet needs a real iPhone. The simulator proves the sheet, the listener, and every request against stand-ins. `LiveOpenAITests` runs the app's own sign-in and generation against OpenAI. It is skipped unless `TEST_RUNNER_LIVE_OPENAI=1` is set, and it needs a person to open the address it prints, so run it when you change a request. On a phone, the owner has signed in with the sheet, built a workout, and stayed signed in after a relaunch. **Sign in with Safari** is untried there. `docs/design.md` lists what is unproven. The Keychain tests run only in a signed build, so run them once without `CODE_SIGNING_ALLOWED=NO` when you change `KeychainVaultStore`.
 
 ## How to verify a change
 

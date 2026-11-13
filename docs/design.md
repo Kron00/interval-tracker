@@ -325,7 +325,7 @@ The listener is bound to the loopback address, so no other device can reach it. 
 
 ### Why there is a second route through Safari
 
-Nobody has seen the sheet reach the listener on a real iPhone. So Settings also offers **Sign in with Safari**, which does not depend on it.
+The sheet was built before anyone had seen it reach the listener on a real iPhone. So Settings also offers **Sign in with Safari**, which does not depend on it. The sheet has since worked on a phone, and the Safari route has not been tried on one. [Building workouts with ChatGPT](#building-workouts-with-chatgpt) has the details.
 
 Safari is a separate app. While the user signs in there, Intervals is in the background, and iOS may suspend it. Two things can then happen when ChatGPT sends Safari to the redirect address.
 
@@ -503,7 +503,7 @@ If silence does not make the app Now Playing, the fix is in one place: the silen
 
 ### Building workouts with ChatGPT
 
-One test contacts OpenAI, `LiveOpenAITests`, and it is skipped unless `TEST_RUNNER_LIVE_OPENAI=1` is set, because a person has to sign in. Nobody has signed in to ChatGPT from the app on a phone. The protocol comes from OpenAI's documentation and from three open-source clients that implement it.
+One test contacts OpenAI, `LiveOpenAITests`, and it is skipped unless `TEST_RUNNER_LIVE_OPENAI=1` is set, because a person has to sign in. The protocol comes from OpenAI's documentation and from three open-source clients that implement it.
 
 What is proven without an account:
 
@@ -520,12 +520,18 @@ What one account showed. `LiveOpenAITests` ran against OpenAI on 12 November 202
 - The app turned the plan's answer to "15-minute hip mobility routine" into a routine of eight stretches through `WorkoutBlueprint`.
 - Revoking the refresh token succeeded.
 
+What a phone showed. On 13 November 2026 the owner used the app on an iPhone, installed from AltStore:
+
+- **Sign in with ChatGPT** opened the system sheet, and the sheet reached the listener on 127.0.0.1. A phone does not share a Mac's loopback interface, so this is the first proof of the listener outside the simulator.
+- The app built a workout from a description.
+- The app was still signed in after it was closed and opened again. So a build that AltStore signed stores the vault in the Keychain and reads it back.
+
 What only an account can still show:
 
 - Whether another plan may be used by other apps. The probe checked one.
 - Whether the smallest model is found when OpenAI renames its models. The model list does not say which model is the smallest, so `ModelList.smallest` goes by the names "luna", "nano", and "mini", and otherwise takes the first model listed.
 
-What only a phone can show:
+What a phone has still to show:
 
-- Whether the sign-in sheet reaches the listener there. If it does not, the Safari route still works, and the fix is in `ChatGPTModel.signIn`.
-- Whether an app that AltStore signed can use the Keychain. It should, because signing gives the app its default Keychain group.
+- Whether **Sign in with Safari** works there, with or without the pasted address.
+- Whether a token refresh works there. Nobody has watched one on a phone.

@@ -356,11 +356,12 @@ private struct StretchRows: View {
                         Button {
                             openURL(howTo)
                         } label: {
-                            Image(systemName: "play.circle.fill")
-                                .font(.system(size: 32))
-                                .symbolRenderingMode(.hierarchical)
+                            Text("How to")
+                                .font(.subheadline.weight(.semibold))
                                 .foregroundStyle(Tone.stretch.tint)
-                                .frame(width: 44, height: 44)
+                                .padding(.horizontal, 14)
+                                .frame(minHeight: 44)
+                                .background(Tone.stretch.tint.opacity(0.16), in: Capsule())
                         }
                         .accessibilityLabel("How to do \(stretch.name)")
                         .accessibilityIdentifier("howTo-\(stretch.name)")

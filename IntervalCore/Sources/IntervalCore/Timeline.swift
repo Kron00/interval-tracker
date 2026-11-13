@@ -38,6 +38,20 @@ public enum Phase: Hashable, Sendable {
         }
     }
 
+    /// What to call this phase when it comes after `current`. The other side of the stretch in
+    /// progress is named by its side alone, so "up next" does not read as the same stretch again.
+    public func title(following current: Phase) -> String {
+        guard case .hold(let next) = self, let side = next.side, current.stretchID == next.stretch.id else { return title }
+        return side.label
+    }
+
+    private var stretchID: Stretch.ID? {
+        switch self {
+        case .getReady(let pose), .hold(let pose), .switchSides(let pose): pose.stretch.id
+        case .warmUp, .work, .rest, .coolDown: nil
+        }
+    }
+
     public var caption: String? {
         switch self {
         case .warmUp, .coolDown:

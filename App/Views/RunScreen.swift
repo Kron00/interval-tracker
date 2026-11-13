@@ -35,6 +35,7 @@ struct RunScreen: View {
                         resume: run.resume,
                         skip: { run.skip(progress.segment) },
                         restart: { run.restart(progress.segment) },
+                        pauseForHowTo: { run.pauseForHowTo(progress.segment) },
                         undo: undo,
                         end: run.end)
                 case .finished(let worked):
@@ -82,6 +83,7 @@ struct ActiveRunView: View {
     let resume: () -> Void
     let skip: () -> Void
     let restart: () -> Void
+    let pauseForHowTo: () -> Void
     let undo: (() -> Void)?
     let end: () -> Void
 
@@ -255,7 +257,7 @@ struct ActiveRunView: View {
     }
 
     private var upNextLine: some View {
-        let text = "Up next: \(progress.upNext.map { "\($0.phase.title) \(ClockText.remaining($0.duration))" } ?? "Finish")"
+        let text = "Up next: \(progress.upNext.map { "\($0.phase.title(following: progress.phase)) \(ClockText.remaining($0.duration))" } ?? "Finish")"
         return Line(font: .title2.weight(.medium)) {
             Text(text)
                 .opacity(0.85)
@@ -265,7 +267,7 @@ struct ActiveRunView: View {
     }
 
     private var repLine: some View {
-        Line(font: .system(size: 28, weight: .bold, design: .rounded), padding: 6) {
+        Line(font: .system(size: 34, weight: .bold, design: .rounded), padding: 6) {
             if let rep = progress.rep {
                 Text("Rep \(rep.number) of \(rep.total)")
                     .monospacedDigit()
@@ -298,11 +300,10 @@ struct ActiveRunView: View {
     }
 
     private var howToChip: some View {
-        let link = progress.phase.howToWhileGettingReady
+        let link = progress.isPaused ? progress.phase.howTo : progress.phase.howToWhileGettingReady
         return RunChip(title: "How to", symbol: "play.circle.fill", identifier: "howToButton", action: link.map { link in
             {
-                // The video plays in another app, so the run waits until the user comes back.
-                pause()
+                pauseForHowTo()
                 openURL(link)
             }
         })

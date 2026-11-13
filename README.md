@@ -1,6 +1,27 @@
-<img src="assets/icon.svg" width="64" height="64" alt="">
+<p align="center">
+  <img src="App/Assets.xcassets/AppIcon.appiconset/AppIcon.png" width="120" height="120" alt="Intervals app icon">
+</p>
 
-# Interval Tracker
+<h1 align="center">Intervals</h1>
+
+<p align="center">
+  An interval and stretch timer for iPhone that keeps cueing with the screen locked.
+</p>
+
+<p align="center">
+  <a href="https://github.com/Kron00/interval-tracker/releases/latest"><img src="https://img.shields.io/github/v/release/Kron00/interval-tracker?label=release&color=10B981" alt="Latest release"></a>
+  <a href="https://github.com/Kron00/interval-tracker/actions/workflows/ci.yml"><img src="https://github.com/Kron00/interval-tracker/actions/workflows/ci.yml/badge.svg" alt="CI status"></a>
+  <img src="https://img.shields.io/badge/iOS-17%2B-black" alt="iOS 17 or later">
+  <img src="https://img.shields.io/badge/Swift-SwiftUI-F05138" alt="Swift and SwiftUI">
+</p>
+
+<p align="center">
+  <img src="docs/screenshots/20-stretch-library.jpg" width="19%" alt="Library with interval timers and stretch routines">
+  <img src="docs/screenshots/04-work.jpg" width="19%" alt="Run screen during a work interval">
+  <img src="docs/screenshots/22-get-ready.jpg" width="19%" alt="Get-ready screen before a stretch">
+  <img src="docs/screenshots/23-reps.jpg" width="19%" alt="A stretch counted in reps">
+  <img src="docs/screenshots/21-stretch-detail.jpg" width="19%" alt="Stretch routine detail with how-to links">
+</p>
 
 A workout timer for iPhone. It runs two kinds of workout from one library:
 

@@ -306,6 +306,19 @@ struct UpNextTests {
         #expect(upNext.phase.caption == "Right side · Stretch 5 of 10")
     }
 
+    @Test func theOtherSideOfTheSameStretchIsNamedByItsSide() throws {
+        let leftHold = try progress(session(.dailyStretch), at: 280)
+        let rightHold = try #require(leftHold.upNext).phase
+        #expect(rightHold.title(following: leftHold.phase) == "Right side")
+
+        let lastSide = try progress(session(.dailyStretch), at: 330)
+        #expect(lastSide.phase.caption == "Right side · Stretch 5 of 10")
+        #expect(try #require(lastSide.upNext).phase.title(following: lastSide.phase) == "Butterfly")
+
+        let intervals = try progress(session(), at: 0)
+        #expect(try #require(intervals.upNext).phase.title(following: intervals.phase) == "Work")
+    }
+
     @Test func nothingIsUpNextInTheLastHold() throws {
         let p = try progress(session(.dailyStretch), at: 620)
         #expect(describe(p.phase) == "hold Passive Dead Hang 10/10")

@@ -39,6 +39,15 @@ final class RunModel {
     func skip(_ segment: SegmentID) { jump { $0?.skip(segment, at: .now) } }
     func restart(_ segment: SegmentID) { jump { $0?.restart(segment, at: .now) } }
 
+    /// A how-to video plays in another app and can run for minutes. The run goes back to the start of
+    /// the stretch's lead-in and waits there, so Resume gives the whole get-ready time and says the name again.
+    func pauseForHowTo(_ segment: SegmentID) {
+        change {
+            $0?.restart(segment, at: .now)
+            $0?.pause(at: .now)
+        }
+    }
+
     /// Restores the anchor the skip or restart moved, so the run is where it would be had the button never been pressed.
     func undoLast() {
         guard let undo else { return }

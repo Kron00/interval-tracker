@@ -18,15 +18,16 @@ final class HeartRateUITests: XCTestCase {
         openSettings(app)
         let none = app.staticTexts["noMonitor"]
         let find = app.buttons["findMonitorButton"]
-        scroll(app, to: find)
-        XCTAssertTrue(none.exists, "no monitor is remembered yet")
         let stepper = app.steppers["maxHeartRateStepper"]
+        scroll(app, to: stepper)
+        XCTAssertTrue(none.exists, "no monitor is remembered yet")
         XCTAssertEqual(stepper.label, "Max heart rate, 190 bpm", "the max heart rate starts at 190")
         app.buttons["maxHeartRateStepper-Increment"].tap()
         waitFor(stepper, toRead: "Max heart rate, 191 bpm")
         app.buttons["maxHeartRateStepper-Decrement"].tap()
         waitFor(stepper, toRead: "Max heart rate, 190 bpm")
 
+        scroll(app, to: find)
         find.tap()
         let standIn = app.buttons["foundMonitor-Stand-in strap"]
         XCTAssertTrue(standIn.waitForExistence(timeout: Self.patience), "the scan lists the stand-in")

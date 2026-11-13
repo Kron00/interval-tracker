@@ -108,6 +108,19 @@ public struct HeartRateSummary: Hashable, Sendable, Codable {
         }
     }
 
+    /// A reading placed on the run's own clock: the time worked when it arrived. That clock stands
+    /// still while the run is paused or waits for Start, so a pause between two readings is not
+    /// time in a zone, and no reading of a run lies further out than the run's own length.
+    public struct Sample: Hashable, Sendable {
+        public let second: TimeInterval
+        public let bpm: Int
+
+        public init(second: TimeInterval, bpm: Int) {
+            self.second = second
+            self.bpm = bpm
+        }
+    }
+
     /// The graph has at most one point in this many seconds.
     public static let traceStep = 5
     /// Time from one reading to the next counts toward the zone of the first, unless the next
@@ -122,10 +135,13 @@ public struct HeartRateSummary: Hashable, Sendable, Codable {
     public let secondsInZone: [TimeInterval]
     public let trace: [Point]
 
-    /// nil when there was no reading.
-    public init?(_ readings: [HeartRateReading], maxHeartRate: MaxHeartRate, startedAt start: Date) {
-        guard !readings.isEmpty else { return nil }
-        let readings = readings.sorted { $0.date < $1.date }
+    /// nil when there was no reading. A sample past `WorkoutRecord.longest` counts as being at it,
+    /// so every summary this writes is one the history file reads back.
+    public init?(_ samples: [Sample], maxHeartRate: MaxHeartRate) {
+        guard !samples.isEmpty else { return nil }
+        let readings = samples
+            .map { Sample(second: min(max($0.second, 0), WorkoutRecord.longest), bpm: $0.bpm) }
+            .sorted { $0.second < $1.second }
         let beats = readings.map(\.bpm)
         average = Self.mean(beats)
         maximum = beats.max() ?? 0
@@ -133,16 +149,16 @@ public struct HeartRateSummary: Hashable, Sendable, Codable {
 
         var seconds = Array(repeating: TimeInterval(0), count: HeartRateZone.allCases.count)
         for (reading, next) in zip(readings, readings.dropFirst()) {
-            let gap = next.date.timeIntervalSince(reading.date)
+            let gap = next.second - reading.second
             if gap <= Self.longestGap {
                 seconds[maxHeartRate.zone(of: reading.bpm).rawValue] += gap
             }
         }
-        secondsInZone = seconds
+        secondsInZone = seconds.map { min($0, WorkoutRecord.longest) }
 
         var buckets: [(slot: Int, beats: [Int])] = []
         for reading in readings {
-            let slot = Int(max(0, reading.date.timeIntervalSince(start)) / Double(Self.traceStep))
+            let slot = Int(reading.second) / Self.traceStep
             if buckets.last?.slot == slot {
                 buckets[buckets.count - 1].beats.append(reading.bpm)
             } else {

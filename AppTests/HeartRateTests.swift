@@ -183,6 +183,39 @@ final class LiveActivityHeartRateTests: XCTestCase {
     private typealias HeartRate = RunActivityAttributes.HeartRate
     private let start = Date(timeIntervalSinceReferenceDate: 800_000_000)
 
+    /// iOS ends the card of a finished workout. A change sent to it would start a new one.
+    func testAFinishedWorkoutsCardTakesNoHeartRate() async throws {
+        let source = ScriptedHeartRateSource()
+        let monitor = HeartRateMonitor.scripted(source)
+        monitor.remember(StubHeartRateSource.monitor)
+        let display = RecordingDisplay()
+        let card = LiveActivityController(display: display, log: AudioLog())
+        let log = AudioLog()
+        let run = RunModel(player: CuePlayer(bank: SoundBank(log: log), log: log), remote: HeadphoneRemote(log: log),
+                           liveActivity: card, heartRate: monitor)
+        defer { run.end() }
+        source.send(.link(.connected))
+        source.send(.beat(bpm: 150))
+
+        run.start(.hiit2020, cues: CuePreferences())
+        for _ in 0..<40 {
+            guard case .active(let progress)? = run.session?.snapshot(at: .now) else { break }
+            run.skip(progress.segment)
+        }
+        guard case .finished? = run.session?.snapshot(at: .now) else { return XCTFail("the skips did not finish the workout") }
+        try await Task.sleep(for: .milliseconds(300))
+        await card.settle()
+        let finished = display.shown.count
+        guard case .finished = display.shown.last?.state.clock else { return XCTFail("the card does not show the finish") }
+        XCTAssertNil(display.shown.last?.state.heartRate)
+
+        source.send(.beat(bpm: 100))
+        source.send(.beat(bpm: 185))
+        try await Task.sleep(for: .milliseconds(300))
+        await card.settle()
+        XCTAssertEqual(display.shown.count, finished, "heart rate changes after the finish send nothing")
+    }
+
     func testTheHeartRateAloneIsSentAtMostEveryFiveSecondsAndAChangeOfZoneAtOnce() async {
         let display = RecordingDisplay()
         let controller = LiveActivityController(display: display, log: AudioLog())

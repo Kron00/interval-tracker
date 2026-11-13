@@ -34,7 +34,7 @@ final class RunModel {
     @ObservationIgnored private let liveActivity: LiveActivityController
     @ObservationIgnored let heartRate: HeartRateMonitor
     /// The heart rates of the run that has not been reported, taken while it ran and was not paused.
-    @ObservationIgnored private var readings: [HeartRateReading] = []
+    @ObservationIgnored private var samples: [HeartRateSummary.Sample] = []
     @ObservationIgnored private var ticker: Timer?
 
     var liveActivityProblem: String? { liveActivity.problem }
@@ -143,14 +143,15 @@ final class RunModel {
     private func report() {
         guard let session, let start = unreportedStart else { return }
         unreportedStart = nil
-        let summary = HeartRateSummary(readings, maxHeartRate: heartRate.maxHeartRate, startedAt: start)
-        readings = []
+        let summary = HeartRateSummary(samples, maxHeartRate: heartRate.maxHeartRate)
+        samples = []
         onRunOver?(WorkoutRecord(session, startedAt: start, endedAt: .now, heartRate: summary))
     }
 
     private func keep(_ reading: HeartRateReading) {
-        guard unreportedStart != nil, case .active(let progress)? = session?.snapshot(at: reading.date), !progress.isPaused else { return }
-        readings.append(reading)
+        guard unreportedStart != nil, let session, case .active(let progress) = session.snapshot(at: reading.date),
+              !progress.isPaused else { return }
+        samples.append(HeartRateSummary.Sample(second: session.worked(at: reading.date), bpm: reading.bpm))
     }
 
     private func interruptionBegan() {
@@ -173,11 +174,12 @@ final class RunModel {
         player.sharing = headphoneControls ? .exclusive : .mixing(strategy)
         player.reconcile(CueDemand(for: session, playing: schedule, at: now), at: now)
         remote.reconcile(headphoneControls ? session : nil, at: now)
+        let isActive = if case .active = session?.snapshot(at: now) { true } else { false }
+        // A finished card has ended. A heart rate on it would start a new activity with each change.
         liveActivity.reconcile(session, at: now, revision: revision,
-                               heartRate: heartRate.display(at: now).map(RunActivityAttributes.HeartRate.init))
+                               heartRate: isActive ? heartRate.display(at: now).map(RunActivityAttributes.HeartRate.init) : nil)
 
         let keepScreenOn = defaults.object(forKey: SettingsKey.keepScreenOn) as? Bool ?? true
-        let isActive = if case .active = session?.snapshot(at: now) { true } else { false }
         let stayAwake = keepScreenOn && isActive
         if UIApplication.shared.isIdleTimerDisabled != stayAwake {
             UIApplication.shared.isIdleTimerDisabled = stayAwake

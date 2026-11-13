@@ -8,13 +8,10 @@ private func maximum(_ value: Int) throws -> MaxHeartRate {
     try #require(MaxHeartRate(value))
 }
 
-/// Readings at seconds after `start`.
-private func readings(_ beats: [(second: TimeInterval, bpm: Int)]) throws -> [HeartRateReading] {
-    try beats.map { try #require(HeartRateReading(bpm: $0.bpm, at: start + $0.second)) }
-}
-
+/// Readings at seconds of the run's own clock.
 private func summary(_ beats: [(second: TimeInterval, bpm: Int)], max value: Int = 200) throws -> HeartRateSummary {
-    try #require(HeartRateSummary(try readings(beats), maxHeartRate: try maximum(value), startedAt: start))
+    try #require(HeartRateSummary(beats.map { HeartRateSummary.Sample(second: $0.second, bpm: $0.bpm) },
+                                  maxHeartRate: try maximum(value)))
 }
 
 struct HeartRateTests {
@@ -72,7 +69,7 @@ struct HeartRateTests {
         #expect(summary.average == 120, "120.25 rounds to 120")
         #expect(summary.maximum == 150)
         #expect(summary.maxHeartRate.value == 200)
-        #expect(HeartRateSummary([], maxHeartRate: .standard, startedAt: start) == nil, "no reading, no summary")
+        #expect(HeartRateSummary([], maxHeartRate: .standard) == nil, "no reading, no summary")
     }
 
     /// With a maximum of 200, zone 1 begins at 100, zone 2 at 120 and zone 3 at 140.
@@ -106,6 +103,21 @@ struct HeartRateTests {
             HeartRateSummary.Point(second: 10, bpm: 111),
             HeartRateSummary.Point(second: 40, bpm: 150),
         ], "each point is the mean of its five seconds, and a gap leaves no point")
+    }
+
+    /// The run's clock stands still in a pause, so readings before and after a pause of any length
+    /// are seconds apart on it. Paused for a week and then read again, the run still writes a
+    /// summary that the history file takes back.
+    @Test func aReadingPastTheLongestRunCountsAsBeingAtItAndTheFileReadsItBack() throws {
+        let week = WorkoutRecord.longest
+        let summary = try summary([(0, 120), (1, 120), (week + 3600, 150), (week + 3601, 150)])
+        #expect(summary.trace.allSatisfy { $0.second <= Int(week) })
+        #expect(summary.secondsInZone.allSatisfy { $0 <= week })
+
+        var history = History()
+        history.add(WorkoutRecord(startedAt: start, workoutID: Workout.norwegian4x4.id, name: "Norwegian 4x4",
+                                  kind: .intervals, worked: 120, planned: 2280, outcome: .endedEarly, heartRate: summary))
+        #expect(try History(json: try history.json()) == history)
     }
 
     @Test func readingsInAnyOrderGiveTheSameSummary() throws {

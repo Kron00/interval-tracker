@@ -213,7 +213,7 @@ struct SkipTests {
 
 struct ElapsedTests {
     @Test func elapsedAndRemainingAddUpToTheTotal() throws {
-        for (workout, total) in [(Workout.norwegian4x4, 2280.0), (.dailyStretch, 645)] {
+        for (workout, total) in [(Workout.norwegian4x4, 2280.0), (.hiit2020, 840)] {
             for offset in [0, 100.25, 420, 644.5] {
                 let p = try progress(session(workout), at: offset)
                 #expect(p.elapsed == offset)
@@ -254,64 +254,438 @@ struct ElapsedTests {
     }
 }
 
-struct RepTests {
-    @Test(arguments: [(8.0, 1), (12.99, 1), (13.0, 2), (17.5, 2), (53.0, 10), (57.9, 10)])
-    func theRepInProgress(at offset: TimeInterval, is number: Int) throws {
-        let p = try progress(session(.dailyStretch), at: offset)
-        #expect(describe(p.phase) == "hold Cat-Cow 1/10")
-        #expect(p.rep?.number == number)
-        #expect(p.rep?.total == 10)
+struct WaitingTests {
+    private func squatThenCobra() throws -> Workout {
+        try routine(getReady: 10, [try stretch("Squat", try reps(5)), try stretch("Cobra", try hold(20))])
     }
 
-    @Test func theLastRepIsMarkedLast() throws {
-        #expect(try progress(session(.dailyStretch), at: 52.9).rep?.isLast == false)
-        #expect(try progress(session(.dailyStretch), at: 53).rep?.isLast == true)
+    private func cobraThenPigeon() throws -> Workout {
+        try routine(getReady: 10, [try stretch("Cobra", try hold(20)), try stretch("Pigeon", try hold(30))])
     }
 
-    @Test(arguments: [4.0, 60, 70, 280, 307])
-    func onlyARepHoldCountsReps(at offset: TimeInterval) throws {
-        #expect(try progress(session(.dailyStretch), at: offset).rep == nil)
+    @Test func aRepStretchWaitsFromTheMomentItStarts() throws {
+        let run = session(.dailyStretch)
+        let gettingReady = try progress(run, at: 7.5)
+        #expect(describe(gettingReady.phase) == "getReady Cat-Cow 1/10")
+        #expect(!gettingReady.isWaiting)
+        #expect(gettingReady.reps == nil)
+
+        let reps = try progress(run, at: 8)
+        #expect(describe(reps.phase) == "hold Cat-Cow 1/10")
+        #expect(reps.isWaiting)
+        #expect(reps.reps?.value == 10)
+        #expect(reps.phaseElapsed == 0)
+        #expect(reps.phaseRemaining == 0)
+        #expect(reps.phaseDuration == 0)
+        #expect(reps.elapsed == 8)
+        #expect(reps.totalRemaining == 587)
+        #expect(reps.totalDuration == 595)
+        #expect(describe(reps.upNext?.phase) == "hold Child's Pose 2/10")
+        #expect(!reps.isPaused)
     }
 
-    @Test func repsAreCountedOnEachSide() throws {
-        let run = session(try routine(getReady: 5, switchSides: 3, [
-            try stretch("Leg Swings", try reps(6, every: 2), .each),
-        ]))
-        #expect(try progress(run, at: 16.5).rep?.number == 6)
-        #expect(try progress(run, at: 18).rep == nil)
-        #expect(try progress(run, at: 20).rep?.number == 1)
-        #expect(try progress(run, at: 22).rep?.number == 2)
+    @Test func aTimedHoldCountsDownAndThenWaits() throws {
+        let run = try session(.dailyStretch, in: "hold Child's Pose 2/10")
+        let counting = try progress(run, at: 44.5)
+        #expect(!counting.isWaiting)
+        #expect(counting.phaseRemaining == 0.5)
+
+        let done = try progress(run, at: 45)
+        #expect(describe(done.phase) == "hold Child's Pose 2/10")
+        #expect(done.isWaiting)
+        #expect(done.reps == nil)
+        #expect(done.phaseElapsed == 45)
+        #expect(done.phaseRemaining == 0)
+        #expect(done.phaseDuration == 45)
+        #expect(done.elapsed == 61)
+        #expect(done.totalRemaining == 534)
+        #expect(describe(done.upNext?.phase) == "hold Cobra 3/10")
+    }
+
+    @Test(arguments: [9.0, 60, 3600, 2_592_000])
+    func timeStandsStillHoweverLongTheWait(_ late: TimeInterval) throws {
+        let reps = session(.dailyStretch)
+        #expect(reps.snapshot(at: t0 + 8 + late) == reps.snapshot(at: t0 + 8))
+
+        let timed = try session(.dailyStretch, in: "hold Child's Pose 2/10")
+        #expect(timed.snapshot(at: t0 + 45 + late) == timed.snapshot(at: t0 + 45))
+    }
+
+    @Test func nextStartsTheNextGetReadyAtThePressAndItsHoldFollowsByItself() throws {
+        var run = session(.dailyStretch)
+        run.perform(.next, at: t0 + 100)
+
+        let gettingReady = try progress(run, at: 100)
+        #expect(describe(gettingReady.phase) == "getReady Child's Pose 2/10")
+        #expect(!gettingReady.isWaiting)
+        #expect(gettingReady.phaseRemaining == 8)
+        #expect(gettingReady.elapsed == 8)
+        #expect(try progress(run, at: 104).phaseRemaining == 4)
+
+        let hold = try progress(run, at: 108)
+        #expect(describe(hold.phase) == "hold Child's Pose 2/10")
+        #expect(!hold.isWaiting)
+        #expect(hold.phaseRemaining == 45)
+        #expect(try progress(run, at: 153).isWaiting)
+    }
+
+    @Test func skippingTheSegmentTheRunWaitsInMovesOnOnce() throws {
+        var run = session(.dailyStretch)
+        let waiting = try progress(run, at: 30).segment
+        run.skip(waiting, at: t0 + 30)
+        #expect(describe(try progress(run, at: 30).phase) == "getReady Child's Pose 2/10")
+
+        let once = run
+        run.skip(waiting, at: t0 + 30.2)
+        #expect(run == once)
+    }
+
+    @Test func nextDuringACountingHoldEndsItWithoutAWait() throws {
+        var run = try session(.dailyStretch, in: "hold Child's Pose 2/10")
+        run.perform(.next, at: t0 + 20)
+
+        let next = try progress(run, at: 20)
+        #expect(describe(next.phase) == "getReady Cobra 3/10")
+        #expect(next.phaseRemaining == 8)
+        #expect(!next.isWaiting)
+        #expect(describe(try progress(run, at: 28).phase) == "hold Cobra 3/10")
+    }
+
+    @Test func nextInAGapStartsTheHoldAndTheHoldStillWaits() throws {
+        var run = try session(.dailyStretch, in: "getReady Child's Pose 2/10")
+        run.perform(.next, at: t0 + 3)
+        #expect(describe(try progress(run, at: 3).phase) == "hold Child's Pose 2/10")
+        #expect(!(try progress(run, at: 47.5).isWaiting))
+        let done = try progress(run, at: 5000)
+        #expect(describe(done.phase) == "hold Child's Pose 2/10")
+        #expect(done.isWaiting)
+    }
+
+    @Test func aStretchOnEachSideWaitsAfterTheLeftAndAfterTheRight() throws {
+        var run = try session(.dailyStretch, in: "hold Pigeon left 5/10")
+        let left = try progress(run, at: 500)
+        #expect(describe(left.phase) == "hold Pigeon left 5/10")
+        #expect(left.isWaiting)
+
+        run.perform(.next, at: t0 + 500)
+        let switching = try progress(run, at: 502)
+        #expect(describe(switching.phase) == "switchSides to Pigeon right 5/10")
+        #expect(switching.phaseRemaining == 3)
+        let right = try progress(run, at: 505)
+        #expect(describe(right.phase) == "hold Pigeon right 5/10")
+        #expect(right.phaseRemaining == 45)
+
+        let rightDone = try progress(run, at: 9000)
+        #expect(describe(rightDone.phase) == "hold Pigeon right 5/10")
+        #expect(rightDone.isWaiting)
+
+        run.perform(.next, at: t0 + 9000)
+        #expect(describe(try progress(run, at: 9000).phase) == "getReady Butterfly 6/10")
+    }
+
+    @Test func theLastTimedHoldWaitsAndFinishesOnNext() throws {
+        var run = try session(.dailyStretch, in: "hold Passive Dead Hang 10/10")
+        let last = try progress(run, at: 29.5)
+        #expect(!last.isWaiting)
+        #expect(last.phaseRemaining == 0.5)
+        #expect(last.upNext == nil)
+
+        let done = try progress(run, at: 30)
+        #expect(describe(done.phase) == "hold Passive Dead Hang 10/10")
+        #expect(done.isWaiting)
+        #expect(done.phaseRemaining == 0)
+        #expect(done.totalRemaining == 0)
+        #expect(done.upNext == nil)
+        for late in [31.0, 3600, 2_592_000] {
+            #expect(run.snapshot(at: t0 + late) == .active(done), "\(late)")
+        }
+
+        run.perform(.next, at: t0 + 75)
+        #expect(run.snapshot(at: t0 + 75) == .finished(worked: 30), "the 45 s spent waiting is not work")
+        #expect(cues(try #require(run.cueSchedule)).first == Cue(75_000, .finish))
+    }
+
+    @Test func aStretchOnEachSideInLastPlaceWaitsAfterTheRightSideAndFinishesOnNext() throws {
+        var run = session(try routine(getReady: 6, switchSides: 4, [try stretch("Pigeon", try hold(20), .each)]))
+        #expect(describe(try progress(run, at: 500).phase) == "hold Pigeon left 1/1")
+        run.perform(.next, at: t0 + 500)
+
+        let right = try progress(run, at: 523.5)
+        #expect(describe(right.phase) == "hold Pigeon right 1/1")
+        #expect(right.phaseRemaining == 0.5)
+        #expect(!right.isWaiting)
+
+        let done = try progress(run, at: 524)
+        #expect(describe(done.phase) == "hold Pigeon right 1/1")
+        #expect(done.isWaiting)
+        #expect(done.upNext == nil)
+        #expect(run.snapshot(at: t0 + 90_000) == .active(done))
+
+        run.perform(.next, at: t0 + 600)
+        #expect(run.snapshot(at: t0 + 600) == .finished(worked: 50))
+        #expect(cues(try #require(run.cueSchedule)).first == Cue(600_000, .finish))
+    }
+
+    @Test func aRepStretchInLastPlaceFinishesOnNext() throws {
+        var run = session(try routine(getReady: 10, [try stretch("Squat", try reps(5))]))
+        let waiting = try progress(run, at: 5000)
+        #expect(describe(waiting.phase) == "hold Squat 1/1")
+        #expect(waiting.isWaiting)
+        #expect(waiting.upNext == nil)
+        #expect(waiting.totalRemaining == 0)
+
+        run.perform(.next, at: t0 + 50)
+        #expect(run.snapshot(at: t0 + 50) == .finished(worked: 50))
+    }
+
+    @Test func pausingAndResumingKeepsTheWait() throws {
+        var run = session(.dailyStretch)
+        run.pause(at: t0 + 20)
+        let paused = try progress(run, at: 500)
+        #expect(describe(paused.phase) == "hold Cat-Cow 1/10")
+        #expect(paused.isPaused)
+        #expect(paused.isWaiting)
+        #expect(paused.elapsed == 8)
+        #expect(run.cueSchedule == nil)
+        #expect(run.haltDate == nil)
+
+        run.resume(at: t0 + 600)
+        let resumed = try progress(run, at: 700)
+        #expect(describe(resumed.phase) == "hold Cat-Cow 1/10")
+        #expect(!resumed.isPaused)
+        #expect(resumed.isWaiting)
+        #expect(try #require(run.cueSchedule).remaining(after: t0 + 600).isEmpty, "the tone that began the wait is not played again")
+
+        run.perform(.next, at: t0 + 700)
+        #expect(describe(try progress(run, at: 700).phase) == "getReady Child's Pose 2/10")
+        #expect(try progress(run, at: 700).phaseRemaining == 8)
+    }
+
+    @Test(arguments: [RunCommand.play, .pause, .togglePlayPause])
+    func aSinglePressMovesAWaitingRunOnExactlyAsNextDoes(_ press: RunCommand) throws {
+        var run = session(.dailyStretch)
+        run.perform(press, at: t0 + 60)
+        let gettingReady = try progress(run, at: 60)
+        #expect(describe(gettingReady.phase) == "getReady Child's Pose 2/10")
+        #expect(gettingReady.phaseRemaining == 8)
+        #expect(!gettingReady.isPaused)
+        #expect(!gettingReady.isWaiting)
+
+        var last = try session(.dailyStretch, in: "hold Passive Dead Hang 10/10")
+        last.perform(press, at: t0 + 60)
+        #expect(last.snapshot(at: t0 + 60) == .finished(worked: 30))
+
+        let waits = [
+            session(.dailyStretch),
+            try session(.dailyStretch, in: "hold Child's Pose 2/10"),
+            try session(.dailyStretch, in: "hold Pigeon left 5/10"),
+            try session(.dailyStretch, in: "hold Passive Dead Hang 10/10"),
+        ]
+        for waiting in waits {
+            try #require(try progress(waiting, at: 60).isWaiting)
+            var pressed = waiting
+            pressed.perform(press, at: t0 + 60)
+            var moved = waiting
+            moved.perform(.next, at: t0 + 60)
+            #expect(pressed == moved)
+        }
+    }
+
+    @Test(arguments: [("getReady Child's Pose 2/10", 5.0), ("hold Child's Pose 2/10", 42)])
+    func aSinglePressStillPausesAndResumesARoutineThatIsCounting(_ phase: String, remaining: TimeInterval) throws {
+        let counting = try session(.dailyStretch, in: phase)
+
+        var played = counting
+        played.perform(.play, at: t0 + 3)
+        #expect(played == counting)
+
+        for (press, release) in [(RunCommand.pause, RunCommand.play), (.togglePlayPause, .togglePlayPause)] {
+            var run = counting
+            run.perform(press, at: t0 + 3)
+            let held = try progress(run, at: 500)
+            #expect(describe(held.phase) == phase)
+            #expect(held.phaseRemaining == remaining)
+            #expect(held.isPaused)
+            #expect(!held.isWaiting)
+
+            run.perform(release, at: t0 + 600)
+            let resumed = try progress(run, at: 601)
+            #expect(describe(resumed.phase) == phase)
+            #expect(resumed.phaseRemaining == remaining - 1)
+            #expect(!resumed.isPaused)
+        }
+    }
+
+    @Test(arguments: [RunCommand.play, .togglePlayPause])
+    func aPressOnAPausedWaitResumesItAndTheNextPressMovesOn(_ press: RunCommand) throws {
+        var run = session(.dailyStretch)
+        run.pause(at: t0 + 20)
+        let paused = run
+        run.perform(.pause, at: t0 + 25)
+        #expect(run == paused)
+
+        run.perform(press, at: t0 + 30)
+        let resumed = try progress(run, at: 40)
+        #expect(describe(resumed.phase) == "hold Cat-Cow 1/10")
+        #expect(!resumed.isPaused)
+        #expect(resumed.isWaiting)
+
+        run.perform(press, at: t0 + 50)
+        let moved = try progress(run, at: 50)
+        #expect(describe(moved.phase) == "getReady Child's Pose 2/10")
+        #expect(!moved.isPaused)
+    }
+
+    @Test func nextOnARunPausedBeforeItsWaitKeepsItPausedThroughTheWait() throws {
+        var run = session(.dailyStretch)
+        run.pause(at: t0 + 3)
+        run.perform(.next, at: t0 + 5)
+        let waiting = try progress(run, at: 900)
+        #expect(describe(waiting.phase) == "hold Cat-Cow 1/10")
+        #expect(waiting.isPaused)
+        #expect(waiting.isWaiting)
+
+        run.perform(.next, at: t0 + 30)
+        let held = try progress(run, at: 900)
+        #expect(describe(held.phase) == "getReady Child's Pose 2/10")
+        #expect(held.phaseRemaining == 8)
+        #expect(held.isPaused)
+        #expect(!held.isWaiting)
+    }
+
+    @Test func restartingARepStretchGoesBackToItsGetReadyGapAndWaitsAgain() throws {
+        var run = session(.dailyStretch)
+        run.perform(.previous, at: t0 + 30)
+
+        let gettingReady = try progress(run, at: 30)
+        #expect(describe(gettingReady.phase) == "getReady Cat-Cow 1/10")
+        #expect(gettingReady.elapsed == 0)
+        #expect(gettingReady.phaseRemaining == 8)
+        #expect(!gettingReady.isWaiting)
+
+        let again = try progress(run, at: 38)
+        #expect(describe(again.phase) == "hold Cat-Cow 1/10")
+        #expect(again.isWaiting)
+    }
+
+    @Test func restartingAFinishedHoldRunsItAgainAndWaitsAgain() throws {
+        var run = try session(.dailyStretch, in: "hold Child's Pose 2/10")
+        run.perform(.previous, at: t0 + 300)
+
+        let gettingReady = try progress(run, at: 300)
+        #expect(describe(gettingReady.phase) == "getReady Child's Pose 2/10")
+        #expect(gettingReady.phaseRemaining == 8)
+
+        let hold = try progress(run, at: 308)
+        #expect(describe(hold.phase) == "hold Child's Pose 2/10")
+        #expect(hold.phaseRemaining == 45)
+        #expect(!hold.isWaiting)
+        #expect(try progress(run, at: 353).isWaiting)
+    }
+
+    @Test func theHaltDateIsTheNextGateOrTheFinish() throws {
+        var run = session(.dailyStretch)
+        #expect(run.haltDate == t0 + 8)
+        run.perform(.next, at: t0 + 100)
+        #expect(run.haltDate == t0 + 100 + 8 + 45)
+        #expect(run.zeroDate == t0 + 100 - 8)
+
+        var last = try session(.dailyStretch, in: "hold Passive Dead Hang 10/10")
+        #expect(last.haltDate == t0 + 30)
+        last.perform(.next, at: t0 + 75)
+        #expect(last.haltDate == t0 + 75)
+        #expect(session().haltDate == t0 + 2280)
+    }
+
+    @Test func timeInARepStretchCountsAsWorked() throws {
+        var run = session(try squatThenCobra())
+        run.perform(.next, at: t0 + 70)
+        #expect(try progress(run, at: 99.5).totalRemaining == 0.5)
+        run.perform(.next, at: t0 + 130)
+        #expect(run.snapshot(at: t0 + 130) == .finished(worked: 40 + 60))
+    }
+
+    @Test func aWaitAfterATimedHoldDoesNotCountAsWorked() throws {
+        var run = session(try cobraThenPigeon())
+        #expect(try progress(run, at: 500).isWaiting)
+        run.perform(.next, at: t0 + 500)
+        #expect(try progress(run, at: 900).isWaiting)
+        run.perform(.next, at: t0 + 900)
+        #expect(run.snapshot(at: t0 + 900) == .finished(worked: 70))
+    }
+
+    @Test func pausedTimeInARepStretchDoesNotCountAsWorked() throws {
+        var run = session(try squatThenCobra())
+        run.pause(at: t0 + 30)
+        run.resume(at: t0 + 1000)
+        run.perform(.next, at: t0 + 1010)
+        run.perform(.next, at: t0 + 1040)
+        #expect(run.snapshot(at: t0 + 1040) == .finished(worked: 40 + 20 + 10))
+    }
+
+    @Test func endingAHoldEarlyTakesOffTheRestOfIt() throws {
+        var run = session(try cobraThenPigeon())
+        run.perform(.next, at: t0 + 15)
+        run.perform(.next, at: t0 + 45)
+        #expect(run.snapshot(at: t0 + 45) == .finished(worked: 70 - 15 - 10), "the last hold ended 10 s early too")
+    }
+
+    @Test func restartedTimeCountsAgainIncludingTheRepsAlreadyDone() throws {
+        var run = session(try squatThenCobra())
+        run.perform(.previous, at: t0 + 25)
+        #expect(try progress(run, at: 35).isWaiting)
+        run.perform(.next, at: t0 + 40)
+        run.perform(.next, at: t0 + 70)
+        #expect(run.snapshot(at: t0 + 70) == .finished(worked: 40 + 10 + 15 + 5))
+    }
+
+    @Test func aRoutineDoneWithoutLingeringWorksItsTimedLength() throws {
+        var run = session(.dailyStretch)
+        for _ in 0..<13 {
+            let halt = try #require(run.haltDate)
+            run.perform(.next, at: halt)
+        }
+        #expect(try progress(run, at: 594.5).totalRemaining == 0.5)
+        #expect(try progress(run, at: 595).isWaiting)
+        run.perform(.next, at: t0 + 595)
+        #expect(run.snapshot(at: t0 + 595) == .finished(worked: 595))
     }
 }
 
 struct UpNextTests {
     @Test(arguments: [
-        (4.0, "hold Cat-Cow 1/10", 50.0),
-        (20, "hold Child's Pose 2/10", 45),
-        (255, "hold Pigeon left 5/10", 45),
-        (280, "hold Pigeon right 5/10", 45),
-        (307, "hold Pigeon right 5/10", 45),
-        (320, "hold Butterfly 6/10", 45),
-        (610, "hold Passive Dead Hang 10/10", 30),
+        ("getReady Cat-Cow 1/10", "hold Cat-Cow 1/10", 0.0),
+        ("hold Cat-Cow 1/10", "hold Child's Pose 2/10", 45),
+        ("getReady Pigeon left 5/10", "hold Pigeon left 5/10", 45),
+        ("hold Pigeon left 5/10", "hold Pigeon right 5/10", 45),
+        ("switchSides to Pigeon right 5/10", "hold Pigeon right 5/10", 45),
+        ("hold Pigeon right 5/10", "hold Butterfly 6/10", 45),
+        ("getReady Passive Dead Hang 10/10", "hold Passive Dead Hang 10/10", 30),
     ])
-    func upNextLooksPastTheGaps(at offset: TimeInterval, phase: String, duration: TimeInterval) throws {
-        let upNext = try progress(session(.dailyStretch), at: offset).upNext
-        #expect(describe(upNext?.phase) == phase)
+    func upNextLooksPastTheGaps(from phase: String, to next: String, duration: TimeInterval) throws {
+        let upNext = try progress(try session(.dailyStretch, in: phase), at: 2).upNext
+        #expect(describe(upNext?.phase) == next)
         #expect(upNext?.duration == duration)
     }
 
+    @Test func upNextCarriesTheRepCountOfAStretchCountedInReps() throws {
+        let upNext = try #require(try progress(session(.dailyStretch), at: 2).upNext)
+        #expect(upNext.phase.reps?.value == 10)
+        #expect(upNext.duration == 0)
+    }
+
     @Test func upNextReadsAsTheStretchAndItsSide() throws {
-        let upNext = try #require(try progress(session(.dailyStretch), at: 280).upNext)
+        let upNext = try #require(try progress(try session(.dailyStretch, in: "hold Pigeon left 5/10"), at: 20).upNext)
         #expect(upNext.phase.title == "Pigeon")
         #expect(upNext.phase.caption == "Right side · Stretch 5 of 10")
     }
 
     @Test func theOtherSideOfTheSameStretchIsNamedByItsSide() throws {
-        let leftHold = try progress(session(.dailyStretch), at: 280)
+        let leftHold = try progress(try session(.dailyStretch, in: "hold Pigeon left 5/10"), at: 20)
         let rightHold = try #require(leftHold.upNext).phase
         #expect(rightHold.title(following: leftHold.phase) == "Right side")
 
-        let lastSide = try progress(session(.dailyStretch), at: 330)
+        let lastSide = try progress(try session(.dailyStretch, in: "hold Pigeon right 5/10"), at: 20)
         #expect(lastSide.phase.caption == "Right side · Stretch 5 of 10")
         #expect(try #require(lastSide.upNext).phase.title(following: lastSide.phase) == "Butterfly")
 
@@ -320,7 +694,7 @@ struct UpNextTests {
     }
 
     @Test func nothingIsUpNextInTheLastHold() throws {
-        let p = try progress(session(.dailyStretch), at: 620)
+        let p = try progress(try session(.dailyStretch, in: "hold Passive Dead Hang 10/10"), at: 5)
         #expect(describe(p.phase) == "hold Passive Dead Hang 10/10")
         #expect(p.upNext == nil)
     }
@@ -328,54 +702,45 @@ struct UpNextTests {
 
 struct RestartTests {
     @Test func aHoldGoesBackToItsGetReadyGap() throws {
-        var run = session(.dailyStretch)
-        let hold = try progress(run, at: 280)
+        var run = try session(.dailyStretch, in: "hold Pigeon left 5/10")
+        let hold = try progress(run, at: 20)
         #expect(describe(hold.phase) == "hold Pigeon left 5/10")
+        #expect(hold.phaseRemaining == 25)
 
-        run.restart(hold.segment, at: t0 + 280)
+        run.restart(hold.segment, at: t0 + 20)
 
-        let after = try progress(run, at: 280)
+        let after = try progress(run, at: 20)
         #expect(describe(after.phase) == "getReady Pigeon left 5/10")
         #expect(after.phaseElapsed == 0)
         #expect(after.phaseRemaining == 8)
-        #expect(after.elapsed == 252)
+        #expect(after.elapsed == 202)
         #expect(after.totalRemaining == 393)
         #expect(!after.isPaused)
-        #expect(run.zeroDate == t0 + 28)
+        #expect(run.zeroDate == t0 + 20 - 202)
 
-        let back = try progress(run, at: 288)
+        let back = try progress(run, at: 28)
         #expect(describe(back.phase) == "hold Pigeon left 5/10")
         #expect(back.phaseRemaining == 45)
     }
 
     @Test func theSecondSideGoesBackToSwitchSides() throws {
-        var run = session(.dailyStretch)
-        let hold = try progress(run, at: 320)
-        #expect(describe(hold.phase) == "hold Pigeon right 5/10")
+        var run = try session(.dailyStretch, in: "hold Pigeon right 5/10")
+        run.restart(try progress(run, at: 10).segment, at: t0 + 10)
 
-        run.restart(hold.segment, at: t0 + 320)
-
-        let after = try progress(run, at: 320)
+        let after = try progress(run, at: 10)
         #expect(describe(after.phase) == "switchSides to Pigeon right 5/10")
         #expect(after.phaseRemaining == 5)
-        #expect(after.elapsed == 305)
+        #expect(after.elapsed == 255)
     }
 
-    @Test func theFirstHoldGoesBackToTheVeryStart() throws {
-        var run = session(.dailyStretch)
-        run.restart(try progress(run, at: 20).segment, at: t0 + 20)
-        let after = try progress(run, at: 20)
-        #expect(describe(after.phase) == "getReady Cat-Cow 1/10")
-        #expect(after.elapsed == 0)
-    }
-
-    @Test(arguments: [(255.0, "getReady Pigeon left 5/10", 252.0), (307, "switchSides to Pigeon right 5/10", 305)])
-    func aGapGoesBackToItsOwnStart(at offset: TimeInterval, phase: String, start: TimeInterval) throws {
-        var run = session(.dailyStretch)
-        run.restart(try progress(run, at: offset).segment, at: t0 + offset)
-        let after = try progress(run, at: offset)
+    @Test(arguments: [("getReady Pigeon left 5/10", 202.0), ("switchSides to Pigeon right 5/10", 255)])
+    func aGapGoesBackToItsOwnStart(_ phase: String, start: TimeInterval) throws {
+        var run = try session(.dailyStretch, in: phase)
+        run.restart(try progress(run, at: 2).segment, at: t0 + 2)
+        let after = try progress(run, at: 2)
         #expect(describe(after.phase) == phase)
         #expect(after.elapsed == start)
+        #expect(after.phaseElapsed == 0)
     }
 
     @Test(arguments: [(100.0, "warmUp", 0.0), (420, "work 1/4", 300), (600, "rest 1/4", 540), (2000, "coolDown", 1980)])
@@ -389,25 +754,26 @@ struct RestartTests {
     }
 
     @Test func aSecondRestartOfTheSameSegmentChangesNothing() throws {
-        var run = session(.dailyStretch)
-        let hold = try progress(run, at: 280).segment
-        run.restart(hold, at: t0 + 280)
+        var run = try session(.dailyStretch, in: "hold Pigeon left 5/10")
+        let hold = try progress(run, at: 20).segment
+        run.restart(hold, at: t0 + 20)
         let once = run
-        run.restart(hold, at: t0 + 280.2)
+        run.restart(hold, at: t0 + 20.2)
         #expect(run == once)
     }
 
     @Test func aStaleSegmentIsIgnoredAfterANaturalPhaseChange() throws {
-        var run = session(.dailyStretch)
-        let getReady = try progress(run, at: 259).segment
-        run.restart(getReady, at: t0 + 261)
-        #expect(run == session(.dailyStretch))
+        let fresh = try session(.dailyStretch, in: "getReady Pigeon left 5/10")
+        var run = fresh
+        let getReady = try progress(run, at: 7).segment
+        run.restart(getReady, at: t0 + 9)
+        #expect(run == fresh)
     }
 
     @Test func restartingWhilePausedStaysPaused() throws {
-        var run = session(.dailyStretch)
-        run.pause(at: t0 + 280)
-        run.restart(try progress(run, at: 300).segment, at: t0 + 300)
+        var run = try session(.dailyStretch, in: "hold Pigeon left 5/10")
+        run.pause(at: t0 + 20)
+        run.restart(try progress(run, at: 40).segment, at: t0 + 40)
 
         let held = try progress(run, at: 900)
         #expect(describe(held.phase) == "getReady Pigeon left 5/10")
@@ -420,31 +786,21 @@ struct RestartTests {
     }
 
     @Test func theStretchIsNamedAgainAtOnce() throws {
-        var run = session(.dailyStretch)
-        let now = t0 + 280
-        run.restart(try progress(run, at: 280).segment, at: now)
+        var run = try session(.dailyStretch, in: "hold Pigeon left 5/10")
+        let now = t0 + 20
+        run.restart(try progress(run, at: 20).segment, at: now)
 
         let todo = try #require(run.cueSchedule).remaining(after: now)
         let first = try #require(todo.windows.first)
-        #expect(bounds(first) == [280_000, 282_200])
-        #expect(cues(first) == [Cue(280_000, .phaseChange), Cue(280_500, voice("Pigeon, left side"))])
+        #expect(bounds(first) == [20_000, 22_200])
+        #expect(cues(first) == [Cue(20_000, .phaseChange), Cue(20_500, voice("Pigeon, left side"))])
     }
 
-    @Test func aFinishedRunCountsRestartedTimeAgain() throws {
-        var run = session(.dailyStretch)
-        run.restart(try progress(run, at: 280).segment, at: t0 + 280)
-        #expect(try progress(run, at: 672.5).totalRemaining == 0.5)
-        #expect(run.snapshot(at: t0 + 673) == .finished(worked: 645 + 28))
-    }
-
-    @Test func aFinishedRunAddsRestartsAndTakesOffSkips() throws {
-        var run = session(.dailyStretch)
-        run.restart(try progress(run, at: 280).segment, at: t0 + 280)
-        let hold = try progress(run, at: 300)
-        #expect(describe(hold.phase) == "hold Pigeon left 5/10")
-        #expect(hold.phaseRemaining == 33)
-        run.skip(hold.segment, at: t0 + 300)
-        #expect(run.snapshot(at: t0 + 10_000) == .finished(worked: 645 + 28 - 33))
+    @Test func aFinishedIntervalRunCountsRestartedTimeAgain() throws {
+        var run = session(.audioCheck)
+        run.restart(try progress(run, at: 45).segment, at: t0 + 45)
+        #expect(try progress(run, at: 64.5).totalRemaining == 0.5)
+        #expect(run.snapshot(at: t0 + 65) == .finished(worked: 60 + 5))
     }
 
     @Test func restartingAFinishedRunDoesNothing() throws {
@@ -507,9 +863,9 @@ struct CommandTests {
     }
 
     @Test func nextInAGapStartsTheHold() throws {
-        var run = session(.dailyStretch)
-        run.perform(.next, at: t0 + 255)
-        let p = try progress(run, at: 255)
+        var run = try session(.dailyStretch, in: "getReady Pigeon left 5/10")
+        run.perform(.next, at: t0 + 3)
+        let p = try progress(run, at: 3)
         #expect(describe(p.phase) == "hold Pigeon left 5/10")
         #expect(p.phaseRemaining == 45)
     }
@@ -531,11 +887,11 @@ struct CommandTests {
     }
 
     @Test func previousRestartsTheStretchFromItsGetReadyGap() throws {
-        var run = session(.dailyStretch)
-        run.perform(.previous, at: t0 + 280)
-        let p = try progress(run, at: 280)
+        var run = try session(.dailyStretch, in: "hold Pigeon left 5/10")
+        run.perform(.previous, at: t0 + 20)
+        let p = try progress(run, at: 20)
         #expect(describe(p.phase) == "getReady Pigeon left 5/10")
-        #expect(p.elapsed == 252)
+        #expect(p.elapsed == 202)
     }
 
     @Test func previousRestartsAnIntervalPhase() throws {
@@ -546,12 +902,30 @@ struct CommandTests {
         #expect(p.phaseRemaining == 240)
     }
 
-    @Test func aPressDeliveredTwiceAtTheSameInstantRestartsOnce() {
-        var run = session(.dailyStretch)
-        run.perform(.previous, at: t0 + 280)
+    @Test func aPressDeliveredTwiceAtTheSameInstantRestartsOnce() throws {
+        var run = try session(.dailyStretch, in: "hold Pigeon left 5/10")
+        run.perform(.previous, at: t0 + 20)
         let once = run
-        run.perform(.previous, at: t0 + 280)
+        run.perform(.previous, at: t0 + 20)
         #expect(run == once)
+    }
+
+    @Test(arguments: [RunCommand.pause, .togglePlayPause])
+    func aPressNeverMovesAnIntervalTimerOn(_ press: RunCommand) throws {
+        for offset in [0.0, 299.5, 300, 540, 2279.5] {
+            var run = session()
+            let before = try progress(run, at: offset)
+            #expect(!before.isWaiting)
+
+            run.perform(.play, at: t0 + offset)
+            #expect(run == session())
+
+            run.perform(press, at: t0 + offset)
+            let held = try progress(run, at: offset + 5000)
+            #expect(held.isPaused, "\(offset)")
+            #expect(held.segment == before.segment, "\(offset)")
+            #expect(held.phaseRemaining == before.phaseRemaining, "\(offset)")
+        }
     }
 
     @Test(arguments: [RunCommand.play, .pause, .togglePlayPause, .next, .previous])

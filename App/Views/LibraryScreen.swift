@@ -195,7 +195,7 @@ struct WorkoutCard: View {
                     .font(.system(.title3, design: .rounded, weight: .bold))
                     .lineLimit(1)
                 Spacer()
-                Text(ClockText.remaining(workout.totalDuration))
+                Text(workout.totalText)
                     .font(.system(.title2, design: .rounded, weight: .bold))
                     .monospacedDigit()
             }
@@ -224,9 +224,12 @@ struct WorkoutDetailSheet: View {
             ScrollView {
                 VStack(spacing: 22) {
                     VStack(spacing: 2) {
-                        Text(ClockText.remaining(workout.totalDuration))
+                        Text(workout.totalText)
                             .font(.system(size: 64, weight: .bold, design: .rounded))
                             .monospacedDigit()
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.5)
+                            .accessibilityIdentifier("detailTotal")
                         Text("total")
                             .font(.headline)
                             .foregroundStyle(Color.secondary)
@@ -383,7 +386,7 @@ private struct HeadphoneControlsCard: View {
                     .font(.headline)
             }
             .accessibilityIdentifier("headphoneControlsToggle")
-            Text("Other audio stops while this is on.")
+            Text("Other audio stops while this is on. When the routine waits, press once for Next.")
                 .font(.footnote)
                 .foregroundStyle(Color.secondary)
         }
@@ -395,6 +398,22 @@ private struct HeadphoneControlsCard: View {
 
 extension Span {
     var clockText: String { ClockText.remaining(TimeInterval(seconds)) }
+}
+
+extension Count {
+    var repsUnit: String { value == 1 ? "rep" : "reps" }
+    var repsText: String { "\(value) \(repsUnit)" }
+}
+
+extension PhaseSpan {
+    var lengthText: String { phase.reps?.repsText ?? ClockText.remaining(duration) }
+}
+
+extension Workout {
+    /// Reps are not timed, so a routine that has them shows its timed length and says reps come on top.
+    var totalText: String {
+        ClockText.remaining(totalDuration) + (outline.contains { $0.phase.reps != nil } ? " + reps" : "")
+    }
 }
 
 extension Plan {

@@ -14,15 +14,6 @@ final class SoundBankTests: XCTestCase {
         }
     }
 
-    func testTheRepBeatIsSofterThanTheCountdownTick() throws {
-        let bank = SoundBank(log: AudioLog())
-        let beat = try XCTUnwrap(bank[.beat])
-        let tick = try XCTUnwrap(bank[.tick])
-        XCTAssertEqual(seconds(of: beat), Sound.beat.slot, accuracy: 0.01)
-        XCTAssertGreaterThan(peak(of: beat), 0.1, "the beat is silent")
-        XCTAssertLessThan(peak(of: beat), peak(of: tick) * 0.6)
-    }
-
     func testVoicePhrasesRenderWithinTheirSlots() async throws {
         let phrases = try await rendered(.norwegian4x4)
         XCTAssertEqual(phrases.count, 8, "warm-up, rounds one to three, last round, rest, cool-down, complete")
@@ -51,15 +42,15 @@ final class SoundBankTests: XCTestCase {
         }
         let log = AudioLog()
         let bank = SoundBank(log: log)
-        let schedule = try XCTUnwrap(Session(workout, cues: CuePreferences(), startingAt: .now).cueSchedule)
-        let voices = schedule.vocabulary.filter { if case .voice = $0 { true } else { false } }
+        let vocabulary = Session(workout, cues: CuePreferences(), startingAt: .now).vocabulary
+        let voices = vocabulary.filter { if case .voice = $0 { true } else { false } }
 
         // The simulator's speech service can time out for a minute after boot, most often on CI. The bank
         // renders a failed phrase again on a later call, as the app does when a run starts or skips.
         let started = Date.now
         var phrases: [(sound: Sound, buffer: AVAudioPCMBuffer)] = []
         for _ in 0..<4 where phrases.count < voices.count {
-            await bank.prepare(schedule.vocabulary)
+            await bank.prepare(vocabulary)
             phrases = voices.compactMap { sound in bank[sound].map { (sound: sound, buffer: $0) } }
         }
         let elapsed = Date.now.timeIntervalSince(started)

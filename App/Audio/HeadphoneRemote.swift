@@ -21,8 +21,8 @@ final class HeadphoneRemote {
         }
         attach()
         // The system advances the elapsed time itself from the rate, so the card is rewritten only
-        // when the run changes or a new phase starts.
-        let card = Card(session: session, segment: progress.segment)
+        // when the run changes, a new phase starts, or a wait begins.
+        let card = Card(session: session, segment: progress.segment, isWaiting: progress.isWaiting)
         guard card != published else { return }
         published = card
 
@@ -31,9 +31,10 @@ final class HeadphoneRemote {
             MPMediaItemPropertyAlbumTitle: session.workout.name,
             MPMediaItemPropertyPlaybackDuration: progress.phaseDuration,
             MPNowPlayingInfoPropertyElapsedPlaybackTime: progress.phaseElapsed,
-            MPNowPlayingInfoPropertyPlaybackRate: progress.isPaused ? 0.0 : 1.0,
+            MPNowPlayingInfoPropertyPlaybackRate: progress.isPaused || progress.isWaiting ? 0.0 : 1.0,
         ]
-        info[MPMediaItemPropertyArtist] = progress.phase.caption
+        info[MPMediaItemPropertyArtist] = progress.isWaiting
+            ? "\(progress.reps?.repsText ?? "Done") · Waiting for Next" : progress.phase.caption
         MPNowPlayingInfoCenter.default().nowPlayingInfo = info
     }
 
@@ -75,5 +76,6 @@ final class HeadphoneRemote {
     private struct Card: Equatable {
         let session: Session
         let segment: SegmentID
+        let isWaiting: Bool
     }
 }

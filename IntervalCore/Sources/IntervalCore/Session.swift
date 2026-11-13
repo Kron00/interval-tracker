@@ -2,25 +2,40 @@ import Foundation
 
 /// What a headphone press or a lock-screen button asks of a run.
 public enum RunCommand: Hashable, Sendable {
+    /// A single press arrives as one of these. Each means `next` while the run waits and is not paused.
     case play, pause, togglePlayPause
-    /// Skips the segment in progress.
+    /// Ends the segment in progress, or the wait at its end.
     case next
     /// Restarts the segment in progress.
     case previous
+
+    /// A wait has nothing to pause, so the press that pauses a countdown moves a waiting run on.
+    fileprivate var duringAWait: RunCommand {
+        switch self {
+        case .play, .pause, .togglePlayPause, .next: .next
+        case .previous: .previous
+        }
+    }
 }
 
 public struct Session: Equatable, Sendable {
+    /// Both cases count the time the run has been running, and that time may be past the gate the
+    /// run waits at. What a snapshot reports stops at the gate.
     private enum Clock: Equatable, Sendable {
         case running(zeroAt: Date)
-        case paused(elapsed: TimeInterval)
+        case paused(ran: TimeInterval)
     }
 
     public let workout: Workout
     private let timeline: Timeline
     private let cues: CuePreferences
     private var clock: Clock
+    /// How many gates are behind the run. Whether it waits at the next one follows from the clock.
+    private var released = 0
     private var skipped: TimeInterval = 0
     private var repeated: TimeInterval = 0
+    /// Time spent in stretches counted in reps. They have no length of their own.
+    private var inReps: TimeInterval = 0
 
     public init(_ workout: Workout, cues: CuePreferences, startingAt now: Date) {
         self.workout = workout
@@ -30,19 +45,22 @@ public struct Session: Equatable, Sendable {
     }
 
     public mutating func pause(at now: Date) {
-        clock = .paused(elapsed: elapsed(at: now))
+        clock = .paused(ran: ran(at: now))
     }
 
     public mutating func resume(at now: Date) {
-        guard case .paused(let elapsed) = clock else { return }
-        clock = .running(zeroAt: now - elapsed)
+        guard case .paused(let ran) = clock else { return }
+        clock = .running(zeroAt: now - ran)
     }
 
-    /// Ends `segment` now. No-op unless `segment` is the one in progress at `now`.
+    /// Ends `segment` now and starts the next one. This is also what releases a gate, during its
+    /// hold or while the run waits at its end. No-op unless `segment` is the one in progress at `now`.
     public mutating func skip(_ segment: SegmentID, at now: Date) {
         let elapsed = elapsed(at: now)
-        guard let current = timeline.segment(at: elapsed), current.id == segment else { return }
+        guard let current = timeline.place(at: elapsed, released: released).segment, current.id == segment else { return }
+        leave(current, at: now)
         skipped += current.end - elapsed
+        if current.isGate { released += 1 }
         move(to: current.end, at: now)
     }
 
@@ -51,16 +69,18 @@ public struct Session: Equatable, Sendable {
     /// No-op unless `segment` is the one in progress at `now`.
     public mutating func restart(_ segment: SegmentID, at now: Date) {
         let elapsed = elapsed(at: now)
-        guard let current = timeline.segment(at: elapsed), current.id == segment else { return }
+        guard let current = timeline.place(at: elapsed, released: released).segment, current.id == segment else { return }
         let target = timeline.restartPoint(for: current.id)
+        leave(current, at: now)
         repeated += elapsed - target.start
         move(to: target.start, at: now)
     }
 
     /// Does nothing once the run has finished.
     public mutating func perform(_ command: RunCommand, at now: Date) {
-        guard let current = timeline.segment(at: elapsed(at: now)) else { return }
-        switch command {
+        let place = timeline.place(at: elapsed(at: now), released: released)
+        guard let current = place.segment else { return }
+        switch place.isWaiting && !isPaused ? command.duringAWait : command {
         case .play: resume(at: now)
         case .pause: pause(at: now)
         case .togglePlayPause: if isPaused { resume(at: now) } else { pause(at: now) }
@@ -71,15 +91,15 @@ public struct Session: Equatable, Sendable {
 
     public func snapshot(at now: Date) -> Snapshot {
         let elapsed = elapsed(at: now)
-        guard let current = timeline.segment(at: elapsed) else {
-            return .finished(worked: timeline.total - skipped + repeated)
+        let place = timeline.place(at: elapsed, released: released)
+        guard let current = place.segment else {
+            return .finished(worked: timeline.total - skipped + repeated + inReps)
         }
-        let phaseElapsed = elapsed - current.start
         return .active(RunProgress(
-            segment: current.id, phase: current.phase, rep: current.phase.pulse?.rep(at: phaseElapsed),
-            phaseElapsed: phaseElapsed, phaseRemaining: current.end - elapsed, phaseDuration: current.duration,
+            segment: current.id, phase: current.phase,
+            phaseElapsed: elapsed - current.start, phaseRemaining: current.end - elapsed, phaseDuration: current.duration,
             elapsed: elapsed, totalRemaining: timeline.total - elapsed, totalDuration: timeline.total,
-            upNext: timeline.upNext(after: current.id)?.span, isPaused: isPaused))
+            upNext: timeline.upNext(after: current.id)?.span, isPaused: isPaused, isWaiting: place.isWaiting))
     }
 
     /// The instant elapsed time was zero, or nil while paused. Every figure a snapshot reports changes
@@ -91,47 +111,67 @@ public struct Session: Equatable, Sendable {
         }
     }
 
-    /// Every cue of this run at its wall-clock time. nil while paused.
+    /// The instant the run next stops by itself, at a gate or at the finish. nil while paused.
+    /// No figure a snapshot reports changes after it, so a screen has nothing to redraw from then on.
+    public var haltDate: Date? {
+        zeroDate.map { $0 + timeline.limit(after: released) }
+    }
+
+    /// Every cue up to the next gate, or up to the finish, at its wall-clock time. nil while paused.
     public var cueSchedule: CueSchedule? {
-        switch clock {
-        case .running(let zeroAt): CueSchedule(timeline, cues, zeroAt: zeroAt)
-        case .paused: nil
-        }
+        zeroDate.map { CueSchedule(timeline, cues, zeroAt: $0, released: released) }
+    }
+
+    /// Every distinct sound of the whole run in order of first use, whatever gates lie ahead.
+    public var vocabulary: [Sound] {
+        CueSchedule.vocabulary(of: timeline, cues)
     }
 
     public var isPaused: Bool {
         if case .paused = clock { true } else { false }
     }
 
-    private func elapsed(at now: Date) -> TimeInterval {
+    private func ran(at now: Date) -> TimeInterval {
         switch clock {
-        case .running(let zeroAt): min(max(now.timeIntervalSince(zeroAt), 0), timeline.total)
-        case .paused(let elapsed): elapsed
+        case .running(let zeroAt): max(now.timeIntervalSince(zeroAt), 0)
+        case .paused(let ran): ran
         }
+    }
+
+    private func elapsed(at now: Date) -> TimeInterval {
+        min(ran(at: now), timeline.limit(after: released))
+    }
+
+    /// Reps are done at their own pace, so the time spent on them is known only when they are left.
+    /// Time spent waiting after a timed hold is not work and is dropped.
+    private mutating func leave(_ segment: Segment, at now: Date) {
+        guard segment.phase.reps != nil else { return }
+        inReps += ran(at: now) - segment.end
     }
 
     private mutating func move(to elapsed: TimeInterval, at now: Date) {
         switch clock {
         case .running: clock = .running(zeroAt: now - elapsed)
-        case .paused: clock = .paused(elapsed: elapsed)
+        case .paused: clock = .paused(ran: elapsed)
         }
     }
 }
 
 public enum Snapshot: Equatable, Sendable {
     case active(RunProgress)
-    /// `worked` is the workout's length, minus what was skipped, plus what was restarted and done again.
-    /// Paused time never counts.
+    /// `worked` is the workout's timed length, minus what was skipped, plus what was restarted and
+    /// done again, plus the time spent in stretches counted in reps. Paused time never counts, and
+    /// neither does a wait after a timed hold.
     case finished(worked: TimeInterval)
 }
 
 public struct RunProgress: Equatable, Sendable {
     public let segment: SegmentID
     public let phase: Phase
-    /// The rep in progress during a hold that counts reps.
-    public let rep: Ordinal?
     public let phaseElapsed: TimeInterval
+    /// 0 while waiting.
     public let phaseRemaining: TimeInterval
+    /// 0 for a stretch counted in reps.
     public let phaseDuration: TimeInterval
     public let elapsed: TimeInterval
     public let totalRemaining: TimeInterval
@@ -139,6 +179,11 @@ public struct RunProgress: Equatable, Sendable {
     /// The next phase that is not a gap, so a hold shows the stretch after it and not "get ready".
     public let upNext: PhaseSpan?
     public let isPaused: Bool
+    /// The phase is over, or has no length, and the run stays in it until `RunCommand.next` or a skip.
+    public let isWaiting: Bool
+
+    /// The rep count of a stretch counted in reps, nil for every other phase.
+    public var reps: Count? { phase.reps }
 }
 
 public enum ClockText {

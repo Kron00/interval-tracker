@@ -15,10 +15,12 @@ struct RunScreen: View {
     }
 
     var body: some View {
-        TimelineView(.periodic(from: session.zeroDate ?? .now, by: 1)) { context in
+        // Read out here. A paused or waiting run has no tick left to notice a change with.
+        let undo: (() -> Void)? = run.undo == nil ? nil : { run.undoLast() }
+        let cuesAreSilent = log.cuesAreSilent
+        TimelineView(RunTicks(zero: session.zeroDate, halt: session.haltDate)) { context in
             let snapshot = session.snapshot(at: context.date)
             let tone = RunTone(snapshot)
-            let undo: (() -> Void)? = run.undo == nil ? nil : { run.undoLast() }
             ZStack {
                 LinearGradient(colors: [tone.color, tone.color.opacity(0.5)], startPoint: .top, endPoint: .bottom)
                     .background(Color.black)
@@ -30,7 +32,7 @@ struct RunScreen: View {
                         name: session.workout.name,
                         progress: progress,
                         outline: outline,
-                        cuesAreSilent: log.cuesAreSilent,
+                        cuesAreSilent: cuesAreSilent,
                         pause: run.pause,
                         resume: run.resume,
                         skip: { run.skip(progress.segment) },
@@ -45,6 +47,26 @@ struct RunScreen: View {
         }
         .foregroundStyle(Color.white)
         .preferredColorScheme(.dark)
+    }
+}
+
+/// The whole seconds after `zero`, up to `halt`. Nothing on the screen changes at any other time, so
+/// a run that is paused, waiting or finished is drawn once and not again.
+private struct RunTicks: TimelineSchedule {
+    let zero: Date?
+    let halt: Date?
+
+    func entries(from start: Date, mode: TimelineScheduleMode) -> UnfoldFirstSequence<Date> {
+        // A paused run has one thing to show, as if it had halted now.
+        let halt = halt ?? start
+        let latest = zero.map { $0 + max(0, start.timeIntervalSince($0).rounded(.down)) } ?? start
+        return sequence(first: min(latest, halt)) { date in
+            if date < halt { return min(date + 1, halt) }
+            // TimelineView does not draw the last entry of a schedule that ends. With the halt as the
+            // last entry, the screen stayed one second short of every wait. So a date that never
+            // comes follows the halt.
+            return date < .distantFuture ? .distantFuture : nil
+        }
     }
 }
 
@@ -99,15 +121,8 @@ struct ActiveRunView: View {
                 HStack(spacing: 24) {
                     VStack(spacing: 8) {
                         clock
-                        HStack(spacing: 12) {
-                            // These share a place because they never show together. The how-to chip
-                            // belongs to a get-ready gap and the rep count to a hold.
-                            ZStack {
-                                repLine
-                                howToChip.frame(width: 160)
-                            }
-                            undoChip.frame(width: 124)
-                        }
+                        waitLine
+                        chips
                     }
                     VStack(spacing: 6) {
                         header
@@ -126,13 +141,10 @@ struct ActiveRunView: View {
                     VStack(spacing: 6) {
                         captionLine
                         upNextLine
-                        repLine
+                        waitLine
                     }
                     overall
-                    HStack(spacing: 12) {
-                        howToChip
-                        undoChip
-                    }
+                    chips
                     controls
                 }
             }
@@ -227,22 +239,39 @@ struct ActiveRunView: View {
             .accessibilityIdentifier("phaseTitle")
     }
 
+    /// The clock, or what stands in its place while the run waits.
     private var clock: some View {
-        // The hidden text is the phase's full length, so the digits keep one size for the whole phase.
-        // The digits cut from one second to the next. Rolling them with `numericText` took a running
-        // timer from 3% of a core to 71% in the simulator.
-        Text(ClockText.remaining(progress.phaseDuration))
-            .hidden()
-            .overlay {
-                Text(ClockText.remaining(progress.phaseRemaining))
-                    .accessibilityIdentifier("timeRemaining")
+        ZStack {
+            switch Face(progress) {
+            case .time:
+                // The hidden text is the phase's full length, so the digits keep one size for the whole phase.
+                // The digits cut from one second to the next. Rolling them with `numericText` took a running
+                // timer from 3% of a core to 71% in the simulator.
+                Text(ClockText.remaining(progress.phaseDuration))
+                    .hidden()
+                    .overlay {
+                        Text(ClockText.remaining(progress.phaseRemaining))
+                            .accessibilityIdentifier("timeRemaining")
+                    }
+            case .reps(let count):
+                Text("\(Text("\(count.value)"))\(Text(" \(count.repsUnit)").font(Self.unitFont))")
+                    .accessibilityIdentifier("repCount")
+            case .done:
+                Text("Done")
+                    .accessibilityIdentifier("holdDone")
             }
-            .font(.system(size: 320, weight: .bold, design: .rounded))
-            .monospacedDigit()
-            .lineLimit(1)
-            .minimumScaleFactor(0.05)
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
+        }
+        .font(.system(size: 320, weight: .bold, design: .rounded))
+        .monospacedDigit()
+        .lineLimit(1)
+        .minimumScaleFactor(0.05)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .contentShape(.accessibility, Rectangle())
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("clock")
     }
+
+    private static let unitFont = Font.system(size: 110, weight: .bold, design: .rounded)
 
     private var captionLine: some View {
         Line(font: .system(size: isLandscape ? 28 : 34, weight: .semibold, design: .rounded)) {
@@ -257,7 +286,7 @@ struct ActiveRunView: View {
     }
 
     private var upNextLine: some View {
-        let text = "Up next: \(progress.upNext.map { "\($0.phase.title(following: progress.phase)) \(ClockText.remaining($0.duration))" } ?? "Finish")"
+        let text = "Up next: \(progress.upNext.map { "\($0.phase.title(following: progress.phase)) \($0.lengthText)" } ?? "Finish")"
         return Line(font: .title2.weight(.medium)) {
             Text(text)
                 .opacity(0.85)
@@ -266,20 +295,21 @@ struct ActiveRunView: View {
         .animation(Motion.change, value: text)
     }
 
-    private var repLine: some View {
-        Line(font: .system(size: 34, weight: .bold, design: .rounded), padding: 6) {
-            if let rep = progress.rep {
-                Text("Rep \(rep.number) of \(rep.total)")
-                    .monospacedDigit()
+    private var waitLine: some View {
+        let prompt = progress.isWaiting && !progress.isPaused
+            ? (progress.reps != nil ? "Tap Next when done" : progress.upNext == nil ? "Tap Next to finish" : "Tap Next to continue") : nil
+        return Line(font: .system(size: 34, weight: .bold, design: .rounded), padding: 6) {
+            if let prompt {
+                Text(prompt)
                     .contentTransition(.opacity)
                     .padding(.horizontal, 18)
                     .padding(.vertical, 6)
                     .background(Color.white.opacity(0.2), in: Capsule())
                     .transition(Motion.chip)
-                    .accessibilityIdentifier("repLabel")
+                    .accessibilityIdentifier("waitPrompt")
             }
         }
-        .animation(Motion.change, value: progress.rep)
+        .animation(Motion.change, value: prompt)
     }
 
     private var overall: some View {
@@ -299,40 +329,55 @@ struct ActiveRunView: View {
         }
     }
 
-    private var howToChip: some View {
-        let link = progress.isPaused ? progress.phase.howTo : progress.phase.howToWhileGettingReady
-        return RunChip(title: "How to", symbol: "play.circle.fill", identifier: "howToButton", action: link.map { link in
-            {
-                pauseForHowTo()
-                openURL(link)
-            }
-        })
-    }
-
-    private var undoChip: some View {
-        RunChip(title: "Undo", symbol: "arrow.uturn.backward", identifier: "undoButton", action: undo)
+    private var chips: some View {
+        // A countdown leaves no time for a video. A pause and a wait do, and so does the gap before a stretch.
+        let link = progress.isPaused || progress.isWaiting ? progress.phase.howTo : progress.phase.howToWhileGettingReady
+        return HStack(spacing: 12) {
+            RunChip(title: "How to", symbol: "play.circle.fill", identifier: "howToButton", action: link.map { link in
+                {
+                    pauseForHowTo()
+                    openURL(link)
+                }
+            })
+            RunChip(title: "Undo", symbol: "arrow.uturn.backward", identifier: "undoButton", action: undo)
+        }
     }
 
     /// Laid out like a music player, because the headphone presses mean the same things: previous
-    /// restarts, play and pause, next skips.
+    /// restarts, play and pause, next moves on. While the run waits, next takes the big button and
+    /// the small one goes dim, so the one thing left to do is the only thing to hit.
     private var controls: some View {
-        HStack(spacing: 12) {
+        let primary = Primary(progress)
+        let advanceIsPrimary = primary == .advance
+        return HStack(spacing: 12) {
             iconButton("End", "xmark", identifier: "endButton") { confirmingEnd = true }
             iconButton("Restart", "backward.end.fill", identifier: "restartButton", action: restart)
 
-            Button(action: progress.isPaused ? resume : pause) {
+            Button(action: action(for: primary)) {
                 HStack(spacing: 8) {
-                    Image(systemName: progress.isPaused ? "play.fill" : "pause.fill")
+                    Image(systemName: primary.symbol)
                         .contentTransition(.symbolEffect(.replace))
-                    Text(progress.isPaused ? "Resume" : "Pause")
+                    Text(primary.title)
                         .contentTransition(.opacity)
                 }
-                .animation(Motion.change, value: progress.isPaused)
+                .animation(Motion.change, value: primary)
             }
             .buttonStyle(RunButtonStyle(isProminent: true))
-            .accessibilityIdentifier("pauseResumeButton")
+            .accessibilityIdentifier("primaryButton")
 
-            iconButton("Skip", "forward.end.fill", identifier: "skipButton", action: skip)
+            iconButton(progress.phase.advanceTitle, "forward.end.fill", identifier: "skipButton", action: skip)
+                .disabled(advanceIsPrimary)
+                .opacity(advanceIsPrimary ? 0.3 : 1)
+                .accessibilityHidden(advanceIsPrimary)
+                .animation(Motion.change, value: advanceIsPrimary)
+        }
+    }
+
+    private func action(for primary: Primary) -> () -> Void {
+        switch primary {
+        case .pause: pause
+        case .resume: resume
+        case .advance: skip
         }
     }
 
@@ -343,6 +388,52 @@ struct ActiveRunView: View {
         .buttonStyle(RunButtonStyle(isProminent: false))
         .frame(width: 72)
         .accessibilityIdentifier(identifier)
+    }
+}
+
+/// What fills the clock's place.
+private enum Face {
+    case time
+    /// A stretch counted in reps has no time to show.
+    case reps(Count)
+    /// A timed hold has run out. A clock stopped at 0:00 would look broken.
+    case done
+
+    init(_ progress: RunProgress) {
+        if let reps = progress.reps {
+            self = .reps(reps)
+        } else {
+            self = progress.isWaiting ? .done : .time
+        }
+    }
+}
+
+/// What the big button does.
+private enum Primary {
+    case pause, resume, advance
+
+    init(_ progress: RunProgress) {
+        if progress.isPaused {
+            self = .resume
+        } else {
+            self = progress.isWaiting ? .advance : .pause
+        }
+    }
+
+    var title: String {
+        switch self {
+        case .pause: "Pause"
+        case .resume: "Resume"
+        case .advance: "Next"
+        }
+    }
+
+    var symbol: String {
+        switch self {
+        case .pause: "pause.fill"
+        case .resume: "play.fill"
+        case .advance: "forward.end.fill"
+        }
     }
 }
 

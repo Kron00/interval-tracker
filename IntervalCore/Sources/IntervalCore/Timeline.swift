@@ -1,6 +1,6 @@
 import Foundation
 
-/// A place in a run of things: round 2 of 4, stretch 4 of 10, rep 3 of 10.
+/// A place in a run of things: round 2 of 4, stretch 4 of 10.
 public struct Ordinal: Hashable, Sendable {
     /// 1-based.
     public let number: Int
@@ -98,12 +98,17 @@ public enum Phase: Hashable, Sendable {
         }
     }
 
-    var pulse: Pulse? {
+    /// The rep count of a stretch counted in reps. Such a hold is not timed.
+    public var reps: Count? {
+        if case .hold(let pose) = self, case .reps(let count) = pose.stretch.amount { count } else { nil }
+    }
+
+    /// What ending this phase by hand is called. A stretch is left with Next, because a routine
+    /// waits for it. An interval is cut short with Skip.
+    public var advanceTitle: String {
         switch self {
-        case .hold(let pose):
-            if case .reps(let count, let every) = pose.stretch.amount { Pulse(count: count, every: every) } else { nil }
-        case .warmUp, .work, .rest, .coolDown, .getReady, .switchSides:
-            nil
+        case .warmUp, .work, .rest, .coolDown: "Skip"
+        case .getReady, .hold, .switchSides: "Next"
         }
     }
 
@@ -123,21 +128,6 @@ public enum Phase: Hashable, Sendable {
 /// The colour family of a phase.
 public enum Tone: Hashable, Sendable, CaseIterable {
     case prepare, effort, recover, stretch, cool
-}
-
-/// The pacing of a hold that counts reps.
-struct Pulse: Hashable, Sendable {
-    let count: Count
-    let every: Span
-
-    /// Where reps 2...count start, measured from the start of the hold.
-    var beats: [TimeInterval] {
-        (1..<count.value).map { TimeInterval($0) * every.interval }
-    }
-
-    func rep(at sinceStart: TimeInterval) -> Ordinal {
-        Ordinal(number: min(count.value, Int(sinceStart / every.interval) + 1), total: count.value)
-    }
 }
 
 extension Side {
@@ -160,6 +150,7 @@ private let spelledOut: [String] = {
 
 public struct PhaseSpan: Hashable, Sendable {
     public let phase: Phase
+    /// 0 for a stretch counted in reps.
     public let duration: TimeInterval
 }
 
@@ -172,20 +163,43 @@ struct Segment: Equatable, Sendable {
     let phase: Phase
     let start: TimeInterval
     let duration: TimeInterval
+    /// A gate holds the run at its end until someone releases it. Time does not pass a gate by itself.
+    let isGate: Bool
     var end: TimeInterval { start + duration }
     var span: PhaseSpan { PhaseSpan(phase: phase, duration: duration) }
 }
 
+/// Where a run stands on its timeline.
+enum Place: Equatable, Sendable {
+    case inside(Segment)
+    /// Stopped at the end of a gate.
+    case waiting(Segment)
+    case finished
+
+    var segment: Segment? {
+        switch self {
+        case .inside(let segment), .waiting(let segment): segment
+        case .finished: nil
+        }
+    }
+
+    var isWaiting: Bool {
+        if case .waiting = self { true } else { false }
+    }
+}
+
 struct Timeline: Equatable, Sendable {
     let segments: [Segment]
+    /// The gates in order. A run passes them one at a time, so a count says which ones are behind it.
+    let gates: [Segment]
     var total: TimeInterval { segments[segments.count - 1].end }
 
     init(_ plan: Plan) {
         var segments: [Segment] = []
-        func append(_ phase: Phase, _ duration: TimeInterval?) {
+        func append(_ phase: Phase, _ duration: TimeInterval?, isGate: Bool = false) {
             guard let duration else { return }
             segments.append(Segment(id: SegmentID(index: segments.count), phase: phase,
-                                    start: segments.last?.end ?? 0, duration: duration))
+                                    start: segments.last?.end ?? 0, duration: duration, isGate: isGate))
         }
 
         switch plan {
@@ -203,33 +217,57 @@ struct Timeline: Equatable, Sendable {
         case .routine(let routine):
             for (index, stretch) in routine.stretches.enumerated() {
                 let position = Ordinal(number: index + 1, total: routine.stretches.count)
+                let length = stretch.amount.length
                 switch stretch.sides {
                 case .once:
                     let pose = Pose(stretch: stretch, side: nil, position: position)
                     append(.getReady(pose), routine.getReady.interval)
-                    append(.hold(pose), stretch.amount.duration)
+                    append(.hold(pose), length, isGate: true)
                 case .each:
                     let left = Pose(stretch: stretch, side: .left, position: position)
                     let right = Pose(stretch: stretch, side: .right, position: position)
                     append(.getReady(left), routine.getReady.interval)
-                    append(.hold(left), stretch.amount.duration)
+                    append(.hold(left), length, isGate: true)
                     append(.switchSides(to: right), routine.switchSides.interval)
-                    append(.hold(right), stretch.amount.duration)
+                    append(.hold(right), length, isGate: true)
                 }
             }
         }
         self.segments = segments
+        gates = segments.filter(\.isGate)
     }
 
-    func segment(at offset: TimeInterval) -> Segment? {
-        guard offset < total else { return nil }
+    /// The first gate a run has still to pass once `released` gates are behind it.
+    func gate(after released: Int) -> Segment? {
+        released < gates.count ? gates[released] : nil
+    }
+
+    /// As far as a run gets by itself with `released` gates behind it.
+    func limit(after released: Int) -> TimeInterval {
+        gate(after: released)?.end ?? total
+    }
+
+    /// `elapsed` is never past `limit(after: released)`.
+    func place(at elapsed: TimeInterval, released: Int) -> Place {
+        if let gate = gate(after: released), elapsed >= gate.end { return .waiting(gate) }
+        guard elapsed < total else { return .finished }
+        // The last segment that starts at or before `elapsed`. A gate of no length shares its start
+        // with the segment after it, and that gate is behind the run by now.
         var low = 0
         var high = segments.count - 1
         while low < high {
             let middle = (low + high + 1) / 2
-            if segments[middle].start <= offset { low = middle } else { high = middle - 1 }
+            if segments[middle].start <= elapsed { low = middle } else { high = middle - 1 }
         }
-        return segments[low]
+        return .inside(segments[low])
+    }
+
+    /// The segments a run plays without help once `released` gates are behind it: from the one after
+    /// the last gate it passed, through the next gate or the end.
+    func leg(after released: Int) -> ArraySlice<Segment> {
+        let first = released > 0 ? gates[released - 1].id.index + 1 : 0
+        let end = gate(after: released).map { $0.id.index + 1 } ?? segments.count
+        return segments[first..<end]
     }
 
     func upNext(after id: SegmentID) -> Segment? {

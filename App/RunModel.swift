@@ -15,8 +15,8 @@ final class RunModel {
     private(set) var undo: Session?
 
     @ObservationIgnored private var undoExpires = Date.distantPast
-    /// The demand changes only when the session does, so its schedule is built once per change and not on every tick.
-    @ObservationIgnored private var demand = CueDemand.none
+    /// The schedule changes only when the session does, so it is built once per change and not on every tick.
+    @ObservationIgnored private var schedule: CueSchedule?
     /// The paused session an interruption left behind. Only that exact session resumes when the interruption ends.
     @ObservationIgnored private var interrupted: Session?
     @ObservationIgnored private let player: CuePlayer
@@ -48,40 +48,48 @@ final class RunModel {
         }
     }
 
-    /// Restores the anchor the skip or restart moved, so the run is where it would be had the button never been pressed.
+    /// Restores the session the skip or restart changed, so the run is where it would be had the button never been pressed.
     func undoLast() {
         guard let undo else { return }
         change { $0 = undo }
     }
     func end() { change { $0 = nil } }
 
+    /// `Session.perform` decides what a press means, and a single press means Next while the run
+    /// waits. So Undo goes by what the press did. A press that moved the run and left it paused or
+    /// running as before can be taken back. A pause or a resume cannot.
     func handle(_ command: RunCommand) {
-        switch command {
-        case .next, .previous: jump { $0?.perform(command, at: .now) }
-        case .play, .pause, .togglePlayPause: change { $0?.perform(command, at: .now) }
-        }
+        let before = session
+        change { $0?.perform(command, at: .now) }
+        if session != before, session?.isPaused == before?.isPaused { offerUndo(of: before) }
     }
 
     func prepare(_ workout: Workout, cues: CuePreferences) {
-        let schedule = Session(workout, cues: cues, startingAt: .now).cueSchedule
-        player.prepare(schedule?.vocabulary ?? [])
+        player.prepare(Session(workout, cues: cues, startingAt: .now).vocabulary)
     }
 
-    private static let undoWindow: TimeInterval = 6
+    /// Six seconds, unless a UI test passes `-undoWindow <seconds>`. On a slow CI machine the test
+    /// runner can take ten seconds to hand control back after a tap, and the chip was gone by then.
+    private static let undoWindow: TimeInterval = {
+        let requested = UserDefaults.standard.double(forKey: "undoWindow")
+        return requested > 0 ? requested : 6
+    }()
 
     private func jump(_ body: (inout Session?) -> Void) {
         let before = session
         change(body)
-        if session != before {
-            undo = before
-            undoExpires = Date.now.addingTimeInterval(Self.undoWindow)
-        }
+        if session != before { offerUndo(of: before) }
+    }
+
+    private func offerUndo(of before: Session?) {
+        undo = before
+        undoExpires = Date.now.addingTimeInterval(Self.undoWindow)
     }
 
     private func change(_ body: (inout Session?) -> Void) {
         undo = nil
         body(&session)
-        demand = session.map { $0.cueSchedule.map(CueDemand.playing) ?? .paused } ?? .none
+        schedule = session?.cueSchedule
         if session == nil {
             ticker?.invalidate()
             ticker = nil
@@ -113,7 +121,7 @@ final class RunModel {
         let headphoneControls = defaults.bool(forKey: SettingsKey.headphoneControls)
         let strategy = defaults.string(forKey: SettingsKey.duckingStrategy).flatMap(DuckingStrategy.init) ?? .toggleOption
         player.sharing = headphoneControls ? .exclusive : .mixing(strategy)
-        player.reconcile(demand, at: now)
+        player.reconcile(CueDemand(for: session, playing: schedule, at: now), at: now)
         remote.reconcile(headphoneControls ? session : nil, at: now)
 
         let keepScreenOn = defaults.object(forKey: SettingsKey.keepScreenOn) as? Bool ?? true

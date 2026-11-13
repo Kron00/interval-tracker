@@ -46,7 +46,7 @@ struct LibraryTests {
         library.cues = CuePreferences(countdown: .five, voice: false)
         library.save(try timer(warmUp: 600, work: 90, rest: 60, rounds: 8, coolDown: 300))
         library.save(try routine(getReady: 12, switchSides: 4, [
-            try stretch("Cat-Cow", try reps(10, every: 5)),
+            try stretch("Cat-Cow", try reps(10)),
             try stretch("Pigeon", try hold(45), .each, howTo: "https://youtu.be/lqCqETr7Q0g"),
         ]))
         library.save(try timer(work: 20, rest: 10, rounds: 8, restAfterLastRound: false))
@@ -57,7 +57,8 @@ struct LibraryTests {
         #expect(reloaded.workouts.count == 4)
     }
 
-    @Test func decodesAVersionTwoFile() throws {
+    /// App version 1.1 wrote this file. It paced reps, so its rep amount carries an `every` value.
+    @Test func decodesAFileWrittenByAppVersionOnePointOne() throws {
         let json = Data("""
             {
               "version": 2,
@@ -132,10 +133,10 @@ struct LibraryTests {
         #expect(pigeon.howTo == URL(string: "https://youtu.be/lqCqETr7Q0g"))
         let catCow = routine.stretches[1]
         #expect(catCow.name == "Cat-Cow")
-        #expect(catCow.amount == (try reps(10, every: 5)))
+        #expect(catCow.amount == (try reps(10)))
         #expect(catCow.sides == .once)
         #expect(catCow.howTo == nil)
-        #expect(evening.totalDuration == 165)
+        #expect(evening.totalDuration == 115)
 
         let tabata = library.workouts[2]
         #expect(tabata.name == "Tabata")
@@ -149,7 +150,7 @@ struct LibraryTests {
         library.save(try timer(work: 30))
         library.save(try routine([
             try stretch("Pigeon", try hold(45), .each, howTo: "https://youtu.be/lqCqETr7Q0g"),
-            try stretch("Cat-Cow", try reps(10, every: 5)),
+            try stretch("Cat-Cow", try reps(10)),
         ]))
 
         let file = try #require(try JSONSerialization.jsonObject(with: try library.json()) as? [String: Any])
@@ -168,7 +169,7 @@ struct LibraryTests {
         #expect(stretches[0]["amount"] as? [String: Int] == ["hold": 45])
         #expect(stretches[0]["sides"] as? String == "each")
         #expect(stretches[0]["howTo"] as? String == "https://youtu.be/lqCqETr7Q0g")
-        #expect(stretches[1]["amount"] as? [String: Int] == ["reps": 10, "every": 5])
+        #expect(stretches[1]["amount"] as? [String: Int] == ["reps": 10])
         #expect(stretches[1]["sides"] as? String == "once")
         #expect(stretches[1]["howTo"] == nil)
     }
@@ -230,6 +231,8 @@ struct LibraryTests {
         stretchJSON(name: String(repeating: "a", count: 40)),
         stretchJSON(howTo: "http://example.com/pigeon"),
         stretchJSON(howTo: "HTTPS://example.com/pigeon"),
+        stretchJSON(amount: #"{"reps": 99}"#, sides: "once"),
+        stretchJSON(amount: #"{"reps": 1}"#),
         stretchJSON(amount: #"{"reps": 99, "every": 1}"#, sides: "once"),
     ])
     func aValidStretchDecodes(_ stretch: String) throws {
@@ -249,9 +252,10 @@ struct LibraryTests {
         routineJSON(stretches: stretchJSON(howTo: "youtu.be/lqCqETr7Q0g")),
         routineJSON(stretches: stretchJSON(howTo: "")),
         routineJSON(stretches: stretchJSON(amount: #"{"hold": 0}"#)),
+        routineJSON(stretches: stretchJSON(amount: #"{"reps": 0}"#)),
+        routineJSON(stretches: stretchJSON(amount: #"{"reps": 100}"#)),
         routineJSON(stretches: stretchJSON(amount: #"{"reps": 0, "every": 5}"#)),
-        routineJSON(stretches: stretchJSON(amount: #"{"reps": 100, "every": 5}"#)),
-        routineJSON(stretches: stretchJSON(amount: #"{"reps": 10}"#)),
+        routineJSON(stretches: stretchJSON(amount: #"{"every": 5}"#)),
         routineJSON(stretches: stretchJSON(amount: #"{"reps": 10, "every": 5, "hold": 45}"#)),
         routineJSON(stretches: stretchJSON(amount: "{}")),
         routineJSON(stretches: stretchJSON(amount: "45")),
@@ -261,6 +265,19 @@ struct LibraryTests {
         #expect(throws: DecodingError.self) {
             try Library(json: libraryJSON(workouts: workout))
         }
+    }
+
+    @Test func aRepAmountFromVersionOnePointOneIsSavedAgainAsABareCount() throws {
+        let old = try Library(json: libraryJSON(workouts: routineJSON(
+            stretches: stretchJSON(amount: #"{"reps": 10, "every": 5}"#, sides: "once"))))
+        #expect(old.workouts.first?.totalDuration == 10)
+
+        let file = try #require(try JSONSerialization.jsonObject(with: try old.json()) as? [String: Any])
+        let workouts = try #require(file["workouts"] as? [[String: Any]])
+        let routine = try #require(workouts.first?["routine"] as? [String: Any])
+        let stretches = try #require(routine["stretches"] as? [[String: Any]])
+        #expect(stretches.first?["amount"] as? [String: Int] == ["reps": 10])
+        #expect(try Library(json: try old.json()) == old)
     }
 
     @Test func ninetyNineStretchesDecode() throws {
@@ -343,7 +360,7 @@ struct LibraryTests {
         #expect(!Workout.builtIn.map(\.id).contains(fork.id))
         #expect(fork.name == "My stretches")
         #expect(fork.plan == Workout.dailyStretch.plan)
-        #expect(fork.totalDuration == 645)
+        #expect(fork.totalDuration == 595)
         #expect(library.workouts == [fork])
 
         let second = library.save(.dailyStretch)

@@ -129,14 +129,26 @@ final class DescribeFlowUITests: XCTestCase {
         key.tap()
         key.typeText("sk-test-key")
         app.buttons["saveKeyButton"].tap()
-        waitFor(status, toRead: "Using your API key")
         XCTAssertTrue(app.buttons["removeKeyButton"].waitForExistence(timeout: Self.patience))
         XCTAssertFalse(key.exists, "a saved key is never shown again")
+        scrollBack(app, to: status)
+        waitFor(status, toRead: "Using your API key")
         snap(app, "73b-settings-api-key")
 
         app.buttons["removeKeyButton"].tap()
-        waitFor(status, toRead: "Build workouts with ChatGPT")
         XCTAssertTrue(key.waitForExistence(timeout: Self.patience))
+        scrollBack(app, to: status)
+        waitFor(status, toRead: "Build workouts with ChatGPT")
+    }
+
+    /// Settings is a lazy list. On a small screen, typing the key scrolls the account row out of it,
+    /// and a row that is off the screen is not there to be read.
+    private func scrollBack(_ app: XCUIApplication, to element: XCUIElement) {
+        let window = app.windows.firstMatch
+        for _ in 0..<8 where !element.exists {
+            window.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.25))
+                .press(forDuration: 0.05, thenDragTo: window.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)))
+        }
     }
 
     /// The whole sign-in on the simulator: the system sheet opens a page, the page sends the browser to

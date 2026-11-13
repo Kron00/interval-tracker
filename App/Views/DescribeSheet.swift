@@ -298,6 +298,10 @@ private struct AccountLine: View {
             Label(text, systemImage: symbol)
                 .font(.footnote.weight(.semibold))
                 .foregroundStyle(chatGPT.canPay ? Tone.stretch.tint : Color.secondary)
+                // One element that reads as the text. Left as two, the symbol is announced by its
+                // own name, such as "Verified".
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel(text)
                 .accessibilityIdentifier("accountLine")
             if let problem = chatGPT.signInProblem {
                 Text(problem)

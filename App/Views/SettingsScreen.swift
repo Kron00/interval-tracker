@@ -5,11 +5,15 @@ import UIKit
 struct SettingsScreen: View {
     let store: LibraryStore
     let log: AudioLog
+    /// nil while the Live Activity works.
+    let liveActivityProblem: String?
     let startAudioCheck: () -> Void
     let close: () -> Void
 
-    /// The check describes a 3-second countdown and a spoken "Round one", so it never follows the saved cue settings.
-    static let audioCheckCues = CuePreferences(countdown: .three, voice: true)
+    /// The check describes a spoken "Get ready", a 3-second countdown and a spoken "Round one", so it
+    /// never follows the saved cue settings. Its warm-up is 30 seconds, which is long enough for 10
+    /// seconds of notice and too short for 30.
+    static let audioCheckCues = CuePreferences(countdown: .three, voice: true, headsUp: .ten)
 
     @AppStorage(SettingsKey.keepScreenOn) private var keepScreenOn = true
     @AppStorage(SettingsKey.duckingStrategy) private var strategy = DuckingStrategy.toggleOption
@@ -18,7 +22,7 @@ struct SettingsScreen: View {
     var body: some View {
         NavigationStack {
             Form {
-                Section("Cues") {
+                Section {
                     Picker("Countdown", selection: cue(\.countdown)) {
                         ForEach(Countdown.allCases, id: \.self) { countdown in
                             Text(countdown.label).tag(countdown)
@@ -26,6 +30,24 @@ struct SettingsScreen: View {
                     }
                     .pickerStyle(.menu)
                     Toggle("Voice cues", isOn: cue(\.voice))
+                    Picker("Get ready before work", selection: cue(\.headsUp)) {
+                        ForEach(HeadsUp.allCases, id: \.self) { headsUp in
+                            Text(headsUp.label).tag(headsUp)
+                        }
+                    }
+                    .pickerStyle(.menu)
+                } header: {
+                    Text("Cues")
+                } footer: {
+                    Text("In an interval timer, the voice says \"Get ready\" this long before a warm-up or a rest ends and work begins. A phase gets no notice if it is less than 15 seconds longer than this.")
+                }
+
+                Section {
+                    LabeledContent("Live Activity", value: liveActivityProblem == nil ? "On" : "Off")
+                } header: {
+                    Text("Lock screen and Dynamic Island")
+                } footer: {
+                    Text(liveActivityProblem ?? "A workout shows on the lock screen and in the Dynamic Island, with the time left and what is up next, while you use other apps. It lights up when the voice says \"Get ready\".")
                 }
 
                 Section {
@@ -43,12 +65,13 @@ struct SettingsScreen: View {
 
                 Section {
                     Text("Start your music, run the check, then lock the phone.")
-                    Label("At 0:27 you hear three beeps, a tone and \"Round one\". Silence means the app was suspended while locked.", systemImage: "1.circle")
+                    Label("The lock screen shows \"Warm-up\" with a countdown. At 0:20 you hear \"Get ready. Ten seconds.\" and the lock screen lights up.", systemImage: "1.circle")
+                    Label("At 0:27 you hear three beeps, a tone and \"Round one\". Silence means the app was suspended while locked.", systemImage: "2.circle")
                     if headphoneControls {
-                        Label("The music stops when the check starts, because Headphone controls is on.", systemImage: "2.circle")
+                        Label("The music stops when the check starts, because Headphone controls is on.", systemImage: "3.circle")
                     } else {
-                        Label(strategy.checkExpectation, systemImage: "2.circle")
-                        Label("After \"Workout complete\" at 1:02 the music plays at full volume.", systemImage: "3.circle")
+                        Label(strategy.checkExpectation, systemImage: "3.circle")
+                        Label("After \"Workout complete\" at 1:02 the music plays at full volume.", systemImage: "4.circle")
                     }
                     Button("Run 1-minute audio check", action: startAudioCheck)
                         .fontWeight(.semibold)
@@ -56,7 +79,7 @@ struct SettingsScreen: View {
                 } header: {
                     Text("Audio check")
                 } footer: {
-                    Text("The check always uses a 3-second countdown and voice cues, whatever is set above.")
+                    Text("The check always uses 10 seconds of notice, a 3-second countdown and voice cues, whatever is set above.")
                 }
 
                 Section {
@@ -140,6 +163,16 @@ private struct TroubleshootingScreen: View {
         }
         .navigationTitle("Troubleshooting")
         .navigationBarTitleDisplayMode(.inline)
+    }
+}
+
+private extension HeadsUp {
+    var label: String {
+        switch self {
+        case .off: "Off"
+        case .ten: "10 s"
+        case .thirty: "30 s"
+        }
     }
 }
 

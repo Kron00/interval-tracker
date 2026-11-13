@@ -99,7 +99,8 @@ public struct Session: Equatable, Sendable {
             segment: current.id, phase: current.phase,
             phaseElapsed: elapsed - current.start, phaseRemaining: current.end - elapsed, phaseDuration: current.duration,
             elapsed: elapsed, totalRemaining: timeline.total - elapsed, totalDuration: timeline.total,
-            upNext: timeline.upNext(after: current.id)?.span, isPaused: isPaused, isWaiting: place.isWaiting))
+            upNext: timeline.upNext(after: current.id)?.span, isPaused: isPaused, isWaiting: place.isWaiting,
+            isHeadsUp: timeline.headsUp(in: current, cues.headsUp).map { elapsed >= $0 } ?? false))
     }
 
     /// The instant elapsed time was zero, or nil while paused. Every figure a snapshot reports changes
@@ -115,6 +116,14 @@ public struct Session: Equatable, Sendable {
     /// No figure a snapshot reports changes after it, so a screen has nothing to redraw from then on.
     public var haltDate: Date? {
         zeroDate.map { $0 + timeline.limit(after: released) }
+    }
+
+    /// The instant the phase in progress at `now` runs out by itself. nil when no clock is counting,
+    /// which is while the run is paused or waiting, and once it has finished. It is the same date for
+    /// the whole phase, so a countdown drawn from it needs no update until the phase changes.
+    public func phaseEnd(at now: Date) -> Date? {
+        guard let zeroDate, case .inside(let current) = timeline.place(at: elapsed(at: now), released: released) else { return nil }
+        return zeroDate + current.end
     }
 
     /// Every cue up to the next gate, or up to the finish, at its wall-clock time. nil while paused.
@@ -182,6 +191,12 @@ public struct RunProgress: Equatable, Sendable {
     public let isPaused: Bool
     /// The phase has no length, and the run stays in it until `RunCommand.next` or a skip.
     public let isWaiting: Bool
+    /// Work begins when this phase ends, and it is time to say so. True from the heads-up instant to
+    /// the end of the phase, and never in a phase that gets no heads-up.
+    public let isHeadsUp: Bool
+
+    /// The line under the title.
+    public var caption: String? { isHeadsUp ? "Get ready" : phase.caption }
 
     /// The rep count of a stretch counted in reps, nil for every other phase.
     public var reps: Count? { phase.reps }

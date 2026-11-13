@@ -187,15 +187,18 @@ func spoken(_ schedule: CueSchedule) -> [String] {
     }
 }
 
-func schedule(_ workout: Workout = .norwegian4x4,
-              countdown: Countdown = .three, voice: Bool = true) throws -> CueSchedule {
-    try #require(session(workout, cues: CuePreferences(countdown: countdown, voice: voice)).cueSchedule)
+/// The heads-up is off unless a test asks for it, so a test of a phase change reads only the cues
+/// of that change.
+func schedule(_ workout: Workout = .norwegian4x4, countdown: Countdown = .three, voice: Bool = true,
+              headsUp: HeadsUp = .off) throws -> CueSchedule {
+    try #require(session(workout, cues: CuePreferences(countdown: countdown, voice: voice, headsUp: headsUp)).cueSchedule)
 }
 
 /// The schedule of each leg of a run in which Start or Next is pressed the instant every wait begins.
 /// Pressed then, a leg starts where the one before it stopped, so every cue reads on the workout's own clock.
-func legs(_ workout: Workout, countdown: Countdown = .three, voice: Bool = true) throws -> [CueSchedule] {
-    var run = session(workout, cues: CuePreferences(countdown: countdown, voice: voice))
+func legs(_ workout: Workout, countdown: Countdown = .three, voice: Bool = true,
+          headsUp: HeadsUp = .off) throws -> [CueSchedule] {
+    var run = session(workout, cues: CuePreferences(countdown: countdown, voice: voice, headsUp: headsUp))
     var legs: [CueSchedule] = []
     for _ in 0..<1000 {
         legs.append(try #require(run.cueSchedule))

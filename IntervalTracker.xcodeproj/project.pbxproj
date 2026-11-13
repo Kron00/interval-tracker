@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		0250B18C9E6DFEE40830C182 /* HeadsUpSilence.wav in Resources */ = {isa = PBXBuildFile; fileRef = 46011024D987AED32EC6E4FB /* HeadsUpSilence.wav */; };
 		0E1E136B2A384BA853D92531 /* RunModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7B8150F690D288A77119B24D /* RunModel.swift */; };
 		149274F838B066544D1E5414 /* SoundBank.swift in Sources */ = {isa = PBXBuildFile; fileRef = 168E2EE34B8116BC26F443B5 /* SoundBank.swift */; };
 		19B9E7CB7BAAD9A4AD7DB66B /* IntervalTrackerApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 669DF9039B157EE7974A983B /* IntervalTrackerApp.swift */; };
@@ -17,6 +18,7 @@
 		42673E6F6ECC603645EE0B71 /* CuePlayer.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB0AEDE3457A6104C3C5258A /* CuePlayer.swift */; };
 		4769A9C3A0B8E2A978F7F760 /* HeadphoneRemote.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5CBE4144F81F89060C1019D7 /* HeadphoneRemote.swift */; };
 		4AED919D8E560DBEF48A74FF /* RoutineEditor.swift in Sources */ = {isa = PBXBuildFile; fileRef = A01C98A3F91C86ED66C0D572 /* RoutineEditor.swift */; };
+		4DAA9AFDE5D1219B6C6D9A34 /* RunLiveActivity.swift in Sources */ = {isa = PBXBuildFile; fileRef = B5B858A9F3CF15A42791805B /* RunLiveActivity.swift */; };
 		4E1EBB983C3FEB1DA63D0774 /* IntervalCore in Frameworks */ = {isa = PBXBuildFile; productRef = E79D50150352491D4A2ACE3A /* IntervalCore */; };
 		5DC64F5291516E01F3DB80A8 /* RunModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6816BDD7F258B7B7991FEE07 /* RunModelTests.swift */; };
 		6FA38A6312167E02B9007763 /* LibraryScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF6599F4E1C29BAA5A822900 /* LibraryScreen.swift */; };
@@ -25,7 +27,12 @@
 		8B7633F6529F652307321B05 /* LibraryStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 443CA32D43F94C087A951A1D /* LibraryStore.swift */; };
 		BEFF4E550D75B1070B67FCB5 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 0C603108A538A703403A3B48 /* Assets.xcassets */; };
 		D017DE89FF68837C075BE9E4 /* RunFlowUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 940EFE8E9FC571E61CC14BFA /* RunFlowUITests.swift */; };
+		D31891F174AC9FE5846430B8 /* IntervalTrackerWidgets.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = BF67D16736167EEBCBA2E6AD /* IntervalTrackerWidgets.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		D3BFBE37DA4A214C23734C45 /* LiveActivityTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 368156069384D75A39F8546A /* LiveActivityTests.swift */; };
 		DEB6F73EE4C142910EB7DAF8 /* SoundBankTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B564074ECDB7B22BE0C9414B /* SoundBankTests.swift */; };
+		E5BD96BBA9E409C937084AAC /* RunActivity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 993DC94E88C132196A5008FF /* RunActivity.swift */; };
+		E72852EF0100E8E56581C873 /* LiveActivityController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 90E7D7E720F91E98CAAF68D1 /* LiveActivityController.swift */; };
+		E88A6E0439D7CE18392E56C4 /* RunActivity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 993DC94E88C132196A5008FF /* RunActivity.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -36,6 +43,13 @@
 			remoteGlobalIDString = AB763853FD1ADDB5E894CB7D;
 			remoteInfo = IntervalTracker;
 		};
+		9AC4A4934F4BA06398252B15 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 30B602D0ADD3897BA47C1E66 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 45212D39C6D86618DAAC5DEB;
+			remoteInfo = IntervalTrackerWidgets;
+		};
 		C46273612914AE6F7DCCE656 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = 30B602D0ADD3897BA47C1E66 /* Project object */;
@@ -45,25 +59,46 @@
 		};
 /* End PBXContainerItemProxy section */
 
+/* Begin PBXCopyFilesBuildPhase section */
+		574BC1B6A46778C528ED40C4 /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				D31891F174AC9FE5846430B8 /* IntervalTrackerWidgets.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
 /* Begin PBXFileReference section */
 		0C603108A538A703403A3B48 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		168E2EE34B8116BC26F443B5 /* SoundBank.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SoundBank.swift; sourceTree = "<group>"; };
 		1C9A13FC151397ABA0FC2846 /* IntervalTrackerUITests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = IntervalTrackerUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		1CC9D8D9B04692B18CFE2CB6 /* IntervalTracker.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = IntervalTracker.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		368156069384D75A39F8546A /* LiveActivityTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveActivityTests.swift; sourceTree = "<group>"; };
 		37A0E52AAC7DCFA9945D0ABD /* EditorScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditorScreen.swift; sourceTree = "<group>"; };
 		3FB42CB10B3A825E97F8DCEC /* RunScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RunScreen.swift; sourceTree = "<group>"; };
 		443CA32D43F94C087A951A1D /* LibraryStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryStore.swift; sourceTree = "<group>"; };
 		45ABF9DB89E5EFD5669F0BCC /* IntervalTrackerTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = IntervalTrackerTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		46011024D987AED32EC6E4FB /* HeadsUpSilence.wav */ = {isa = PBXFileReference; lastKnownFileType = audio.wav; path = HeadsUpSilence.wav; sourceTree = "<group>"; };
 		491B8024DCB83D1ACD9C704E /* CuePlayerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CuePlayerTests.swift; sourceTree = "<group>"; };
 		5328460832F6C81D5B1FEDD1 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		5CBE4144F81F89060C1019D7 /* HeadphoneRemote.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HeadphoneRemote.swift; sourceTree = "<group>"; };
 		669DF9039B157EE7974A983B /* IntervalTrackerApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IntervalTrackerApp.swift; sourceTree = "<group>"; };
 		6816BDD7F258B7B7991FEE07 /* RunModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RunModelTests.swift; sourceTree = "<group>"; };
+		76B12BE2CB1585FCD50F2282 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		7B8150F690D288A77119B24D /* RunModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RunModel.swift; sourceTree = "<group>"; };
+		90E7D7E720F91E98CAAF68D1 /* LiveActivityController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveActivityController.swift; sourceTree = "<group>"; };
 		940EFE8E9FC571E61CC14BFA /* RunFlowUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RunFlowUITests.swift; sourceTree = "<group>"; };
+		993DC94E88C132196A5008FF /* RunActivity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RunActivity.swift; sourceTree = "<group>"; };
 		A01C98A3F91C86ED66C0D572 /* RoutineEditor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RoutineEditor.swift; sourceTree = "<group>"; };
 		A3D1772091FDA9F49DA82650 /* AudioLog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioLog.swift; sourceTree = "<group>"; };
 		B564074ECDB7B22BE0C9414B /* SoundBankTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SoundBankTests.swift; sourceTree = "<group>"; };
+		B5B858A9F3CF15A42791805B /* RunLiveActivity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RunLiveActivity.swift; sourceTree = "<group>"; };
+		BF67D16736167EEBCBA2E6AD /* IntervalTrackerWidgets.appex */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = "wrapper.app-extension"; path = IntervalTrackerWidgets.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		D5517CEAEFB56C608BB5EB7D /* Theme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Theme.swift; sourceTree = "<group>"; };
 		DEC5A26246D7BA4D9FD1C24A /* IntervalCore */ = {isa = PBXFileReference; lastKnownFileType = folder; name = IntervalCore; path = IntervalCore; sourceTree = SOURCE_ROOT; };
 		E51795C1EF2894ED689E5554 /* SettingsScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsScreen.swift; sourceTree = "<group>"; };
@@ -90,6 +125,7 @@
 				5328460832F6C81D5B1FEDD1 /* Info.plist */,
 				669DF9039B157EE7974A983B /* IntervalTrackerApp.swift */,
 				443CA32D43F94C087A951A1D /* LibraryStore.swift */,
+				90E7D7E720F91E98CAAF68D1 /* LiveActivityController.swift */,
 				7B8150F690D288A77119B24D /* RunModel.swift */,
 				7A3EFFFAE8BDA5B2B6B53C18 /* Audio */,
 				4A8C1FB51AECE9775FEF6E6E /* Views */,
@@ -103,6 +139,7 @@
 				1CC9D8D9B04692B18CFE2CB6 /* IntervalTracker.app */,
 				45ABF9DB89E5EFD5669F0BCC /* IntervalTrackerTests.xctest */,
 				1C9A13FC151397ABA0FC2846 /* IntervalTrackerUITests.xctest */,
+				BF67D16736167EEBCBA2E6AD /* IntervalTrackerWidgets.appex */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -128,6 +165,14 @@
 			name = Packages;
 			sourceTree = "<group>";
 		};
+		5A9B64DFC41F496D438883A0 /* Shared */ = {
+			isa = PBXGroup;
+			children = (
+				993DC94E88C132196A5008FF /* RunActivity.swift */,
+			);
+			path = Shared;
+			sourceTree = "<group>";
+		};
 		6C82C2C79C5A7B576EAC3117 = {
 			isa = PBXGroup;
 			children = (
@@ -135,6 +180,8 @@
 				E164EF4B990F2D334613C1BD /* AppTests */,
 				F2FDAD69238F9E50CA7EFE85 /* AppUITests */,
 				4DB928B4881CDB341640F25E /* Packages */,
+				5A9B64DFC41F496D438883A0 /* Shared */,
+				B2AD6581A999DED736E227A6 /* Widgets */,
 				16AB4D898FD6C6CE7EE162B8 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -145,15 +192,26 @@
 				A3D1772091FDA9F49DA82650 /* AudioLog.swift */,
 				FB0AEDE3457A6104C3C5258A /* CuePlayer.swift */,
 				5CBE4144F81F89060C1019D7 /* HeadphoneRemote.swift */,
+				46011024D987AED32EC6E4FB /* HeadsUpSilence.wav */,
 				168E2EE34B8116BC26F443B5 /* SoundBank.swift */,
 			);
 			path = Audio;
+			sourceTree = "<group>";
+		};
+		B2AD6581A999DED736E227A6 /* Widgets */ = {
+			isa = PBXGroup;
+			children = (
+				76B12BE2CB1585FCD50F2282 /* Info.plist */,
+				B5B858A9F3CF15A42791805B /* RunLiveActivity.swift */,
+			);
+			path = Widgets;
 			sourceTree = "<group>";
 		};
 		E164EF4B990F2D334613C1BD /* AppTests */ = {
 			isa = PBXGroup;
 			children = (
 				491B8024DCB83D1ACD9C704E /* CuePlayerTests.swift */,
+				368156069384D75A39F8546A /* LiveActivityTests.swift */,
 				6816BDD7F258B7B7991FEE07 /* RunModelTests.swift */,
 				B564074ECDB7B22BE0C9414B /* SoundBankTests.swift */,
 			);
@@ -189,6 +247,23 @@
 			productReference = 1C9A13FC151397ABA0FC2846 /* IntervalTrackerUITests.xctest */;
 			productType = "com.apple.product-type.bundle.ui-testing";
 		};
+		45212D39C6D86618DAAC5DEB /* IntervalTrackerWidgets */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 2087DF84318BC6A0E40B7D5E /* Build configuration list for PBXNativeTarget "IntervalTrackerWidgets" */;
+			buildPhases = (
+				1837BEA14BA6CC0C25579FFE /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = IntervalTrackerWidgets;
+			packageProductDependencies = (
+			);
+			productName = IntervalTrackerWidgets;
+			productReference = BF67D16736167EEBCBA2E6AD /* IntervalTrackerWidgets.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
 		8BD19B0A3C6A119C622A916F /* IntervalTrackerTests */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = 736F0306B4A9A1E5F4E50A92 /* Build configuration list for PBXNativeTarget "IntervalTrackerTests" */;
@@ -214,10 +289,12 @@
 				D3E88555AB6DD336987415E4 /* Sources */,
 				853869DDFEA75BC464178CD7 /* Resources */,
 				474887BE6D5C7F7DDF54E604 /* Frameworks */,
+				574BC1B6A46778C528ED40C4 /* Embed Foundation Extensions */,
 			);
 			buildRules = (
 			);
 			dependencies = (
+				4F2B2DC4BC575C87040A63E8 /* PBXTargetDependency */,
 			);
 			name = IntervalTracker;
 			packageProductDependencies = (
@@ -240,6 +317,10 @@
 						DevelopmentTeam = "";
 						ProvisioningStyle = Automatic;
 						TestTargetID = AB763853FD1ADDB5E894CB7D;
+					};
+					45212D39C6D86618DAAC5DEB = {
+						DevelopmentTeam = "";
+						ProvisioningStyle = Automatic;
 					};
 					8BD19B0A3C6A119C622A916F = {
 						DevelopmentTeam = "";
@@ -269,6 +350,7 @@
 			projectRoot = "";
 			targets = (
 				AB763853FD1ADDB5E894CB7D /* IntervalTracker */,
+				45212D39C6D86618DAAC5DEB /* IntervalTrackerWidgets */,
 				8BD19B0A3C6A119C622A916F /* IntervalTrackerTests */,
 				0A5D467742A58C60B397FB1F /* IntervalTrackerUITests */,
 			);
@@ -281,17 +363,28 @@
 			buildActionMask = 2147483647;
 			files = (
 				BEFF4E550D75B1070B67FCB5 /* Assets.xcassets in Resources */,
+				0250B18C9E6DFEE40830C182 /* HeadsUpSilence.wav in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
+		1837BEA14BA6CC0C25579FFE /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				E88A6E0439D7CE18392E56C4 /* RunActivity.swift in Sources */,
+				4DAA9AFDE5D1219B6C6D9A34 /* RunLiveActivity.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		1C58FE68B7CF929CDB3B3F26 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
 				1B28FD2E5BA4C13600F5E750 /* CuePlayerTests.swift in Sources */,
+				D3BFBE37DA4A214C23734C45 /* LiveActivityTests.swift in Sources */,
 				5DC64F5291516E01F3DB80A8 /* RunModelTests.swift in Sources */,
 				DEB6F73EE4C142910EB7DAF8 /* SoundBankTests.swift in Sources */,
 			);
@@ -308,7 +401,9 @@
 				19B9E7CB7BAAD9A4AD7DB66B /* IntervalTrackerApp.swift in Sources */,
 				6FA38A6312167E02B9007763 /* LibraryScreen.swift in Sources */,
 				8B7633F6529F652307321B05 /* LibraryStore.swift in Sources */,
+				E72852EF0100E8E56581C873 /* LiveActivityController.swift in Sources */,
 				4AED919D8E560DBEF48A74FF /* RoutineEditor.swift in Sources */,
+				E5BD96BBA9E409C937084AAC /* RunActivity.swift in Sources */,
 				0E1E136B2A384BA853D92531 /* RunModel.swift in Sources */,
 				2D6BA75FB9BE9EC6A805450F /* RunScreen.swift in Sources */,
 				3E7F2C5A2B9FC4E27BFDA527 /* SettingsScreen.swift in Sources */,
@@ -328,6 +423,11 @@
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
+		4F2B2DC4BC575C87040A63E8 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 45212D39C6D86618DAAC5DEB /* IntervalTrackerWidgets */;
+			targetProxy = 9AC4A4934F4BA06398252B15 /* PBXContainerItemProxy */;
+		};
 		967A2DC48F8D1484D6ACA722 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
 			target = AB763853FD1ADDB5E894CB7D /* IntervalTracker */;
@@ -389,6 +489,21 @@
 				SDKROOT = iphoneos;
 				TARGETED_DEVICE_FAMILY = "1,2";
 				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/IntervalTracker.app/IntervalTracker";
+			};
+			name = Release;
+		};
+		5891105EFC14BF317D871862 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				INFOPLIST_FILE = Widgets/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.kron00.IntervalTracker.Widgets;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = 1;
 			};
 			name = Release;
 		};
@@ -486,6 +601,21 @@
 			};
 			name = Debug;
 		};
+		8702312B9883A30489BEA1D0 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				INFOPLIST_FILE = Widgets/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.kron00.IntervalTracker.Widgets;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Debug;
+		};
 		DA9EC4DD0AE6B1B536753019 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -573,6 +703,15 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
+		2087DF84318BC6A0E40B7D5E /* Build configuration list for PBXNativeTarget "IntervalTrackerWidgets" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				8702312B9883A30489BEA1D0 /* Debug */,
+				5891105EFC14BF317D871862 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
 		3A33233AA594834EF09274BF /* Build configuration list for PBXProject "IntervalTracker" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (

@@ -80,8 +80,3 @@ final class HeadphoneRemote {
         let isWaiting: Bool
     }
 }
-
-private extension RunProgress {
-    /// What a waiting run waits on: a rep count, or the length of the hold that Start begins.
-    var awaited: String? { reps?.repsText ?? phase.pendingHold.map(ClockText.remaining) }
-}

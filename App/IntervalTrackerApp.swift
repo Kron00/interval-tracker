@@ -12,7 +12,8 @@ struct IntervalTrackerApp: App {
         _log = State(initialValue: log)
         _store = State(initialValue: LibraryStore(fileURL: Self.libraryURL()))
         _run = State(initialValue: RunModel(
-            player: CuePlayer(bank: SoundBank(log: log), log: log), remote: HeadphoneRemote(log: log)))
+            player: CuePlayer(bank: SoundBank(log: log), log: log), remote: HeadphoneRemote(log: log),
+            liveActivity: LiveActivityController(log: log)))
     }
 
     var body: some Scene {

@@ -155,6 +155,7 @@ struct CueScheduleTests {
             try timer(work: 1, rest: 1, rounds: 5),
             try timer(warmUp: 3, work: 4, rest: 4, rounds: 3, coolDown: 2),
             try timer(work: 7, rest: 5, rounds: 4, restAfterLastRound: false),
+            try timer(warmUp: 25, work: 5, rest: 45, rounds: 3),
             try routine([
                 try stretch("Neck Rolls", try reps(4), .each),
                 try stretch("Calf", try hold(1), .each),
@@ -166,16 +167,18 @@ struct CueScheduleTests {
         for workout in workouts {
             for countdown in Countdown.allCases {
                 for voice in [true, false] {
-                    for plan in try legs(workout, countdown: countdown, voice: voice) {
-                        for (earlier, later) in zip(plan.windows, plan.windows.dropFirst()) {
-                            #expect(ms(later.start) - ms(earlier.end) >= 1500)
-                        }
-                        for window in plan.windows {
-                            #expect(!window.sounds.isEmpty)
-                            #expect(window.sounds.map(\.at) == window.sounds.map(\.at).sorted())
-                            for timed in window.sounds {
-                                #expect(timed.at >= window.start)
-                                #expect(ms(timed.at + timed.sound.slot) + 200 <= ms(window.end))
+                    for headsUp in HeadsUp.allCases {
+                        for plan in try legs(workout, countdown: countdown, voice: voice, headsUp: headsUp) {
+                            for (earlier, later) in zip(plan.windows, plan.windows.dropFirst()) {
+                                #expect(ms(later.start) - ms(earlier.end) >= 1500)
+                            }
+                            for window in plan.windows {
+                                #expect(!window.sounds.isEmpty)
+                                #expect(window.sounds.map(\.at) == window.sounds.map(\.at).sorted())
+                                for timed in window.sounds {
+                                    #expect(timed.at >= window.start)
+                                    #expect(ms(timed.at + timed.sound.slot) + 200 <= ms(window.end))
+                                }
                             }
                         }
                     }
@@ -301,7 +304,7 @@ struct CueProjectionTests {
     }
 
     @Test func resumingShiftsThePlanByThePausedTime() throws {
-        var run = session()
+        var run = session(cues: CuePreferences(headsUp: .off))
         run.pause(at: t0 + 100)
         run.resume(at: t0 + 1000)
 

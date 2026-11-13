@@ -21,11 +21,15 @@ final class RunModel {
     @ObservationIgnored private var interrupted: Session?
     @ObservationIgnored private let player: CuePlayer
     @ObservationIgnored private let remote: HeadphoneRemote
+    @ObservationIgnored private let liveActivity: LiveActivityController
     @ObservationIgnored private var ticker: Timer?
 
-    init(player: CuePlayer, remote: HeadphoneRemote) {
+    var liveActivityProblem: String? { liveActivity.problem }
+
+    init(player: CuePlayer, remote: HeadphoneRemote, liveActivity: LiveActivityController) {
         self.player = player
         self.remote = remote
+        self.liveActivity = liveActivity
         remote.onCommand = { [weak self] in self?.handle($0) }
         player.onInterrupted = { [weak self] in self?.interruptionBegan() }
         player.onInterruptionEnded = { [weak self] in self?.interruptionEnded() }
@@ -114,6 +118,7 @@ final class RunModel {
         player.sharing = headphoneControls ? .exclusive : .mixing(strategy)
         player.reconcile(CueDemand(for: session, playing: schedule, at: now), at: now)
         remote.reconcile(headphoneControls ? session : nil, at: now)
+        liveActivity.reconcile(session, at: now)
 
         let keepScreenOn = defaults.object(forKey: SettingsKey.keepScreenOn) as? Bool ?? true
         let isActive = if case .active = session?.snapshot(at: now) { true } else { false }

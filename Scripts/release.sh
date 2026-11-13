@@ -29,8 +29,12 @@ xcodebuild build -project "$SRC/IntervalTracker.xcodeproj" -scheme IntervalTrack
 OUT=build/release
 rm -rf "$OUT" && mkdir -p "$OUT/Payload"
 cp -R build/release-derived/Build/Products/Release-iphoneos/IntervalTracker.app "$OUT/Payload/"
-BUILT=$(plutil -extract CFBundleShortVersionString raw "$OUT/Payload/IntervalTracker.app/Info.plist")
-[ "$BUILT" = "$VERSION" ] || { echo "The .ipa says version $BUILT, expected $VERSION." >&2; exit 1; }
+# iOS refuses to install an app whose extension carries a different version from the app.
+APP="$OUT/Payload/IntervalTracker.app"
+for PLIST in "$APP/Info.plist" "$APP/PlugIns/IntervalTrackerWidgets.appex/Info.plist"; do
+  BUILT="$(plutil -extract CFBundleShortVersionString raw "$PLIST") ($(plutil -extract CFBundleVersion raw "$PLIST"))"
+  [ "$BUILT" = "$VERSION ($BUILD)" ] || { echo "$PLIST says version $BUILT, expected $VERSION ($BUILD)." >&2; exit 1; }
+done
 (cd "$OUT" && zip -qry Intervals.ipa Payload)
 
 gh release create "$TAG" "$OUT/Intervals.ipa" --repo "$REPO" --target "$SHA" --draft \

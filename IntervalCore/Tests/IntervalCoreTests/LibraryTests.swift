@@ -39,12 +39,12 @@ struct LibraryTests {
     @Test func aNewLibraryIsEmptyWithDefaultCues() {
         let library = Library()
         #expect(library.workouts.isEmpty)
-        #expect(library.cues == CuePreferences(countdown: .three, voice: true))
+        #expect(library.cues == CuePreferences(countdown: .three, voice: true, headsUp: .thirty))
     }
 
     @Test func roundTripsThroughJSON() throws {
         var library = Library()
-        library.cues = CuePreferences(countdown: .five, voice: false)
+        library.cues = CuePreferences(countdown: .five, voice: false, headsUp: .ten)
         library.save(try timer(warmUp: 600, work: 90, rest: 60, rounds: 8, coolDown: 300))
         library.save(try routine(countIn: 10, [
             try stretch("Cat-Cow", try reps(10)),
@@ -133,7 +133,8 @@ struct LibraryTests {
             """.utf8)
 
         let library = try Library(json: json)
-        #expect(library.cues == CuePreferences(countdown: .five, voice: false))
+        #expect(library.cues == CuePreferences(countdown: .five, voice: false, headsUp: .thirty),
+                "that version wrote no heads-up, so the file reads as the default")
         try #require(library.workouts.count == 3)
 
         let hills = library.workouts[0]
@@ -412,6 +413,24 @@ struct LibraryTests {
     func aWorkoutNeedsExactlyOnePlan(_ workout: String) {
         #expect(throws: DecodingError.self) {
             try Library(json: libraryJSON(workouts: workout))
+        }
+    }
+
+    @Test(arguments: [(0, HeadsUp.off), (10, .ten), (30, .thirty)])
+    func theHeadsUpIsSavedAsItsSeconds(seconds: Int, headsUp: HeadsUp) throws {
+        let json = Data(#"{"version": 2, "cues": {"countdown": 3, "voice": true, "headsUp": \#(seconds)}, "workouts": []}"#.utf8)
+        #expect(try Library(json: json).cues.headsUp == headsUp)
+
+        var library = Library()
+        library.cues.headsUp = headsUp
+        let file = try #require(try JSONSerialization.jsonObject(with: try library.json()) as? [String: Any])
+        let cues = try #require(file["cues"] as? [String: Any])
+        #expect(cues["headsUp"] as? Int == seconds)
+    }
+
+    @Test func anUnknownHeadsUpThrows() {
+        #expect(throws: (any Error).self) {
+            try Library(json: Data(#"{"version": 2, "cues": {"countdown": 3, "voice": true, "headsUp": 20}, "workouts": []}"#.utf8))
         }
     }
 

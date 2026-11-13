@@ -32,6 +32,8 @@ An interval timer moves from phase to phase by itself. A stretch routine waits f
 
 The app beeps, counts down, and speaks at each change. It keeps doing that with the screen locked, and it lowers your music for each cue without stopping it. Every screen is dark.
 
+While you use other apps, the lock screen and the Dynamic Island show the phase and the time left. Before a rest ends, the app tells you to get ready.
+
 Three presets are built in:
 
 | Preset | What it is | Total |
@@ -57,6 +59,7 @@ AltStore installs the app without Xcode and tells you when a new version is out.
 	```
 
 4. Open the **Intervals** source and install **Intervals**.
+5. If AltStore asks whether to keep the app's extensions, keep them. The extension draws the workout on the lock screen and in the Dynamic Island. Without it the app works and shows nothing there.
 
 The app is named **Intervals** on the home screen.
 
@@ -74,7 +77,7 @@ Use this path to run your own changes. You need a Mac with Xcode 27 or later, an
 	open interval-tracker/IntervalTracker.xcodeproj
 	```
 
-3. In the project navigator, click **IntervalTracker**, then the **IntervalTracker** target, then **Signing & Capabilities**. Set **Team** to your name. If Xcode says the bundle identifier is not available, change `com.kron00.IntervalTracker` to any identifier of your own.
+3. In the project navigator, click **IntervalTracker**, then the **IntervalTracker** target, then **Signing & Capabilities**. Set **Team** to your name. Do the same for the **IntervalTrackerWidgets** target. If Xcode says the bundle identifier is not available, change `com.kron00.IntervalTracker` to an identifier of your own in both targets. The identifier of **IntervalTrackerWidgets** must start with the identifier of the app.
 4. Connect the iPhone with the cable and unlock it. Tap **Trust** on the phone.
 5. On the iPhone, open **Settings**, then **Privacy & Security**, then **Developer Mode**. Turn it on and restart the phone when asked.
 6. In the Xcode toolbar, choose your iPhone as the run destination. Press Cmd-R.
@@ -84,7 +87,7 @@ With a free Apple Account the app stops opening after 7 days. Connect the phone 
 
 ## Check the audio on your phone
 
-Nobody has run this app on a real iPhone yet. The timer, the screens, and the sounds are tested in the simulator. Two behaviors exist only on a phone: whether the app stays awake while locked, and whether your music dips and comes back. The app has a 1-minute check for both.
+Nobody has run this app on a real iPhone yet. The timer, the screens, and the sounds are tested in the simulator. Three behaviors exist only on a phone: whether the app stays awake while locked, whether your music dips and comes back, and whether the lock screen lights up for the heads-up. The app has a 1-minute check for all three.
 
 1. Start your music.
 2. In Intervals, tap the gear, then **Run 1-minute audio check**.
@@ -92,6 +95,8 @@ Nobody has run this app on a real iPhone yet. The timer, the screens, and the so
 
 | You hear | It means |
 | --- | --- |
+| "Get ready. Ten seconds." at 0:20, and the locked screen lights up with a card that reads **Get ready** | The heads-up and the Live Activity work. |
+| "Get ready" is spoken and the screen stays dark | The Live Activity did not alert. In Intervals, open **Settings** and read the line under **Live Activity**. |
 | Three beeps, a tone, and "Round one" at 0:27 | The app stays awake while locked. |
 | Nothing after the first tone | iOS suspended the app. In Settings, open **Troubleshooting**, tap **Copy log**, and report it. |
 | The music dips for each cue and returns to full between cues | Ducking works. Change nothing. |
@@ -140,6 +145,59 @@ Hold and drag a stretch to move it. Swipe a stretch left to delete it.
 
 **Count-in after Start** is the time between **Start** and each hold. It is 3 seconds unless you change it. Choose **Off** to begin each hold the moment you tap **Start**. Reps have no count-in.
 
+## See the workout while you use other apps
+
+A rest is when you pick up the phone. So the workout stays in view after you leave the app.
+
+<p align="center">
+  <img src="docs/screenshots/52-heads-up.jpg" width="30%" alt="Lock screen card for a warm-up with 8 seconds left, with a Get ready badge">
+  <img src="docs/screenshots/52a-heads-up-dynamic-island.jpg" width="45%" alt="Dynamic Island opened by the heads-up, with the phase, the time left and what is up next">
+</p>
+
+- The lock screen shows a card in the colour of the phase, with the phase, the time left, and what is up next.
+- On an iPhone with a Dynamic Island, the island shows a ring and the time left. Touch and hold the island to see the whole card.
+
+iOS draws the countdown, so it keeps ticking while the app does nothing.
+
+| The workout | What the card shows |
+| --- | --- |
+| Counts down | The time left and a bar that fills |
+| Is paused | **Paused** and the time left |
+| Waits for **Start** | **Waiting for Start** and the length of the hold. Nothing counts until you tap **Start** in the app |
+| Waits for **Next** | **Waiting for Next** and the number of reps |
+| Has finished | **Workout complete** and the time you worked, for two minutes |
+
+In a stretch routine, the card follows each stretch through its wait, its count-in and its hold. During the count-in it reads "Get ready" beside the name of the workout.
+
+<p align="center">
+  <img src="docs/screenshots/56-waiting-for-start-lock-screen.jpg" width="30%" alt="Lock screen card for Child's Pose that shows 0:45 and Waiting for Start">
+</p>
+
+The card goes away when you end the workout or tap **Done**.
+
+The first time, iOS asks under the card whether to allow Live Activities from Intervals. Tap **Allow**, then **Always Allow**. If Live Activities are turned off for Intervals in the Settings app of the iPhone, the workout runs as before. **Settings** in Intervals then says that the Live Activity is off.
+
+### Get ready before work
+
+In an interval timer, the voice says "Get ready. Thirty seconds." 30 seconds before a warm-up or a rest ends and work begins. From then on the run screen and the card read **Get ready**. The card also alerts, which lights a locked screen and opens the Dynamic Island.
+
+In **Settings**, **Get ready before work** sets the notice to **Off**, **10 s**, or **30 s**.
+
+- A phase gets no notice if it is less than 15 seconds longer than the notice. With 30 seconds of notice, a rest of 0:45 gets one and a rest of 0:44 gets none.
+- A rest that the cool-down or the finish follows gets none.
+- A stretch routine gets none, because you start every stretch yourself. The count-in after **Start** is not a notice, and the card does not alert for it.
+- With **Voice cues** off, nothing is spoken. The screen and the card still change.
+
+### What is not proven about the Live Activity
+
+The simulator draws the lock screen and the Dynamic Island, and the UI tests check both. Three things need a real iPhone:
+
+- Whether the alert lights the screen of a locked phone.
+- Whether the card follows a whole workout on a locked phone. The app updates the card from the background, which works only while the audio keeps the app awake.
+- Whether AltStore installs the extension that draws the card.
+
+The audio check covers the first two. See [Check the audio on your phone](#check-the-audio-on-your-phone).
+
 ## Control a workout from your headphones
 
 Headphone controls are off until you turn them on. In **Settings**, turn on **Headphone controls**. The same switch is on the screen of every stretch routine, above **Start**.
@@ -150,7 +208,7 @@ Headphone controls are off until you turn them on. In **Settings**, turn on **He
 | Two presses | Skip the current phase. In a stretch routine this leaves the stretch, and the next one waits. While the routine waits, two presses are **Start** or **Next** |
 | Three presses | Restart the current phase. From a hold this goes back to the count-in. While a stretch routine waits, three presses do nothing |
 
-The lock screen shows the current phase with the same three controls. While a stretch routine waits, it reads "Waiting for Start" or "Waiting for Next".
+The lock screen shows the current phase as Now Playing, with the same three controls. While a stretch routine waits, it reads "Waiting for Start" or "Waiting for Next". This is separate from the card in [See the workout while you use other apps](#see-the-workout-while-you-use-other-apps), which shows with headphone controls on or off.
 
 iOS sends headphone presses only to an app that plays audio alone. So while headphone controls are on, music from other apps stops for the whole workout. With headphone controls off, your music keeps playing and dips for each cue.
 
@@ -162,7 +220,7 @@ While headphone controls are on, a phone call pauses the workout, and so does an
 
 ### What is not proven about headphone controls
 
-Nobody has pressed a headphone button with this app on a real iPhone. The simulator has no headphones and no lock screen. Three things are untested:
+Nobody has pressed a headphone button with this app on a real iPhone. The simulator has no headphones, and no test looks for Now Playing on its lock screen. Three things are untested:
 
 - Whether iOS shows the app on the lock screen when the app plays only silence between cues.
 - Whether a press reaches the app while the workout is paused or waits for **Start** or **Next**, and the phone is locked.
@@ -181,13 +239,15 @@ xcodebuild test -project IntervalTracker.xcodeproj -scheme IntervalTracker \
 	-destination 'platform=iOS Simulator,name=iPhone 16 Pro Max' CODE_SIGNING_ALLOWED=NO
 ```
 
-CI runs both on every push, plus a build for the device architecture. The UI tests attach a screenshot of each screen, and CI uploads the screenshots as the `test-results` artifact.
+CI runs both on every push, plus a build for the device architecture. The UI tests attach a screenshot of each screen, and CI uploads the screenshots as the `test-results` artifact. Three of the UI tests lock the simulator and read the Live Activity from the lock screen.
 
 ## Change the project
 
 `project.yml` is the source of the Xcode project. After you add or remove a file outside Xcode, run `xcodegen generate` and commit the result.
 
-[About the design](docs/design.md) explains how the timer keeps time, how the cues are scheduled, and how the two audio modes differ.
+The project has two products. `IntervalTracker` is the app. `IntervalTrackerWidgets` is the extension that draws the Live Activity, and the app carries it inside.
+
+[About the design](docs/design.md) explains how the timer keeps time, how the cues are scheduled, how the two audio modes differ, and how the workout gets onto the lock screen.
 
 ## Release a version
 

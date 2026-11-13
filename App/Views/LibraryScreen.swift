@@ -132,6 +132,7 @@ struct LibraryScreen: View {
             SettingsScreen(
                 store: store,
                 log: log,
+                liveActivityProblem: run.liveActivityProblem,
                 startAudioCheck: { start(.audioCheck, cues: SettingsScreen.audioCheckCues) },
                 close: { self.sheet = nil })
                 .task { run.prepare(.audioCheck, cues: SettingsScreen.audioCheckCues) }
@@ -407,6 +408,16 @@ extension Count {
 
 extension PhaseSpan {
     var lengthText: String { phase.reps?.repsText ?? ClockText.remaining(duration) }
+}
+
+extension RunProgress {
+    /// What a waiting run waits on: a rep count, or the length of the hold that Start begins.
+    var awaited: String? { reps?.repsText ?? phase.pendingHold.map(ClockText.remaining) }
+
+    /// What follows this phase, as "Work 4:00". "Finish" in the last phase.
+    var upNextText: String {
+        upNext.map { "\($0.phase.title(following: phase)) \($0.lengthText)" } ?? "Finish"
+    }
 }
 
 extension Workout {

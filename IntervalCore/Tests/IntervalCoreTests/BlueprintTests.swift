@@ -59,6 +59,13 @@ struct BlueprintTests {
         #expect(workout.totalDuration == 530, "5:00, then 8 × 0:20 with 7 rests of 0:10")
     }
 
+    /// The third example in Describe a workout. One work length and one rest length can say it.
+    @Test func aRunOfOneMinuteHardAndTwoEasyFillsItsThirtyMinutes() throws {
+        let workout = try built(intervalsJSON(
+            #""warmUpSeconds": null, "workSeconds": 60, "restSeconds": 120, "rounds": 10, "coolDownSeconds": null, "restAfterLastRound": true"#))
+        #expect(workout.totalDuration == 30 * 60, "ten rounds of 1:00 and 2:00")
+    }
+
     @Test func aRoutineAnswerBecomesAStretchRoutine() throws {
         let blueprint = try WorkoutBlueprint(modelOutput: hipsJSON)
         #expect(blueprint.note == "I kept it to two stretches.")

@@ -21,7 +21,8 @@ extension RunActivityAttributes.ContentState {
             } else {
                 let face = progress.awaited ?? ClockText.remaining(progress.phaseRemaining)
                 clock = progress.isPaused
-                    ? .paused(face) : .waiting(face, for: progress.phase.pendingHold == nil ? .next : .start)
+                    ? .paused(face)
+                    : .waiting(face, for: progress.phase.pendingHold == nil ? .next : .start, wait: progress.segment.position)
             }
             self.init(title: progress.phase.title, caption: progress.phase.caption, upNext: progress.upNextText,
                       tone: RunTone(snapshot), clock: clock, isHeadsUp: progress.isHeadsUp)
@@ -61,7 +62,7 @@ final class LiveActivityController {
     @ObservationIgnored private var wanted: RunActivityCard?
     @ObservationIgnored private var shown: RunActivityCard?
     /// The one task that talks to the display. Updates are async, and a second task could overtake the first.
-    @ObservationIgnored private(set) var worker: Task<Void, Never>?
+    @ObservationIgnored private var worker: Task<Void, Never>?
     @ObservationIgnored private var lastNote: String?
     /// The end of the phase whose heads-up last alerted. A skip and its Undo come back into the
     /// same heads-up after the voice has spoken, and the card must not alert a second time.
@@ -88,6 +89,11 @@ final class LiveActivityController {
         if worker == nil {
             worker = Task { await catchUp() }
         }
+    }
+
+    /// Returns once the display shows the newest card.
+    func settle() async {
+        while let worker { await worker.value }
     }
 
     /// Shows the newest card each time round, so a change that arrives during an update is neither

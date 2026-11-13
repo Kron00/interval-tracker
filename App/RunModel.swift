@@ -69,6 +69,17 @@ final class RunModel {
         if session != before, session?.isPaused == before?.isPaused { offerUndo(of: before) }
     }
 
+    /// A tap on Start or Next in the Live Activity. The card it came from can be out of date, and a
+    /// tap can come twice. So it counts only while the run still waits where the card said it did,
+    /// and then it is a headphone press. iOS may suspend the app once the intent returns, so this
+    /// returns only when the card shows the change.
+    func advance(fromWait position: Int) async {
+        guard case .active(let progress)? = session?.snapshot(at: .now),
+              progress.isWaiting, !progress.isPaused, progress.segment.position == position else { return }
+        handle(.play)
+        await liveActivity.settle()
+    }
+
     func prepare(_ workout: Workout, cues: CuePreferences) {
         player.prepare(Session(workout, cues: cues, startingAt: .now).vocabulary)
     }

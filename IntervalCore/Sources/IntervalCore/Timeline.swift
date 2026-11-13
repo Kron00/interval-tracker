@@ -172,6 +172,10 @@ public struct PhaseSpan: Hashable, Sendable {
 
 public struct SegmentID: Hashable, Sendable {
     let index: Int
+
+    /// The segment's place in its workout as a plain number, for a value that leaves the app. A
+    /// Live Activity button hands it back, and it then says which wait the button was drawn for.
+    public var position: Int { index }
 }
 
 struct Segment: Equatable, Sendable {

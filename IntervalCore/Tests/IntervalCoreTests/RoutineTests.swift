@@ -216,6 +216,11 @@ struct RoutineTimelineTests {
         #expect(workout.outline.map(\.phase.reps?.value) == [6, 6, nil, nil])
     }
 
+    /// Daily Stretch is one stretch counted in reps and 12 timed holds, each a wait, a count-in and a hold.
+    @Test func everyPhaseOfARunHasItsOwnPositionInOrder() throws {
+        #expect(try walk(.dailyStretch).map(\.progress.segment.position) == Array(0..<37))
+    }
+
     @Test func theRunWaitsBeforeEveryTimedHoldAndInEveryRepStretchAndNowhereElse() throws {
         let timedLast = try routine([
             try stretch("Cobra", try hold(20)),

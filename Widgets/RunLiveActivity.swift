@@ -140,7 +140,7 @@ private struct ClockFace: View {
                 .font(font(for: widest))
                 .monospacedDigit()
                 .lineLimit(1)
-        case .paused(let text), .waiting(let text, _), .finished(let text):
+        case .paused(let text), .waiting(let text, _, _), .finished(let text):
             Text(text)
                 .font(font(for: text))
                 .monospacedDigit()
@@ -168,23 +168,40 @@ private struct PhaseBar: View {
             ProgressView(timerInterval: from...to, countsDown: false, label: { EmptyView() }, currentValueLabel: { EmptyView() })
                 .progressViewStyle(.linear)
                 .tint(fill)
-        case .paused, .waiting(_, for: .start):
+        case .paused, .waiting(_, for: .start, _):
             ProgressView(value: 0)
                 .tint(fill)
-        case .waiting(_, for: .next), .finished:
+        case .waiting(_, for: .next, _), .finished:
             ProgressView(value: 1)
                 .tint(fill)
         }
     }
 }
 
-/// The one thing to know about the run's state, when there is one, and what comes next.
+/// The one thing to know about the run's state, when there is one, and what comes next. A waiting
+/// run has the button that moves it on where the others have a badge.
 private struct StatusRow: View {
     let state: RunActivityAttributes.ContentState
 
+    /// The height of the button. The row takes it in every state, so a card is as tall with a
+    /// badge as it is with the button.
+    private static let height: CGFloat = 34
+
     var body: some View {
         HStack(spacing: 8) {
-            if let status = state.status {
+            if case .waiting(_, let advance, let wait) = state.clock {
+                Button(intent: AdvanceRunIntent(wait: wait)) {
+                    Label(advance.title, systemImage: advance.symbol)
+                        .font(.subheadline.weight(.heavy))
+                        .lineLimit(1)
+                        .padding(.horizontal, 16)
+                        .frame(minWidth: 96, minHeight: Self.height)
+                        .foregroundStyle(Color.black)
+                        .background(Color.white, in: Capsule())
+                }
+                .buttonStyle(.plain)
+                Spacer(minLength: 0)
+            } else if let status = state.status {
                 Label(status.text.uppercased(), systemImage: status.symbol)
                     .font(.caption.weight(.heavy))
                     .lineLimit(1)
@@ -201,10 +218,11 @@ private struct StatusRow: View {
                     .lineLimit(1)
                     .minimumScaleFactor(0.6)
             }
-            if state.status == nil {
+            if state.status == nil, !state.isWaiting {
                 Spacer(minLength: 0)
             }
         }
+        .frame(height: Self.height)
     }
 }
 
@@ -219,7 +237,7 @@ private struct Dial: View {
                 .progressViewStyle(.circular)
                 .tint(state.tone.tint)
         } else {
-            Image(systemName: state.status?.symbol ?? "timer")
+            Image(systemName: state.symbol)
                 .font(.system(size: 14, weight: .bold))
                 .foregroundStyle(state.isHeadsUp ? Color.white : state.tone.tint)
         }
@@ -233,14 +251,39 @@ private struct Status: Equatable {
     var isUrgent = false
 }
 
+private extension RunActivityAttributes.Advance {
+    var title: String {
+        switch self {
+        case .start: "Start"
+        case .next: "Next"
+        }
+    }
+
+    var symbol: String {
+        switch self {
+        case .start: "play.fill"
+        case .next: "forward.end.fill"
+        }
+    }
+}
+
 private extension RunActivityAttributes.ContentState {
+    /// The badge. A waiting run has none, because its button says what it waits for.
     var status: Status? {
         switch clock {
         case .counting: isHeadsUp ? Status(text: "Get ready", symbol: "bell.fill", isUrgent: true) : nil
         case .paused: Status(text: "Paused", symbol: "pause.fill")
-        case .waiting(_, for: .start): Status(text: "Waiting for Start", symbol: "play.fill")
-        case .waiting(_, for: .next): Status(text: "Waiting for Next", symbol: "forward.end.fill")
+        case .waiting: nil
         case .finished: Status(text: "Time worked", symbol: "checkmark")
         }
+    }
+
+    var isWaiting: Bool {
+        if case .waiting = clock { true } else { false }
+    }
+
+    /// What the compact Dynamic Island draws for a run that is not counting.
+    var symbol: String {
+        if case .waiting(_, let advance, _) = clock { advance.symbol } else { status?.symbol ?? "timer" }
     }
 }

@@ -13,7 +13,7 @@ extension ChatGPTModel {
                 account: account, generator: WorkoutGenerator(account: account, transport: transport),
                 openInSafari: openInSafari)
         }
-        let transport = StubOpenAI()
+        let transport = StubOpenAI(replies: UserDefaults.standard.string(forKey: "aiStubReplies"))
         let account = ChatGPTAccount(
             transport: transport, store: MemoryVaultStore(stub == "signedIn" ? StubOpenAI.signedIn : nil))
         let suite = "aiStub"
@@ -27,9 +27,25 @@ extension ChatGPTModel {
 
 /// Answers as OpenAI's token, model and Responses endpoints would, from memory.
 final class StubOpenAI: OpenAITransport, @unchecked Sendable {
+    /// What a description gets back.
+    enum Reply: String {
+        case answer
+        /// Never answered, so a UI test can look at the waiting screen for as long as it needs and then cancel.
+        case never
+        /// Turned away, as OpenAI turns away a request that comes too soon after another.
+        case busy
+    }
+
     private let lock = NSLock()
-    private var descriptions = 0
+    /// The replies to the next descriptions, in order. Every description after them is answered.
+    private var replies: [Reply]
     private var unanswered: [AsyncThrowingStream<String, Error>.Continuation] = []
+
+    /// `replies` is the value of `-aiStubReplies`, such as "never answer busy". With none, the
+    /// first description is never answered.
+    init(replies: String?) {
+        self.replies = replies.map { $0.split(separator: " ").compactMap { Reply(rawValue: String($0)) } } ?? [.never]
+    }
 
     static let signedIn = Vault(clientID: "oaiapp_stub", session: Vault.Session(
         accessToken: "stub-access", refreshToken: "stub-refresh", scope: OpenAI.scope,
@@ -56,12 +72,11 @@ final class StubOpenAI: OpenAITransport, @unchecked Sendable {
         case OpenAI.revoke: return answer("{}")
         case OpenAI.models: return answer(#"{"models": [{"slug": "gpt-6.1-sol", "visibility": "list"}, {"slug": "gpt-6-luna", "visibility": "list"}, {"slug": "gpt-6-internal", "visibility": "hide"}]}"#)
         case OpenAI.responses:
-            // The first description is never answered, so a UI test can look at the waiting screen
-            // for as long as it needs and then cancel.
-            if lock.withLock({ descriptions += 1; return descriptions }) == 1 {
-                return (200, AsyncThrowingStream { continuation in lock.withLock { unanswered.append(continuation) } })
+            switch lock.withLock({ replies.isEmpty ? .answer : replies.removeFirst() }) {
+            case .answer: return answer(events(for: request))
+            case .never: return (200, AsyncThrowingStream { continuation in lock.withLock { unanswered.append(continuation) } })
+            case .busy: return (429, AsyncThrowingStream { $0.finish() })
             }
-            return answer(events(for: request))
         default: return (404, AsyncThrowingStream { $0.finish() })
         }
     }
@@ -84,13 +99,19 @@ final class StubOpenAI: OpenAITransport, @unchecked Sendable {
     private func events(for request: URLRequest) -> String {
         let body = (try? JSONSerialization.jsonObject(with: request.httpBody ?? Data())) as? [String: Any]
         let asked = (body?["input"] as? [[String: String]])?.first?["content"] ?? ""
-        let workout = asked.localizedCaseInsensitiveContains("tabata") ? Self.tabata : Self.hips
+        let workout = Self.answers.first { asked.localizedCaseInsensitiveContains($0.asked) }?.answer ?? Self.hips
         let half = workout.index(workout.startIndex, offsetBy: workout.count / 2)
         return [String(workout[..<half]), String(workout[half...])]
             .compactMap { try? JSONSerialization.data(withJSONObject: ["type": "response.output_text.delta", "delta": $0]) }
             .map { "data: " + String(decoding: $0, as: UTF8.self) }
             .joined(separator: "\n") + "\n" + #"data: {"type": "response.completed"}"#
     }
+
+    private static let answers = [(asked: "tabata", answer: tabata), (asked: "run", answer: run)]
+
+    private static let run = #"""
+        {"kind": "intervals", "name": "1-2 Run", "note": null, "stretches": null, "intervals": {"warmUpSeconds": null, "workSeconds": 60, "restSeconds": 120, "rounds": 10, "coolDownSeconds": null, "restAfterLastRound": true}}
+        """#
 
     private static let tabata = #"""
         {"kind": "intervals", "name": "Bike Tabata", "note": null, "stretches": null, "intervals": {"warmUpSeconds": 300, "workSeconds": 20, "restSeconds": 10, "rounds": 8, "coolDownSeconds": 180, "restAfterLastRound": false}}

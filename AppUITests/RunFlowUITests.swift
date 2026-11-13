@@ -166,6 +166,7 @@ final class RunFlowUITests: XCTestCase {
         let confirm = app.buttons["confirmEndButton"]
         XCTAssertTrue(confirm.waitForExistence(timeout: Self.patience))
         XCTAssertTrue(app.buttons["keepGoingButton"].isHittable)
+        XCTAssertFalse(app.staticTexts["endHistoryNote"].exists, "the audio check is never in History, so the dialog does not speak of it")
         snap(app, "12-end-confirmation")
         confirm.tap()
         XCTAssertTrue(app.buttons["timerRow-Norwegian 4x4"].waitForExistence(timeout: Self.patience))
@@ -393,6 +394,12 @@ final class RunFlowUITests: XCTestCase {
         rotate(app, to: .portrait)
 
         app.buttons["endButton"].tap()
+        XCTAssertTrue(app.staticTexts["endHistoryNote"].waitForExistence(timeout: Self.patience))
+        app.buttons["keepGoingButton"].tap()
+        XCTAssertTrue(app.buttons["keepGoingButton"].waitForNonExistence(timeout: Self.patience))
+        assertNothingMoved(in: app, since: running, "after the End dialog and its line about History")
+
+        app.buttons["endButton"].tap()
         app.buttons["confirmEndButton"].tap()
         let stretch = app.buttons["timerRow-Daily Stretch"]
         XCTAssertTrue(stretch.waitForExistence(timeout: Self.patience))
@@ -610,11 +617,7 @@ final class RunFlowUITests: XCTestCase {
         try showLockScreen()
         let card = springboard.staticTexts.matching(NSPredicate(format: "label BEGINSWITH %@", "Audio check")).firstMatch
         XCTAssertTrue(card.waitForExistence(timeout: Self.patience), "the lock screen shows the workout")
-        // Under an app's first activity iOS asks whether to allow it, and then whether to always allow it.
-        for answer in ["Allow", "Always Allow"] {
-            let button = springboard.buttons[answer]
-            if button.waitForExistence(timeout: 2) { button.tap() }
-        }
+        allowLiveActivities()
         snapLockScreen("50-lock-screen")
 
         XCTAssertTrue(springboard.staticTexts["GET READY"].waitForExistence(timeout: Self.patience), "ten seconds before work the card says to get ready")
@@ -680,6 +683,7 @@ final class RunFlowUITests: XCTestCase {
         XCTAssertTrue(end.waitForExistence(timeout: Self.patience))
         try showLockScreen()
         XCTAssertTrue(springboard.staticTexts["PAUSED"].waitForExistence(timeout: Self.patience), "Undo brings the activity back with the run")
+        allowLiveActivities()
         XCTAssertTrue(springboard.staticTexts["WORK"].exists)
         XCTAssertTrue(springboard.staticTexts["0:10"].exists)
         XCTAssertFalse(springboard.staticTexts["WORKOUT COMPLETE"].exists)
@@ -696,10 +700,13 @@ final class RunFlowUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["repCount"].waitForExistence(timeout: Self.patience))
         waitFor(primary, toRead: "Next")
         try showLockScreen()
-        XCTAssertTrue(springboard.staticTexts["WAITING FOR NEXT"].waitForExistence(timeout: Self.patience))
+        let next = springboard.buttons["Next"]
+        let startOnTheCard = springboard.buttons["Start"]
+        XCTAssertTrue(next.waitForExistence(timeout: Self.patience), "a stretch counted in reps has its Next on the card")
         XCTAssertTrue(springboard.staticTexts["CAT-COW"].exists)
         XCTAssertTrue(springboard.staticTexts["10 reps"].exists)
         XCTAssertTrue(springboard.staticTexts["Up next: Child's Pose 0:45"].exists)
+        XCTAssertFalse(startOnTheCard.exists)
         snapLockScreen("54-waiting-for-next-lock-screen")
 
         showDynamicIsland(of: app)
@@ -708,38 +715,57 @@ final class RunFlowUITests: XCTestCase {
         attach(XCUIScreen.main.screenshot(), "54b-waiting-for-next-dynamic-island-expanded")
         collapseTheDynamicIsland()
 
-        app.activate()
-        XCTAssertTrue(end.waitForExistence(timeout: Self.patience))
-        primary.tap()
-        waitFor(primary, toRead: "Start")
         try showLockScreen()
-        XCTAssertTrue(springboard.staticTexts["WAITING FOR START"].waitForExistence(timeout: Self.patience), "the next stretch waits on the lock screen too")
+        XCTAssertTrue(next.waitForExistence(timeout: Self.patience))
+        next.tap()
+        XCTAssertTrue(startOnTheCard.waitForExistence(timeout: Self.patience), "Next on the lock screen moves on, and the next stretch waits there too")
         XCTAssertTrue(springboard.staticTexts["CHILD'S POSE"].exists)
         XCTAssertTrue(springboard.staticTexts["Up next: Cobra 0:30"].exists)
-        XCTAssertFalse(springboard.staticTexts["WAITING FOR NEXT"].exists)
+        XCTAssertFalse(next.exists)
         Thread.sleep(forTimeInterval: 3)
         XCTAssertTrue(springboard.staticTexts["0:45"].exists, "the card shows the length of the hold, and nothing counts until Start")
         snapLockScreen("56-waiting-for-start-lock-screen")
 
-        showDynamicIsland(of: app)
+        app.activate()
+        XCTAssertTrue(end.waitForExistence(timeout: Self.patience))
+        XCTAssertEqual(app.staticTexts["phaseTitle"].label, "CHILD'S POSE", "the app is where the lock screen left the run")
+        waitFor(primary, toRead: "Start")
+        XCTAssertTrue(app.buttons["undoButton"].exists, "Next on the card can be taken back like Next in the app")
+        XCUIDevice.shared.press(.home)
+        Thread.sleep(forTimeInterval: 4)
         attach(XCUIScreen.main.screenshot(), "56a-waiting-for-start-dynamic-island")
         expandTheDynamicIsland()
         attach(XCUIScreen.main.screenshot(), "56b-waiting-for-start-dynamic-island-expanded")
-        collapseTheDynamicIsland()
-
-        // The count-in lasts three seconds and the hold 45, so nothing is asserted about either here.
-        // The screenshots are for looking at: the island right after Start, then the hold twice.
-        app.activate()
-        XCTAssertTrue(end.waitForExistence(timeout: Self.patience))
-        primary.tap()
-        XCUIDevice.shared.press(.home)
-        // The app takes a moment to shrink into the island.
-        Thread.sleep(forTimeInterval: 1)
+        XCTAssertTrue(startOnTheCard.exists, "the opened island has the button too")
+        startOnTheCard.tap()
+        // The count-in lasts three seconds and the hold 45, so the screenshots are for looking at:
+        // the island two seconds after the tap, then the hold twice. The simulator has taken up to
+        // three seconds to hand a tap to the app, so the island may still show the wait.
+        Thread.sleep(forTimeInterval: 2)
         attach(XCUIScreen.main.screenshot(), "57-after-start-dynamic-island")
         try showLockScreen()
+        XCTAssertTrue(startOnTheCard.waitForNonExistence(timeout: Self.patience), "a hold that counts has no button")
         snapLockScreen("58-hold-lock-screen")
         Thread.sleep(forTimeInterval: 2)
         attach(XCUIScreen.main.screenshot(), "58a-hold-lock-screen-later")
+
+        app.activate()
+        XCTAssertTrue(end.waitForExistence(timeout: Self.patience))
+        XCTAssertEqual(primary.label, "Pause", "Start in the island began the stretch")
+        XCTAssertEqual(app.staticTexts["phaseTitle"].label, "CHILD'S POSE")
+
+        // The longest name in Daily Stretch takes two lines on the card, which is the tallest it gets.
+        skip.tap()
+        waitFor(primary, toRead: "Start")
+        primary.tap()
+        waitFor(primary, toRead: "Pause")
+        skip.tap()
+        waitFor(app.staticTexts["phaseTitle"], toRead: "HIP FLEXOR COUCH STRETCH")
+        try showLockScreen()
+        XCTAssertTrue(startOnTheCard.waitForExistence(timeout: Self.patience))
+        XCTAssertTrue(startOnTheCard.isHittable)
+        XCTAssertTrue(springboard.staticTexts["Up next: Right side 0:45"].exists)
+        snapLockScreen("56c-two-line-name-waiting-lock-screen")
 
         app.activate()
         XCTAssertTrue(end.waitForExistence(timeout: Self.patience))
@@ -747,7 +773,7 @@ final class RunFlowUITests: XCTestCase {
         app.buttons["confirmEndButton"].tap()
         XCTAssertTrue(stretch.waitForExistence(timeout: Self.patience))
         try showLockScreen()
-        XCTAssertTrue(springboard.staticTexts["CHILD'S POSE"].waitForNonExistence(timeout: Self.patience), "ending the workout takes the activity off the lock screen")
+        XCTAssertTrue(springboard.staticTexts["HIP FLEXOR COUCH STRETCH"].waitForNonExistence(timeout: Self.patience), "ending the workout takes the activity off the lock screen")
         snapLockScreen("59-ended-lock-screen")
     }
 
@@ -766,6 +792,15 @@ final class RunFlowUITests: XCTestCase {
         Thread.sleep(forTimeInterval: 1.5)
         XCUIDevice.shared.press(.home)
         Thread.sleep(forTimeInterval: 1.5)
+    }
+
+    /// Under an app's first activity iOS asks whether to allow it, and then whether to always allow
+    /// it. Each test that goes to the lock screen answers, so none depends on another having run first.
+    private func allowLiveActivities() {
+        for answer in ["Allow", "Always Allow"] {
+            let button = springboard.buttons[answer]
+            if button.waitForExistence(timeout: 2) { button.tap() }
+        }
     }
 
     /// The card cross-fades from one state to the next, and its new text can be read before the fade is over.

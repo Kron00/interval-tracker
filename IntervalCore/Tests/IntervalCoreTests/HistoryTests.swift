@@ -47,6 +47,12 @@ struct HistoryTests {
         #expect(history.records.map(\.name) == ["Skipped to the end", "60 s"])
     }
 
+    @Test func whatIsKeptCanBeAskedBeforeARunIsOver() {
+        #expect(!History.keeps(.endedEarly, worked: 59.9))
+        #expect(History.keeps(.endedEarly, worked: 60))
+        #expect(History.keeps(.completed, worked: 3))
+    }
+
     @Test func onlyTheNewestThousandAreKept() throws {
         let first = try march(1)
         var history = History()

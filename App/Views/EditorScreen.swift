@@ -1,7 +1,7 @@
 import IntervalCore
 import SwiftUI
 
-struct WorkoutDraft: Equatable {
+struct WorkoutDraft: Equatable, Identifiable {
     let id: UUID
     var name = ""
     var plan: PlanDraft

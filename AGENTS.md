@@ -10,7 +10,7 @@ Intervals is an iPhone app that runs interval timers and stretch routines. It ke
 | `App/` | The SwiftUI app. `RunModel` is the only writer of the session. `LibraryStore` and `HistoryStore` are the only writers of their files. `Audio/` holds `CuePlayer`, `SoundBank`, `HeadphoneRemote`. `Views/` holds the screens and `Theme`. `LiveActivityController` starts, updates and ends the Live Activity. |
 | `App/ChatGPT/` | The ChatGPT sign-in and the request for a workout. `ChatGPTAccount` owns the Keychain and the tokens. `LoopbackCallback` is the listener on 127.0.0.1. `WorkoutGenerator` talks to the Responses API. `ChatGPTModel` is what the screens observe. `StubOpenAI` stands in for OpenAI in UI tests. |
 | `Widgets/` | The `IntervalTrackerWidgets` app extension. It draws the Live Activity and nothing else. |
-| `Shared/` | The one file that both the app and the extension compile: what the Live Activity shows, and the phase colours. |
+| `Shared/` | The one file that both the app and the extension compile: what the Live Activity shows, the tap it hands back, and the phase colours. |
 | `AppTests/` | Tests that need the iOS runtime. |
 | `AppUITests/` | End-to-end flows. They attach a named screenshot at each step. |
 | `Scripts/` | Test, build and release scripts. |
@@ -60,14 +60,16 @@ The owner updates the app from AltStore. A merge that changes the app must show 
 - **One task talks to ActivityKit.** Updates are async. Do not start a second task for one, or two updates can land out of order.
 - **`LiveActivityController.swift` is the only file in the app that imports ActivityKit.** Guard every call. A user can turn Live Activities off, and the extension can be missing.
 - **The extension does not import `IntervalCore`.** The app sends it plain values. A decision about a run belongs in the package, and a text or a colour key belongs in the content state.
+- **The button on the card is a headphone press.** `AdvanceRunIntent` is compiled into both targets, and iOS runs it in the app. It hands `RunModel.advance(fromWait:)` the wait that the button was drawn for. That function does nothing unless the run still waits there, and then calls `RunModel.handle`. Change a session from the card in no other way. The intent must keep working with no entitlement and no app group.
 - **Every screen is dark.**
 - **A released library file must keep loading.** If you change the file format, decode the shapes that released versions wrote. The same holds for the history file.
 - **The history is its own file.** `history.json` is apart from `library.json`. A history file that cannot be read is set aside, and it must never cost the saved workouts. Do not move the history into the library file.
-- **A run is reported once, and never while Undo can bring it back.** `RunModel` reports from `end()` and from its tick, and never from `change`. `History.add` decides what is kept. `docs/design.md` has the reasons.
+- **A run is reported once, and never while Undo can bring it back.** `RunModel` reports from `end()` and from its tick, and never from `change`. `History.keeps` decides what is kept, for `History.add` and for the line in the End dialog. Do not repeat its rule anywhere. `docs/design.md` has the reasons.
 - **The package takes dates and calendars as arguments.** Nothing in `IntervalCore` reads the clock or the calendar of the phone.
 - Validate at the boundary only: the failable initialisers in the package and the `Decodable` code. Editors hold plain drafts and convert on Save.
 - **A model's answer becomes a workout in one function.** `WorkoutBlueprint.workout()` is the only code that maps model output to a `Workout`. The schema and the instructions sit beside it. The model never chooses the count-in of a routine.
-- **No test or script in CI contacts OpenAI.** Tests pass a stub as `OpenAITransport`. UI tests launch the app with `-aiStub signedIn` or `-aiStub signedOut`, which swaps in `StubOpenAI` and an in-memory vault. Never sign in from a test.
+- **No test or script in CI contacts OpenAI.** Tests pass a stub as `OpenAITransport`. UI tests launch the app with `-aiStub signedIn` or `-aiStub signedOut`, which swaps in `StubOpenAI` and an in-memory vault. `-aiStubReplies` lists what the stub gives the descriptions in turn: `answer`, `never` or `busy`. Never sign in from a test.
+- **Try again and Edit never cost the answer on the screen.** `DescribeState` carries the answer through a retry, and the editor opens over the result. A cancel or a failure must lead back to the answer.
 - **Tokens and the API key live in the Keychain only**, as one `Vault`. Never log a token, a sign-in code, or the key. Derive the account state from the vault. Do not store it.
 - **One token refresh at a time.** Every refresh kills the old refresh token, so every caller waits for the refresh in `ChatGPTAccount`. Do not refresh anywhere else.
 - **The sign-in follows OpenAI's documented flow for open-source apps.** Do not use the Codex CLI's client id or `chatgpt.com/backend-api`. The redirect address must stay `http://127.0.0.1:<port>/auth/callback`, and the listener must stay bound to 127.0.0.1.
@@ -75,9 +77,9 @@ The owner updates the app from AltStore. A merge that changes the app must show 
 
 ## What a simulator cannot prove
 
-Locked-screen playback, music ducking, and headphone presses need a real iPhone. So do two things about the Live Activity: whether its alert lights a locked phone, and whether AltStore installs the extension. Do not claim they work from a simulator run. Settings has an audio check, a headphone check, three ducking methods, a Live Activity status line, and a log for checking them on a phone. Keep those working.
+Locked-screen playback, music ducking, and headphone presses need a real iPhone. So do three things about the Live Activity: whether its alert lights a locked phone, whether AltStore installs the extension, and whether the count-in sounds after **Start** on the card of a phone that has suspended the app. Do not claim they work from a simulator run. Settings has an audio check, a headphone check, three ducking methods, a Live Activity status line, and a log for checking them on a phone. Keep those working.
 
-The simulator does draw the lock screen and the Dynamic Island. Three UI tests lock it and read the Live Activity there.
+The simulator does draw the lock screen and the Dynamic Island. Three UI tests lock it and read the Live Activity there, and one of them taps the button on the card.
 
 The ChatGPT feature needs a real account, and the sign-in sheet needs a real iPhone. The simulator proves the sheet, the listener, and every request against stand-ins. `LiveOpenAITests` runs the app's own sign-in and generation against OpenAI. It is skipped unless `TEST_RUNNER_LIVE_OPENAI=1` is set, and it needs a person to open the address it prints, so run it when you change a request. Nobody has signed in from the app on a phone. `docs/design.md` lists what is unproven. The Keychain tests run only in a signed build, so run them once without `CODE_SIGNING_ALLOWED=NO` when you change `KeychainVaultStore`.
 

@@ -228,7 +228,7 @@ struct WorkoutRecordTests {
         run.perform(.next, at: t0 + 40)
         #expect(run.worked(at: t0 + 100) == 40, "Cobra waits for Start")
 
-        run.perform(.next, at: t0 + 100)
+        run.perform(.play, at: t0 + 100)
         let record = WorkoutRecord(run, startedAt: t0, endedAt: t0 + 110)
         #expect(record.worked == 50, "the count-in and 7 s of the hold")
         #expect(record.outcome == .endedEarly)

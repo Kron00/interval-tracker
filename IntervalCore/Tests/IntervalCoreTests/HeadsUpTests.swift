@@ -97,7 +97,7 @@ struct HeadsUpCueTests {
         }
         var run = session(long, cues: CuePreferences(headsUp: headsUp))
         #expect(!(try progress(run, at: 100).isHeadsUp), "the left side waits for Start")
-        run.perform(.next, at: t0 + 100)
+        run.perform(.play, at: t0 + 100)
         for second in [100.0, 120, 129.9, 130, 160, 189.9] {
             #expect(!(try progress(run, at: second).isHeadsUp), "\(second)")
         }
@@ -141,7 +141,7 @@ struct HeadsUpProgressTests {
         var stretches = session(.dailyStretch)
         #expect(try progress(stretches, at: 0).caption == "Stretch 1 of 10")
         stretches.perform(.next, at: t0)
-        stretches.perform(.next, at: t0)
+        stretches.perform(.play, at: t0)
         #expect(try progress(stretches, at: 1).caption == "Get ready", "a stretch's count-in keeps its own caption")
     }
 

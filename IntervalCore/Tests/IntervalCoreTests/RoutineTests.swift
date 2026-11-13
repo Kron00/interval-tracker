@@ -325,14 +325,14 @@ struct RoutineCueTests {
         var run = session(.dailyStretch)
         run.perform(.next, at: t0 + 100)
         let plan = try #require(run.cueSchedule).remaining(after: t0 + 100)
-        #expect(plan.windows.map(bounds) == [[100_000, 102_200]])
-        #expect(cues(plan) == [Cue(100_000, .phaseChange), Cue(100_500, voice("Child's Pose"))])
-        #expect(plan.remaining(after: t0 + 103).isEmpty, "nothing counts in until Start")
+        #expect(plan.windows.map(bounds) == [[100_000, 103_200]])
+        #expect(cues(plan) == [Cue(101_000, .phaseChange), Cue(101_500, voice("Child's Pose"))], "Next lands quietly, like a skip")
+        #expect(plan.remaining(after: t0 + 104).isEmpty, "nothing counts in until Start")
     }
 
     @Test func startTicksThroughTheCountInThenSoundsTheHoldAndStopsAtTheNextWait() throws {
         var run = try session(.dailyStretch, in: "ready Child's Pose 2/10")
-        run.perform(.next, at: t0 + 100)
+        run.perform(.play, at: t0 + 100)
         let plan = try #require(run.cueSchedule).remaining(after: t0 + 100)
         #expect(plan.windows.map(bounds) == [[100_000, 103_600], [144_500, 150_200]])
         #expect(cues(plan) == [
@@ -412,11 +412,29 @@ struct RoutineCueTests {
         ])
     }
 
-    @Test func aHoldEndedEarlyGoesStraightToTheToneAndTheNameOfTheNextStretch() throws {
+    @Test func aHoldEndedEarlyLandsOnTheNextWaitAndNamesItOneSecondLater() throws {
         var run = try session(.dailyStretch, in: "hold Child's Pose 2/10")
         run.perform(.next, at: t0 + 20)
         let plan = try #require(run.cueSchedule).remaining(after: t0 + 20)
-        #expect(cues(plan) == [Cue(20_000, .phaseChange), Cue(20_500, voice("Cobra"))])
+        #expect(cues(plan) == [Cue(21_000, .phaseChange), Cue(21_500, voice("Cobra"))], "a wait has no length, and its landing is still announced")
+        #expect(plan.isDucked(at: t0 + 20))
+    }
+
+    @Test func skipStretchFromAWaitPlaysNoCountInAndNamesTheNextStretch() throws {
+        var run = try session(.dailyStretch, in: "ready Child's Pose 2/10")
+        run.forward(try progress(run, at: 20).segment, at: t0 + 20)
+        let plan = try #require(run.cueSchedule).remaining(after: t0 + 20)
+        #expect(plan.windows.map(bounds) == [[20_000, 23_200]])
+        #expect(cues(plan) == [Cue(21_000, .phaseChange), Cue(21_500, voice("Cobra"))])
+    }
+
+    @Test func startDuringTheSecondCountsInAtOnceAndTheLandingIsNotNamed() throws {
+        var run = try session(.dailyStretch, in: "hold Child's Pose 2/10")
+        run.perform(.next, at: t0 + 20)
+        run.perform(.play, at: t0 + 20.5)
+        let plan = try #require(run.cueSchedule).remaining(after: t0 + 20.5)
+        #expect(cues(plan).prefix(4) == [Cue(20_500, .tick), Cue(21_500, .tick), Cue(22_500, .tick), Cue(23_500, .phaseChange)])
+        #expect(!spoken(plan).contains("Cobra"))
     }
 
     @Test func theLastTimedHoldEndsOnTheFinish() throws {
@@ -436,8 +454,8 @@ struct RoutineCueTests {
 
         run.perform(.next, at: t0 + 70)
         let finish = try #require(run.cueSchedule).remaining(after: t0 + 70)
-        #expect(finish.windows.map(bounds) == [[70_000, 72_700]])
-        #expect(cues(finish) == [Cue(70_000, .finish), Cue(71_000, voice("Workout complete"))])
+        #expect(finish.windows.map(bounds) == [[70_000, 73_700]])
+        #expect(cues(finish) == [Cue(71_000, .finish), Cue(72_000, voice("Workout complete"))])
     }
 
     @Test func dailyStretchSpeaksEveryNameAndEverySideOnce() throws {

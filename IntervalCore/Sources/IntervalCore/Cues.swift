@@ -83,6 +83,9 @@ enum CueTiming {
     static let mergeGap: TimeInterval = 1.5
     static let quietHead: TimeInterval = 2.0
     static let lateGrace: TimeInterval = 0.25
+    /// How long after a skip by hand the place it landed on is announced. Each skip replaces the
+    /// schedule, so a run of quick skips is silent and only the last landing is announced.
+    static let settle: TimeInterval = 1.0
     /// A phase gets a heads-up only when it has run at least this long by then, so the heads-up
     /// never follows right after the phase's own announcement.
     static let headsUpMargin: TimeInterval = 15
@@ -108,14 +111,32 @@ public struct CueSchedule: Equatable, Sendable {
     /// Sorted and disjoint, with at least `mergeGap` between neighbours.
     public let windows: [DuckWindow]
 
-    private typealias Cue = (offset: TimeInterval, sound: Sound)
+    private struct Cue {
+        let offset: TimeInterval
+        let sound: Sound
+        /// When the music goes down for this sound.
+        var duckFrom: TimeInterval
 
-    init(_ timeline: Timeline, _ preferences: CuePreferences, zeroAt: Date, released: Int) {
-        var cues = Self.cues(in: timeline.leg(after: released), of: timeline, preferences)
-        if timeline.gate(after: released) == nil { cues += Self.finish(of: timeline, preferences) }
+        init(_ offset: TimeInterval, _ sound: Sound) {
+            self.offset = offset
+            self.sound = sound
+            duckFrom = max(0, offset - CueTiming.duckLead)
+        }
+    }
+
+    /// `landing` is where the last skip by hand landed, in elapsed time. The phase there, or the
+    /// finish, is announced `CueTiming.settle` after the skip, and the music goes down at the skip.
+    init(_ timeline: Timeline, _ preferences: CuePreferences, zeroAt: Date, released: Int, landing: TimeInterval?) {
+        var cues = Self.cues(in: timeline.leg(after: released), of: timeline, preferences, landing: landing)
+        if timeline.gate(after: released) == nil { cues += Self.finish(of: timeline, preferences, landing: landing) }
+        // The music goes down at the skip, so a locked phone answers every tap and a run of taps keeps
+        // it down. The first sound after the landing announces it, or the next phase if it has no time.
+        if let landing, let first = cues.firstIndex(where: { $0.offset >= landing }) {
+            cues[first].duckFrom = min(cues[first].duckFrom, landing)
+        }
 
         let spans = cues.map {
-            (start: max(0, $0.offset - CueTiming.duckLead), end: $0.offset + $0.sound.slot + CueTiming.duckRelease)
+            (start: $0.duckFrom, end: $0.offset + $0.sound.slot + CueTiming.duckRelease)
         }
         var merged: [(start: TimeInterval, end: TimeInterval)] = []
         for span in spans.sorted(by: { $0.start < $1.start }) {
@@ -138,49 +159,58 @@ public struct CueSchedule: Equatable, Sendable {
 
     static func vocabulary(of timeline: Timeline, _ preferences: CuePreferences) -> [Sound] {
         var seen: Set<Sound> = []
-        return (cues(in: timeline.segments[...], of: timeline, preferences) + finish(of: timeline, preferences))
+        return (cues(in: timeline.segments[...], of: timeline, preferences, landing: nil)
+            + finish(of: timeline, preferences, landing: nil))
             .map(\.sound).filter { seen.insert($0).inserted }
     }
 
     /// In time order.
     private static func cues(in segments: ArraySlice<Segment>, of timeline: Timeline,
-                             _ preferences: CuePreferences) -> [Cue] {
+                             _ preferences: CuePreferences, landing: TimeInterval?) -> [Cue] {
         var cues: [Cue] = []
         for segment in segments {
             if segment.phase.isCountIn {
                 // A count-in is all countdown: a tick on each of its seconds, then the tone that starts the hold.
                 if preferences.countdown != .off {
-                    cues += stride(from: segment.start, to: segment.end, by: 1).map { ($0, .tick) }
+                    cues += stride(from: segment.start, to: segment.end, by: 1).map { Cue($0, .tick) }
                 }
                 continue
             }
-            cues.append((segment.start, .phaseChange))
-            var quietUntil = segment.start + CueTiming.quietHead
-            // A phrase that cannot finish inside its phase would talk over the next tone. A gate
-            // holds the run, so nothing follows its phrase.
-            if preferences.voice, let words = segment.phase.announcement,
-               segment.isGate || CueTiming.voiceDelay + words.slot <= segment.duration {
-                let offset = segment.start + CueTiming.voiceDelay
-                cues.append((offset, .voice(words)))
-                quietUntil = max(quietUntil, offset + words.slot)
+            let landed = segment.start == landing
+            let delay = landed ? CueTiming.settle : 0
+            let tone = segment.start + delay
+            var quietUntil = tone + CueTiming.quietHead
+            // A landing too close to the end of its phase is left to the next phase's tone, so two
+            // tones never sound one on top of the other. A gate holds the run, so it always has time.
+            if !landed || segment.isGate || delay + CueTiming.quietHead <= segment.duration {
+                cues.append(Cue(tone, .phaseChange))
+                // A phrase that cannot finish inside its phase would talk over the next tone. A gate
+                // holds the run, so nothing follows its phrase.
+                if preferences.voice, let words = segment.phase.announcement,
+                   segment.isGate || delay + CueTiming.voiceDelay + words.slot <= segment.duration {
+                    let offset = tone + CueTiming.voiceDelay
+                    cues.append(Cue(offset, .voice(words)))
+                    quietUntil = max(quietUntil, offset + words.slot)
+                }
             }
             if preferences.voice, let offset = timeline.headsUp(in: segment, preferences.headsUp),
                let words = preferences.headsUp.words {
-                cues.append((offset, .voice(words)))
+                cues.append(Cue(offset, .voice(words)))
                 quietUntil = max(quietUntil, offset + words.slot)
             }
             for secondsBefore in stride(from: preferences.countdown.rawValue, through: 1, by: -1) {
                 let offset = segment.end - TimeInterval(secondsBefore)
-                if offset >= quietUntil { cues.append((offset, .tick)) }
+                if offset >= quietUntil { cues.append(Cue(offset, .tick)) }
             }
         }
         return cues
     }
 
-    private static func finish(of timeline: Timeline, _ preferences: CuePreferences) -> [Cue] {
-        let voice: [Cue] = preferences.voice
-            ? [(timeline.total + CueTiming.finishVoiceDelay, .voice(.workoutComplete))] : []
-        return [(timeline.total, .finish)] + voice
+    private static func finish(of timeline: Timeline, _ preferences: CuePreferences, landing: TimeInterval?) -> [Cue] {
+        let landed = timeline.total == landing
+        let tone = timeline.total + (landed ? CueTiming.settle : 0)
+        let finish = Cue(tone, .finish)
+        return preferences.voice ? [finish, Cue(tone + CueTiming.finishVoiceDelay, .voice(.workoutComplete))] : [finish]
     }
 
     public var isEmpty: Bool { windows.isEmpty }

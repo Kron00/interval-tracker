@@ -107,7 +107,7 @@ func walk(_ workout: Workout) throws -> [Visit] {
         if visits.last?.progress.segment != progress.segment { visits.append(Visit(progress: progress)) }
         if progress.isWaiting {
             visits[visits.count - 1].waited = true
-            run.perform(.next, at: t0 + offset)
+            run.perform(.play, at: t0 + offset)
         } else {
             offset += progress.phaseRemaining
         }
@@ -148,7 +148,7 @@ func session(_ workout: Workout, in phase: String, cues: CuePreferences = CuePre
             guard case .active(let progress) = run.snapshot(at: start + took) else { break }
             if describe(progress.phase) == phase { return (run, took) }
             if progress.isWaiting {
-                run.perform(.next, at: start + took)
+                run.perform(.play, at: start + took)
             } else {
                 took += progress.phaseRemaining
             }
@@ -204,7 +204,7 @@ func legs(_ workout: Workout, countdown: Countdown = .three, voice: Bool = true,
         legs.append(try #require(run.cueSchedule))
         let halt = try #require(run.haltDate)
         guard case .active = run.snapshot(at: halt) else { return legs }
-        run.perform(.next, at: halt)
+        run.perform(.play, at: halt)
     }
     throw NeverFinished()
 }

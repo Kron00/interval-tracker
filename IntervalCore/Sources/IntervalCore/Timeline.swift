@@ -122,6 +122,10 @@ public enum Phase: Hashable, Sendable {
         if case .getReady = self { true } else { false }
     }
 
+    var isWaitForStart: Bool {
+        if case .ready = self { true } else { false }
+    }
+
     /// The wait and the count-in lead into a hold and belong to its stretch. "Up next" looks past them.
     var isLeadIn: Bool {
         switch self {
@@ -308,8 +312,9 @@ struct Timeline: Equatable, Sendable {
         return segments[id.index - 1]
     }
 
-    /// Where a skip of the segment lands. Next in a count-in leaves the stretch, so it lands past the hold.
+    /// Where leaving the segment lands. A wait and a count-in lead into a hold, so leaving either
+    /// leaves the stretch and lands past the hold.
     func skipPoint(for id: SegmentID) -> TimeInterval {
-        segments[id.index].phase.isCountIn ? segments[id.index + 1].end : segments[id.index].end
+        (segments[id.index...].first { !$0.phase.isLeadIn } ?? segments[id.index]).end
     }
 }

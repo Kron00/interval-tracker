@@ -279,7 +279,7 @@ struct CueProjectionTests {
         }
     }
 
-    @Test func afterASkipTheNewPhaseSoundsAtOnce() throws {
+    @Test func afterASkipTheNewPhaseIsAnnouncedOneSecondLaterAndTheMusicDipsAtOnce() throws {
         var run = session()
         let now = t0 + 100
         run.skip(try progress(run, at: 100).segment, at: now)
@@ -287,20 +287,19 @@ struct CueProjectionTests {
         let todo = try #require(run.cueSchedule).remaining(after: now)
         let first = try #require(todo.windows.first)
         #expect(first.start == now)
-        #expect(first.sounds.first?.at == now)
-        #expect(cues(first) == [Cue(100_000, .phaseChange), Cue(100_500, voice("Round one"))])
-        #expect(ms(first.end) == 102_200)
+        #expect(cues(first) == [Cue(101_000, .phaseChange), Cue(101_500, voice("Round one"))], "nothing sounds in the first second")
+        #expect(ms(first.end) == 103_200)
         #expect(todo.isDucked(at: now))
     }
 
-    @Test func skippingTheLastPhaseSoundsTheFinishAtOnce() throws {
+    @Test func skippingTheLastPhaseSoundsTheFinishOneSecondLater() throws {
         var run = session()
         let now = t0 + 2000
         run.skip(try progress(run, at: 2000).segment, at: now)
 
         let todo = try #require(run.cueSchedule).remaining(after: now)
-        #expect(cues(todo) == [Cue(2_000_000, .finish), Cue(2_001_000, voice("Workout complete"))])
-        #expect(ms(try #require(todo.end)) == 2_002_700)
+        #expect(bounds(try #require(todo.windows.first)) == [2_000_000, 2_003_700])
+        #expect(cues(todo) == [Cue(2_001_000, .finish), Cue(2_002_000, voice("Workout complete"))])
     }
 
     @Test func resumingShiftsThePlanByThePausedTime() throws {
@@ -356,5 +355,129 @@ struct UtteranceTests {
         #expect(Sound.finish.slot == 0.90)
         #expect(voice("Rest").slot == 1.5)
         #expect(voice("Hip Flexor Couch Stretch, left side").slot == 2.5)
+    }
+}
+
+struct QuietSkipTests {
+    @Test func everySkipThroughEveryWorkoutIsSilentForOneSecondAndKeepsTheMusicDown() throws {
+        let workouts = [
+            .norwegian4x4, .hiit2020, .audioCheck, .dailyStretch,
+            try timer(work: 1, rest: 1, rounds: 5),
+            try timer(warmUp: 3, work: 4, rest: 4, rounds: 3, coolDown: 2),
+            try routine([try stretch("Neck Rolls", try reps(4), .each), try stretch("Calf", try hold(1), .each)]),
+            try routine(countIn: nil, [try stretch("Calf", try hold(2), .each), try stretch("Cobra", try hold(30))]),
+        ]
+        for workout in workouts {
+            for voice in [true, false] {
+                var run = session(workout, cues: CuePreferences(voice: voice))
+                var now = t0 + 0.5
+                for _ in 0..<100 {
+                    guard case .active(let progress) = run.snapshot(at: now) else { break }
+                    run.forward(progress.segment, at: now)
+                    let plan = try #require(run.cueSchedule)
+                    let todo = plan.remaining(after: now)
+                    #expect(todo.windows.flatMap(\.sounds).allSatisfy { $0.at >= now + 1 }, "\(workout.name) at \(ms(now))")
+                    #expect(plan.isDucked(at: now), "\(workout.name) at \(ms(now))")
+                    for (earlier, later) in zip(plan.windows, plan.windows.dropFirst()) {
+                        #expect(ms(later.start) - ms(earlier.end) >= 1500)
+                    }
+                    for window in plan.windows {
+                        #expect(window.sounds.allSatisfy { $0.at >= window.start && $0.at + $0.sound.slot + 0.2 <= window.end + 0.0001 })
+                    }
+                    now += 0.4
+                }
+                #expect(run.snapshot(at: now) != run.snapshot(at: t0), "\(workout.name) reached the finish")
+            }
+        }
+    }
+
+    @Test func ofTwoSkipsHalfASecondApartOnlyTheSecondLandingSounds() throws {
+        var run = session()
+        run.skip(try progress(run, at: 100).segment, at: t0 + 100)
+        let first = try #require(run.cueSchedule)
+        run.skip(try progress(run, at: 100.5).segment, at: t0 + 100.5)
+        let second = try #require(run.cueSchedule)
+
+        let todo = second.remaining(after: t0 + 100.5)
+        #expect(cues(todo.windows[0]) == [Cue(101_500, .phaseChange), Cue(102_000, voice("Rest"))])
+        #expect(!spoken(todo).contains("Round one"))
+        #expect(first.isDucked(at: t0 + 100.5) && second.isDucked(at: t0 + 100.5), "the music stays down from one skip to the next")
+    }
+
+    @Test func aNaturalBoundaryAfterALandingSoundsAtItsOwnTime() throws {
+        var run = session()
+        run.skip(try progress(run, at: 100).segment, at: t0 + 100)
+        let todo = try #require(run.cueSchedule).remaining(after: t0 + 100)
+        #expect(cues(todo.windows[1]) == [
+            Cue(337_000, .tick), Cue(338_000, .tick), Cue(339_000, .tick),
+            Cue(340_000, .phaseChange), Cue(340_500, voice("Rest")),
+        ])
+    }
+
+    @Test func aLandingTooCloseToTheEndOfItsPhaseIsLeftToTheNextTone() throws {
+        var run = session(try timer(work: 20, rest: 2, rounds: 2, restAfterLastRound: false))
+        run.skip(try progress(run, at: 5).segment, at: t0 + 5)
+        #expect(cues(try #require(run.cueSchedule).remaining(after: t0 + 5)) == [
+            Cue(7000, .phaseChange), Cue(7500, voice("Last round")),
+            Cue(24_000, .tick), Cue(25_000, .tick), Cue(26_000, .tick),
+            Cue(27_000, .finish), Cue(28_000, voice("Workout complete")),
+        ])
+    }
+
+    @Test func aLandingThatJustFitsKeepsItsToneAndItsName() throws {
+        var run = session(try timer(work: 20, rest: 3, rounds: 2, restAfterLastRound: false))
+        run.skip(try progress(run, at: 5).segment, at: t0 + 5)
+        let todo = try #require(run.cueSchedule).remaining(after: t0 + 5)
+        #expect(cues(todo).prefix(4) == [
+            Cue(6000, .phaseChange), Cue(6500, voice("Rest")), Cue(8000, .phaseChange), Cue(8500, voice("Last round")),
+        ])
+    }
+
+    @Test func aPauseDuringTheSecondHoldsTheAnnouncementBack() throws {
+        var run = session()
+        run.skip(try progress(run, at: 100).segment, at: t0 + 100)
+        run.pause(at: t0 + 100.4)
+        #expect(run.cueSchedule == nil)
+        run.resume(at: t0 + 200)
+
+        let todo = try #require(run.cueSchedule).remaining(after: t0 + 200)
+        #expect(cues(todo.windows[0]) == [Cue(200_600, .phaseChange), Cue(201_100, voice("Round one"))])
+    }
+
+    @Test func aSkipWhilePausedIsAnnouncedOneSecondAfterResume() throws {
+        var run = session()
+        run.pause(at: t0 + 100)
+        run.skip(try progress(run, at: 100).segment, at: t0 + 150)
+        run.resume(at: t0 + 200)
+        #expect(cues(try #require(run.cueSchedule).remaining(after: t0 + 200).windows[0]) == [
+            Cue(201_000, .phaseChange), Cue(201_500, voice("Round one")),
+        ])
+    }
+
+    @Test func restartSoundsAtOnceEvenBeforeALandingWasAnnounced() throws {
+        var run = session()
+        run.skip(try progress(run, at: 100).segment, at: t0 + 100)
+        run.restart(try progress(run, at: 100.5).segment, at: t0 + 100.5)
+        #expect(cues(try #require(run.cueSchedule).remaining(after: t0 + 100.5).windows[0]) == [
+            Cue(100_500, .phaseChange), Cue(101_000, voice("Round one")),
+        ])
+    }
+
+    @Test func withoutVoiceALandingIsTheToneAlone() throws {
+        var run = session(cues: CuePreferences(voice: false, headsUp: .off))
+        run.skip(try progress(run, at: 100).segment, at: t0 + 100)
+        let todo = try #require(run.cueSchedule).remaining(after: t0 + 100)
+        let first = try #require(todo.windows.first)
+        #expect(bounds(first) == [100_000, 101_600])
+        #expect(cues(first) == [Cue(101_000, .phaseChange)])
+    }
+
+    @Test func aLandingKeepsTheCountdownClearOfItsName() throws {
+        var run = session(try timer(work: 20, rest: 5, rounds: 2, restAfterLastRound: false), cues: CuePreferences(countdown: .five))
+        run.skip(try progress(run, at: 5).segment, at: t0 + 5)
+        let todo = try #require(run.cueSchedule).remaining(after: t0 + 5)
+        #expect(cues(todo).prefix(5) == [
+            Cue(6000, .phaseChange), Cue(6500, voice("Rest")), Cue(8000, .tick), Cue(9000, .tick), Cue(10_000, .phaseChange),
+        ], "the beeps at 5, 6 and 7 s would sound over the tone and the name")
     }
 }

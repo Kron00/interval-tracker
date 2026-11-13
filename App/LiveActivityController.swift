@@ -8,7 +8,8 @@ extension RunActivityAttributes: ActivityAttributes {}
 extension RunActivityAttributes.ContentState {
     /// What the Live Activity shows for `session` at `now`. The value is the same for every `now`
     /// inside one phase, so comparing it with the last one tells whether anything has to be sent.
-    init(_ session: Session, at now: Date) {
+    /// `revision` is what the button of a waiting run hands back with its tap.
+    init(_ session: Session, at now: Date, revision: Int = 0) {
         let snapshot = session.snapshot(at: now)
         switch snapshot {
         case .finished(let worked):
@@ -22,7 +23,7 @@ extension RunActivityAttributes.ContentState {
                 let face = progress.awaited ?? ClockText.remaining(progress.phaseRemaining)
                 clock = progress.isPaused
                     ? .paused(face)
-                    : .waiting(face, for: progress.phase.pendingHold == nil ? .next : .start, wait: progress.segment.position)
+                    : .waiting(face, for: progress.phase.pendingHold == nil ? .next : .start, wait: revision)
             }
             self.init(title: progress.phase.title, caption: progress.phase.caption, upNext: progress.upNextText,
                       tone: RunTone(snapshot), clock: clock, isHeadsUp: progress.isHeadsUp)
@@ -82,8 +83,8 @@ final class LiveActivityController {
         self.init(display: SystemActivityDisplay(), log: log)
     }
 
-    func reconcile(_ session: Session?, at now: Date) {
-        let card = session.map { RunActivityCard(name: $0.workout.name, state: .init($0, at: now)) }
+    func reconcile(_ session: Session?, at now: Date, revision: Int = 0) {
+        let card = session.map { RunActivityCard(name: $0.workout.name, state: .init($0, at: now, revision: revision)) }
         guard card != wanted else { return }
         wanted = card
         if worker == nil {

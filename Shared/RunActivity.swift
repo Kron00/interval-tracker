@@ -20,8 +20,8 @@ struct RunActivityAttributes: Codable, Hashable {
         /// The system draws the countdown from these two dates and ticks it by itself.
         case counting(from: Date, to: Date)
         case paused(String)
-        /// A rep count, or the length of the hold that Start begins. `wait` says which wait of the
-        /// workout this is. The button hands it back with its tap.
+        /// A rep count, or the length of the hold that Start begins. `wait` stands for the run as
+        /// it was when this card was drawn. The button hands it back with its tap.
         case waiting(String, for: Advance, wait: Int)
         /// The time worked.
         case finished(String)
@@ -45,7 +45,7 @@ struct AdvanceRunIntent: LiveActivityIntent, AudioPlaybackIntent {
     /// The app sets this when it launches. The extension has no run to hand the tap to.
     @MainActor static var onPerform: (@MainActor (_ wait: Int) async -> Void)?
 
-    /// The wait the button was drawn for.
+    /// The `wait` of the card the button was drawn on.
     @Parameter(title: "Wait") var wait: Int
 
     init() {}

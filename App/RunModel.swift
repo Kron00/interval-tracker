@@ -24,6 +24,11 @@ final class RunModel {
     /// When the run in progress started. nil once the run has been reported, so that finishing and
     /// then leaving the finish screen reports it once.
     @ObservationIgnored private var unreportedStart: Date?
+    /// A number that every change to the run replaces. The button on the Live Activity carries the
+    /// one its card was drawn with. A place in the workout would not do: Undo comes back to the
+    /// same place, and so does the next workout. It starts at random, so that a card left by an
+    /// earlier launch does not match either.
+    @ObservationIgnored private var revision = Int.random(in: 0..<1_000_000_000)
     @ObservationIgnored private let player: CuePlayer
     @ObservationIgnored private let remote: HeadphoneRemote
     @ObservationIgnored private let liveActivity: LiveActivityController
@@ -69,13 +74,14 @@ final class RunModel {
         if session != before, session?.isPaused == before?.isPaused { offerUndo(of: before) }
     }
 
-    /// A tap on Start or Next in the Live Activity. The card it came from can be out of date, and a
-    /// tap can come twice. So it counts only while the run still waits where the card said it did,
-    /// and then it is a headphone press. iOS may suspend the app once the intent returns, so this
-    /// returns only when the card shows the change.
-    func advance(fromWait position: Int) async {
-        guard case .active(let progress)? = session?.snapshot(at: .now),
-              progress.isWaiting, !progress.isPaused, progress.segment.position == position else { return }
+    /// A tap on Start or Next in the Live Activity. The card it came from can be out of date: the
+    /// tap can come twice, after an Undo, or after another workout has started. So it counts only
+    /// while nothing has changed the run since that card was drawn, and then it is a headphone
+    /// press. iOS may suspend the app once the intent returns, so this returns only when the card
+    /// shows the change.
+    func advance(fromWait revision: Int) async {
+        guard revision == self.revision, case .active(let progress)? = session?.snapshot(at: .now),
+              progress.isWaiting, !progress.isPaused else { return }
         handle(.play)
         await liveActivity.settle()
     }
@@ -104,6 +110,7 @@ final class RunModel {
 
     private func change(_ body: (inout Session?) -> Void) {
         undo = nil
+        revision &+= 1
         body(&session)
         schedule = session?.cueSchedule
         if session == nil {
@@ -153,7 +160,7 @@ final class RunModel {
         player.sharing = headphoneControls ? .exclusive : .mixing(strategy)
         player.reconcile(CueDemand(for: session, playing: schedule, at: now), at: now)
         remote.reconcile(headphoneControls ? session : nil, at: now)
-        liveActivity.reconcile(session, at: now)
+        liveActivity.reconcile(session, at: now, revision: revision)
 
         let keepScreenOn = defaults.object(forKey: SettingsKey.keepScreenOn) as? Bool ?? true
         let isActive = if case .active = session?.snapshot(at: now) { true } else { false }

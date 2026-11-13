@@ -94,7 +94,7 @@ final class LiveActivityContentTests: XCTestCase {
         session.perform(.next, at: start + 8)
         let waiting = State(
             title: "Child's Pose", caption: "Stretch 2 of 10", upNext: "Cobra 0:30", tone: .prepare,
-            clock: .waiting("0:45", for: .start, wait: 1), isHeadsUp: false)
+            clock: .waiting("0:45", for: .start, wait: 0), isHeadsUp: false)
         XCTAssertEqual(State(session, at: start + 8), waiting)
         XCTAssertEqual(State(session, at: start + 900), waiting, "nothing counts until Start")
 
@@ -113,7 +113,7 @@ final class LiveActivityContentTests: XCTestCase {
 
         XCTAssertEqual(State(session, at: start + 5000), State(
             title: "Cobra", caption: "Stretch 3 of 10", upNext: "Hip Flexor Couch Stretch 0:45", tone: .prepare,
-            clock: .waiting("0:30", for: .start, wait: 4), isHeadsUp: false), "the hold ends by itself and the next stretch waits")
+            clock: .waiting("0:30", for: .start, wait: 0), isHeadsUp: false), "the hold ends by itself and the next stretch waits")
     }
 
     func testAStretchReachedWhilePausedShowsItsLengthAndNotAnEmptyClock() {
@@ -260,10 +260,10 @@ final class LiveActivityControllerTests: XCTestCase {
 
         XCTAssertEqual(display.shown.map(\.state.clock), [
             .waiting("10 reps", for: .next, wait: 0),
-            .waiting("0:45", for: .start, wait: 1),
+            .waiting("0:45", for: .start, wait: 0),
             .counting(from: start + 50, to: start + 53),
             .counting(from: start + 53, to: start + 98),
-            .waiting("0:30", for: .start, wait: 4),
+            .waiting("0:30", for: .start, wait: 0),
         ])
         XCTAssertEqual(display.shown.map(\.state.title), ["Cat-Cow", "Child's Pose", "Child's Pose", "Child's Pose", "Cobra"])
         XCTAssertEqual(display.events.count, 6, "the launch clears, then one card for each state")

@@ -30,8 +30,9 @@ enum CueDemand: Equatable {
             self = .standby
             return
         }
-        // A wait begins with its name, so it has something to play until the name has sounded.
-        if let end = schedule.end, end <= now, case .active(let progress) = session.snapshot(at: now), progress.isWaiting {
+        // A wait begins with its name, so it has something to play until the name has sounded. With
+        // voice off a wait has nothing to say at all.
+        if schedule.end.map({ $0 <= now }) ?? true, case .active(let progress) = session.snapshot(at: now), progress.isWaiting {
             self = .standby
         } else {
             self = .playing(schedule)

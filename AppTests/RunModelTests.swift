@@ -214,6 +214,23 @@ final class RunModelTests: XCTestCase {
         XCTAssertEqual(card[MPNowPlayingInfoPropertyPlaybackRate] as? Double, 0)
     }
 
+    /// With voice off a wait has no name to say and nothing else to play, so it is on standby from
+    /// the start. Headphone controls hold the audio on standby, and only on standby.
+    func testWithVoiceOffAWaitIsStandbyAtOnce() throws {
+        let start = Date(timeIntervalSinceReferenceDate: 0)
+        var session = Session(.dailyStretch, cues: CuePreferences(voice: false), startingAt: start)
+        XCTAssertEqual(CueDemand(for: session, playing: session.cueSchedule, at: start + 0.1), .standby,
+                       "Cat-Cow is counted in reps and waits for Next from the start")
+
+        session.perform(.next, at: start + 100)
+        XCTAssertEqual(CueDemand(for: session, playing: session.cueSchedule, at: start + 100.1), .standby,
+                       "Next lands on the wait for Child's Pose, and with voice off nothing announces it")
+
+        session.perform(.play, at: start + 110)
+        XCTAssertEqual(CueDemand(for: session, playing: session.cueSchedule, at: start + 110.5),
+                       .playing(try XCTUnwrap(session.cueSchedule)), "Start begins the count-in, which ticks")
+    }
+
     func testAWaitIsStandbyOnceItsNameHasSounded() throws {
         let start = Date(timeIntervalSinceReferenceDate: 0)
         var session = Session(.dailyStretch, cues: CuePreferences(), startingAt: start)

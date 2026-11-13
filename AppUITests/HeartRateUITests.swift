@@ -20,13 +20,12 @@ final class HeartRateUITests: XCTestCase {
         let find = app.buttons["findMonitorButton"]
         scroll(app, to: find)
         XCTAssertTrue(none.exists, "no monitor is remembered yet")
-        XCTAssertTrue(app.staticTexts["190 bpm"].exists, "the max heart rate starts at 190")
-
         let stepper = app.steppers["maxHeartRateStepper"]
-        stepper.buttons.element(boundBy: 1).tap()
-        XCTAssertTrue(app.staticTexts["191 bpm"].waitForExistence(timeout: Self.patience))
-        stepper.buttons.element(boundBy: 0).tap()
-        XCTAssertTrue(app.staticTexts["190 bpm"].waitForExistence(timeout: Self.patience))
+        XCTAssertEqual(stepper.label, "Max heart rate, 190 bpm", "the max heart rate starts at 190")
+        app.buttons["maxHeartRateStepper-Increment"].tap()
+        waitFor(stepper, toRead: "Max heart rate, 191 bpm")
+        app.buttons["maxHeartRateStepper-Decrement"].tap()
+        waitFor(stepper, toRead: "Max heart rate, 190 bpm")
 
         find.tap()
         let standIn = app.buttons["foundMonitor-Stand-in strap"]
@@ -41,7 +40,7 @@ final class HeartRateUITests: XCTestCase {
         wait(for: [expectation(for: live, evaluatedWith: reading)], timeout: Self.patience)
         XCTAssertEqual(app.staticTexts["rememberedMonitor"].label, "Stand-in strap")
         XCTAssertFalse(none.exists)
-        scroll(app, to: app.buttons["forgetMonitorButton"])
+        scroll(app, to: stepper)
         snap(app, "80-settings-heart-rate")
 
         app.buttons["forgetMonitorButton"].tap()
@@ -106,11 +105,19 @@ final class HeartRateUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Zone 3"].exists, "each zone has its line")
         let graph = app.descendants(matching: .any)["heartRateGraph"]
         XCTAssertTrue(graph.exists)
-        for _ in 0..<4 where !graph.isHittable { app.swipeUp() }
+        // Start again covers the bottom of the screen, so the graph is scrolled well above it.
+        let visible = app.windows.firstMatch.frame.maxY - 160
+        for _ in 0..<6 where graph.frame.maxY > visible { app.swipeUp(velocity: .slow) }
+        XCTAssertLessThanOrEqual(graph.frame.maxY, visible, "the graph is on the screen")
         snap(app, "83-history-heart-rate")
     }
 
     private let springboard = XCUIApplication(bundleIdentifier: "com.apple.springboard")
+
+    private func waitFor(_ element: XCUIElement, toRead label: String) {
+        let matches = expectation(for: NSPredicate(format: "label == %@", label), evaluatedWith: element)
+        wait(for: [matches], timeout: Self.patience)
+    }
 
     private func launch(_ arguments: String...) -> XCUIApplication {
         let app = XCUIApplication()

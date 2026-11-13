@@ -59,8 +59,10 @@ struct HeartRateReadout: View {
                     .accessibilityIdentifier("heartRateZone")
             }
             .lineLimit(1)
+            .minimumScaleFactor(0.7)
             .padding(.horizontal, 16)
-            .frame(height: Self.height)
+            // As wide as the screen allows, so the band keeps its size as the digits and the zone change.
+            .frame(maxWidth: .infinity, minHeight: Self.height, maxHeight: Self.height)
             .background(Color.black.opacity(0.28), in: Capsule())
         }
         .frame(maxWidth: .infinity, minHeight: Self.height, maxHeight: Self.height)

@@ -32,14 +32,19 @@ final class RunModel {
     @ObservationIgnored private let player: CuePlayer
     @ObservationIgnored private let remote: HeadphoneRemote
     @ObservationIgnored private let liveActivity: LiveActivityController
+    @ObservationIgnored let heartRate: HeartRateMonitor
+    /// The heart rates of the run that has not been reported, taken while it ran and was not paused.
+    @ObservationIgnored private var samples: [HeartRateSummary.Sample] = []
     @ObservationIgnored private var ticker: Timer?
 
     var liveActivityProblem: String? { liveActivity.problem }
 
-    init(player: CuePlayer, remote: HeadphoneRemote, liveActivity: LiveActivityController) {
+    init(player: CuePlayer, remote: HeadphoneRemote, liveActivity: LiveActivityController, heartRate: HeartRateMonitor) {
         self.player = player
         self.remote = remote
         self.liveActivity = liveActivity
+        self.heartRate = heartRate
+        heartRate.onReading = { [weak self] in self?.keep($0) }
         remote.onCommand = { [weak self] in self?.handle($0) }
         player.onInterrupted = { [weak self] in self?.interruptionBegan() }
         player.onInterruptionEnded = { [weak self] in self?.interruptionEnded() }
@@ -59,6 +64,10 @@ final class RunModel {
     func undoLast() {
         guard let undo else { return }
         change { $0 = undo }
+        // Undo of Start puts the run's clock back. Readings it took since then lie ahead of the clock
+        // now, and the same seconds will be run again.
+        let worked = undo.worked(at: .now)
+        samples.removeAll { $0.second > worked }
     }
     func end() {
         report()
@@ -113,6 +122,7 @@ final class RunModel {
         revision &+= 1
         body(&session)
         schedule = session?.cueSchedule
+        heartRate.need(.run, session != nil)
         if session == nil {
             ticker?.invalidate()
             ticker = nil
@@ -137,7 +147,15 @@ final class RunModel {
     private func report() {
         guard let session, let start = unreportedStart else { return }
         unreportedStart = nil
-        onRunOver?(WorkoutRecord(session, startedAt: start, endedAt: .now))
+        let summary = HeartRateSummary(samples, maxHeartRate: heartRate.maxHeartRate)
+        samples = []
+        onRunOver?(WorkoutRecord(session, startedAt: start, endedAt: .now, heartRate: summary))
+    }
+
+    private func keep(_ reading: HeartRateReading) {
+        guard unreportedStart != nil, let session, case .active(let progress) = session.snapshot(at: reading.date),
+              !progress.isPaused else { return }
+        samples.append(HeartRateSummary.Sample(reading, second: session.worked(at: reading.date)))
     }
 
     private func interruptionBegan() {
@@ -160,10 +178,12 @@ final class RunModel {
         player.sharing = headphoneControls ? .exclusive : .mixing(strategy)
         player.reconcile(CueDemand(for: session, playing: schedule, at: now), at: now)
         remote.reconcile(headphoneControls ? session : nil, at: now)
-        liveActivity.reconcile(session, at: now, revision: revision)
+        let isActive = if case .active = session?.snapshot(at: now) { true } else { false }
+        // A finished card has ended. A heart rate on it would start a new activity with each change.
+        liveActivity.reconcile(session, at: now, revision: revision,
+                               heartRate: isActive ? heartRate.display(at: now).map(RunActivityAttributes.HeartRate.init) : nil)
 
         let keepScreenOn = defaults.object(forKey: SettingsKey.keepScreenOn) as? Bool ?? true
-        let isActive = if case .active = session?.snapshot(at: now) { true } else { false }
         let stayAwake = keepScreenOn && isActive
         if UIApplication.shared.isIdleTimerDisabled != stayAwake {
             UIApplication.shared.isIdleTimerDisabled = stayAwake

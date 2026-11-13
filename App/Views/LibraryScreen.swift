@@ -164,6 +164,7 @@ struct LibraryScreen: View {
                 store: store,
                 log: log,
                 liveActivityProblem: run.liveActivityProblem,
+                heartRate: run.heartRate,
                 startAudioCheck: { start(.audioCheck, cues: SettingsScreen.audioCheckCues) },
                 close: { self.sheet = nil })
                 .task { run.prepare(.audioCheck, cues: SettingsScreen.audioCheckCues) }

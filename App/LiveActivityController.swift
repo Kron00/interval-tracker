@@ -34,6 +34,14 @@ extension RunActivityAttributes.ContentState {
 struct RunActivityCard: Equatable {
     let name: String
     let state: RunActivityAttributes.ContentState
+
+    /// Whether the heart rate is all that changed, and it stayed in its zone.
+    func differsOnlyInBeats(from other: RunActivityCard) -> Bool {
+        var unchanged = state
+        unchanged.heartRate = other.state.heartRate
+        return name == other.name && unchanged == other.state
+            && (state.heartRate == nil) == (other.state.heartRate == nil) && state.heartRate?.zone == other.state.heartRate?.zone
+    }
 }
 
 /// Where a card goes. ActivityKit in the app, a recorder in the tests.
@@ -57,10 +65,13 @@ final class LiveActivityController {
         display.isAllowed ? refusal : "Live Activities are turned off for Intervals in the Settings app."
     }
 
+    static let heartRateInterval: TimeInterval = 5
+
     private var refusal: String?
     @ObservationIgnored private let display: any RunActivityDisplay
     @ObservationIgnored private let log: AudioLog
     @ObservationIgnored private var wanted: RunActivityCard?
+    @ObservationIgnored private var wantedAt = Date.distantPast
     @ObservationIgnored private var shown: RunActivityCard?
     /// The one task that talks to the display. Updates are async, and a second task could overtake the first.
     @ObservationIgnored private var worker: Task<Void, Never>?
@@ -83,10 +94,19 @@ final class LiveActivityController {
         self.init(display: SystemActivityDisplay(), log: log)
     }
 
-    func reconcile(_ session: Session?, at now: Date, revision: Int = 0) {
-        let card = session.map { RunActivityCard(name: $0.workout.name, state: .init($0, at: now, revision: revision)) }
+    /// `heartRate` changes every second, and iOS limits how often a Live Activity may be updated. So
+    /// a change of the heart rate alone waits until `heartRateInterval` after the last card, and a
+    /// change of zone does not wait.
+    func reconcile(_ session: Session?, at now: Date, revision: Int = 0, heartRate: RunActivityAttributes.HeartRate? = nil) {
+        let card = session.map { session in
+            var state = RunActivityAttributes.ContentState(session, at: now, revision: revision)
+            state.heartRate = heartRate
+            return RunActivityCard(name: session.workout.name, state: state)
+        }
         guard card != wanted else { return }
+        if let card, let wanted, card.differsOnlyInBeats(from: wanted), now < wantedAt + Self.heartRateInterval { return }
         wanted = card
+        wantedAt = now
         if worker == nil {
             worker = Task { await catchUp() }
         }

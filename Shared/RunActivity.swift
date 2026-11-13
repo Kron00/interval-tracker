@@ -13,6 +13,8 @@ struct RunActivityAttributes: Codable, Hashable {
         var clock: Clock
         /// Work begins when the phase ends, and it is time to say so.
         var isHeadsUp: Bool
+        /// nil when no heart-rate monitor is remembered. Unlike the rest, it can change inside a phase.
+        var heartRate: HeartRate? = nil
     }
 
     /// What stands where the clock is.

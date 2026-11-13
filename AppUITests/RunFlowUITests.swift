@@ -348,8 +348,9 @@ final class RunFlowUITests: XCTestCase {
         snap(app, "27-stretch-editor")
     }
 
+    /// With a heart-rate monitor remembered, so the readout's slot is measured in every state too.
     func testNothingMovesWhenTheRunChangesState() {
-        let app = launch("-uiTesting")
+        let app = launch("-uiTesting", "-hrStub", "remembered")
         let interval = app.buttons["timerRow-Norwegian 4x4"]
         XCTAssertTrue(interval.waitForExistence(timeout: Self.patience))
         interval.tap()
@@ -363,6 +364,7 @@ final class RunFlowUITests: XCTestCase {
         let undo = app.buttons["undoButton"]
         XCTAssertTrue(phase.waitForExistence(timeout: Self.patience))
         let running = frames(in: app)
+        XCTAssertNotNil(running["heartRate"], "the stand-in monitor is remembered, so the readout has its slot")
         snap(app, "30-running")
 
         setPaused(true, with: primary)
@@ -841,9 +843,9 @@ final class RunFlowUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["phaseTitle"].waitForExistence(timeout: Self.patience))
     }
 
-    private func launch(_ argument: String) -> XCUIApplication {
+    private func launch(_ arguments: String...) -> XCUIApplication {
         let app = XCUIApplication()
-        app.launchArguments = [argument, "-undoWindow", "20"]
+        app.launchArguments = arguments + ["-undoWindow", "20"]
         app.launch()
         return app
     }
@@ -875,11 +877,16 @@ final class RunFlowUITests: XCTestCase {
         for digits in [app.staticTexts["timeRemaining"], app.staticTexts["holdLength"]] where digits.exists {
             frames["digits"] = digits.frame
         }
+        // The heart-rate readout has a slot only while a monitor is remembered.
+        let heartRate = app.descendants(matching: .any)["heartRate"]
+        if heartRate.exists { frames["heartRate"] = heartRate.frame }
         return frames
     }
 
     private func assertNothingMoved(in app: XCUIApplication, since before: [String: CGRect], _ when: String) {
-        for (identifier, now) in frames(in: app) {
+        let after = frames(in: app)
+        XCTAssertEqual(before["heartRate"] == nil, after["heartRate"] == nil, "the heart-rate readout came or went \(when)")
+        for (identifier, now) in after {
             guard let was = before[identifier] else { continue }
             // The total is set against the right edge and is as wide as its digits, so "8:21" is narrower than "38:00".
             let leftEdge = identifier == "totalRemaining" ? 0 : now.minX - was.minX

@@ -21,6 +21,8 @@ public struct WorkoutRecord: Identifiable, Hashable, Sendable, Codable {
     /// The workout's timed length when the run started.
     public let planned: TimeInterval
     public let outcome: Outcome
+    /// nil for a run with no heart-rate reading, and for every run that versions before 1.4 wrote.
+    public let heartRate: HeartRateSummary?
 
     /// No run is recorded as longer than this. A routine left waiting on a stretch counted in reps
     /// keeps counting until it is ended, which can be days later.
@@ -28,9 +30,9 @@ public struct WorkoutRecord: Identifiable, Hashable, Sendable, Codable {
 
     /// A length outside `0...longest` becomes the nearer end of that range.
     public init(id: UUID = UUID(), startedAt: Date, workoutID: Workout.ID, name: String, kind: Kind,
-                worked: TimeInterval, planned: TimeInterval, outcome: Outcome) {
+                worked: TimeInterval, planned: TimeInterval, outcome: Outcome, heartRate: HeartRateSummary? = nil) {
         self.id = id; self.startedAt = startedAt; self.workoutID = workoutID; self.name = name
-        self.kind = kind; self.outcome = outcome
+        self.kind = kind; self.outcome = outcome; self.heartRate = heartRate
         self.worked = min(max(worked, 0), Self.longest)
         self.planned = min(max(planned, 0), Self.longest)
     }
@@ -47,6 +49,7 @@ public struct WorkoutRecord: Identifiable, Hashable, Sendable, Codable {
         worked = try container.decode(TimeInterval.self, forKey: .worked)
         planned = try container.decode(TimeInterval.self, forKey: .planned)
         outcome = try container.decode(Outcome.self, forKey: .outcome)
+        heartRate = try container.decodeIfPresent(HeartRateSummary.self, forKey: .heartRate)
         guard (0...Self.longest).contains(worked) else {
             throw DecodingError.dataCorruptedError(forKey: .worked, in: container, debugDescription: "Not a length: \(worked).")
         }
@@ -63,12 +66,13 @@ public struct WorkoutRecord: Identifiable, Hashable, Sendable, Codable {
 
     /// What `session` amounts to when its run is over at `now`: completed if it has finished, and
     /// ended early with the time worked so far if it has not.
-    public init(_ session: Session, startedAt: Date, endedAt now: Date) {
+    public init(_ session: Session, startedAt: Date, endedAt now: Date, heartRate: HeartRateSummary? = nil) {
         let isFinished = if case .finished = session.snapshot(at: now) { true } else { false }
         self.init(
             startedAt: startedAt, workoutID: session.workout.id, name: session.workout.name,
             kind: session.workout.plan.kind, worked: session.worked(at: now),
-            planned: session.workout.totalDuration, outcome: isFinished ? .completed : .endedEarly)
+            planned: session.workout.totalDuration, outcome: isFinished ? .completed : .endedEarly,
+            heartRate: heartRate)
     }
 }
 

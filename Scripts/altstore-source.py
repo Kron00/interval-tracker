@@ -15,6 +15,11 @@ REPO = "Kron00/interval-tracker"
 IPA = "Intervals.ipa"
 BUNDLE_ID = "com.kron00.IntervalTracker"
 ICON_PATH = "App/Assets.xcassets/AppIcon.appiconset/AppIcon.png"
+# AltStore refuses an app whose privacy keys differ from these. Read them from the built Info.plist.
+PRIVACY = {
+    "NSBluetoothAlwaysUsageDescription":
+        "Intervals reads your heart rate from a Bluetooth heart-rate monitor, such as a Fitbit Air, during a workout.",
+}
 
 pending = sys.argv[2] if len(sys.argv) == 3 and sys.argv[1] == "--pending" else None
 pages = json.loads(subprocess.run(
@@ -67,7 +72,7 @@ print(json.dumps({
         "tintColor": "#10B981",
         "category": "utilities",
         "versions": versions,
-        "appPermissions": {"entitlements": [], "privacy": {}},
+        "appPermissions": {"entitlements": [], "privacy": PRIVACY},
     }],
     "news": [],
 }, indent=2))

@@ -18,6 +18,8 @@ struct RunScreen: View {
         // Read out here. A paused or waiting run has no tick left to notice a change with.
         let undo: (() -> Void)? = run.undo == nil ? nil : { run.undoLast() }
         let cuesAreSilent = log.cuesAreSilent
+        // The readout observes the monitor itself, so a reading redraws it and nothing else.
+        let heartRate = run.heartRate.remembered == nil ? nil : run.heartRate
         TimelineView(RunTicks(zero: session.zeroDate, halt: session.haltDate)) { context in
             let snapshot = session.snapshot(at: context.date)
             let tone = RunTone(snapshot)
@@ -33,6 +35,7 @@ struct RunScreen: View {
                         progress: progress,
                         outline: outline,
                         cuesAreSilent: cuesAreSilent,
+                        heartRate: heartRate,
                         pause: run.pause,
                         resume: run.resume,
                         skip: { run.skip(progress.segment) },
@@ -83,6 +86,8 @@ struct ActiveRunView: View {
     let progress: RunProgress
     let outline: [PhaseSpan]
     let cuesAreSilent: Bool
+    /// nil while no heart-rate monitor is remembered, and then the readout has no slot.
+    let heartRate: HeartRateMonitor?
     let pause: () -> Void
     let resume: () -> Void
     let skip: () -> Void
@@ -105,6 +110,7 @@ struct ActiveRunView: View {
                     VStack(spacing: 8) {
                         clock
                         waitLine
+                        heartRateLine
                         chips
                     }
                     VStack(spacing: 6) {
@@ -126,6 +132,7 @@ struct ActiveRunView: View {
                         upNextLine
                         waitLine
                     }
+                    heartRateLine
                     overall
                     chips
                     controls
@@ -311,6 +318,11 @@ struct ActiveRunView: View {
             }
         }
         .animation(Motion.change, value: prompt)
+    }
+
+    @ViewBuilder
+    private var heartRateLine: some View {
+        if let heartRate { HeartRateReadout(monitor: heartRate) }
     }
 
     private var overall: some View {

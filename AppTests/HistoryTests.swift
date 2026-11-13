@@ -89,7 +89,7 @@ final class RunReportTests: XCTestCase {
     private func makeRun() -> RunModel {
         let log = AudioLog()
         let run = RunModel(player: CuePlayer(bank: SoundBank(log: log), log: log), remote: HeadphoneRemote(log: log),
-                           liveActivity: LiveActivityController(display: RecordingDisplay(), log: log))
+                           liveActivity: LiveActivityController(display: RecordingDisplay(), log: log), heartRate: .scripted())
         run.onRunOver = { [unowned self] in reports.append($0) }
         addTeardownBlock { @MainActor in run.end() }
         return run

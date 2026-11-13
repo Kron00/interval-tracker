@@ -15,7 +15,7 @@ final class AdvanceRunIntentTests: XCTestCase {
         display = RecordingDisplay()
         card = LiveActivityController(display: display, log: log)
         run = RunModel(player: CuePlayer(bank: SoundBank(log: log), log: log), remote: HeadphoneRemote(log: log),
-                       liveActivity: card)
+                       liveActivity: card, heartRate: .scripted())
         // The app that hosts the tests has pointed the intent at its own run.
         appHandler = AdvanceRunIntent.onPerform
         AdvanceRunIntent.onPerform = { [run] in await run?.advance(fromWait: $0) }

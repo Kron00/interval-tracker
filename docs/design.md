@@ -369,6 +369,83 @@ So `ChatGPTAccount` keeps the refresh in progress, and every caller that needs a
 
 The app checks the `nonce` in the ID token against the sign-in attempt. It does not check the token's signature. The token comes straight from OpenAI's token endpoint over TLS, and OpenID Connect accepts that in place of the signature check.
 
+## How the app reads heart rate
+
+The owner wears a Google Fitbit Air, a band with no screen. In the Google Health app, under Connections, Fitbit Air, Share heart rate, it broadcasts live heart rate over Bluetooth Low Energy so that gym equipment can read it. An open-source reader gets it through the Bluetooth SIG's standard Heart Rate Service: service `0x180D`, characteristic `0x2A37`, a notification about once a second. Nobody has read it from this app yet.
+
+So the app is a client of that standard service and of nothing made for one band. Any chest strap or armband that sends heart rate over Bluetooth (Polar, Wahoo, Garmin HRM) works the same way, and a change on Google's side can at worst stop the Air, not the feature.
+
+`HeartRateMeasurement` reads the characteristic. Bit 0 of the first byte says whether the heart rate that follows is one byte or two, least significant first. The energy expended and the RR intervals that can come after it are not read. A value of 0, which a strap sends without skin contact, and anything else outside 25 to 250 is not a heart rate and is dropped when it becomes a `HeartRateReading`.
+
+### Bluetooth stays in one file
+
+`BluetoothHeartRateSource` is the only file that imports CoreBluetooth, the way `LiveActivityController.swift` is the only one that imports ActivityKit. Every call and callback runs on one serial queue, so nothing waits on Bluetooth on the main thread. Events reach the main thread in order.
+
+The rest of the app tells the source what it wants, a `HeartRateDemand`: whether to scan, and which monitor to stay connected to. The source makes that so and keeps it so. `HeartRateMonitor` derives the demand. It names the remembered monitor while a run is on or Settings is open, and nothing otherwise, so the radio is idle between workouts.
+
+| The source | What the app shows |
+| --- | --- |
+| Has no demand that needs Bluetooth | Nothing. It has not even made its `CBCentralManager` |
+| Scans, or looks for a remembered monitor that iOS no longer knows | Searching, and a dash with "Connecting" |
+| Has asked iOS to connect | Connecting. iOS keeps a connect pending until the monitor is in range, so the run keeps trying without a timer |
+| Has subscribed to the measurement | Connected, and the number |
+| Lost the link | "No signal", and it connects again at once |
+| Was refused the measurement | "No signal", and Settings says to tap Pair if iOS asks, or to pick the monitor again |
+
+Making a `CBCentralManager` is what shows the permission prompt, so the source makes one only for a demand that needs Bluetooth. That happens first when the user opens **Find a monitor**. A run or Settings asks for Bluetooth only once a monitor is remembered, and a monitor is remembered only from **Find a monitor**. So the app never asks at launch, and the prompt never appears over a workout as it starts. The source also turns off iOS's own alert that Bluetooth is off, for the same reason. Settings says so instead.
+
+The Air may need pairing before it streams. iOS asks when the app subscribes to a characteristic that needs it. If the user declines, the subscription fails and the source stops asking. Asking again in the middle of a workout would put the prompt back on the screen with every reconnect. Picking the monitor again in **Find a monitor**, or the next run, asks again.
+
+No test touches Bluetooth. The app tests pass a source that records the demands and sends the events a test writes. UI tests launch with `-hrStub new` or `-hrStub remembered` and get `StubHeartRateSource`. A scan finds one monitor, and once connected it sends one reading a second, from 100 up to 187 and back in a minute, so half a minute passes through every zone of the standard maximum.
+
+### The zones
+
+Five zones, each from a share of the maximum heart rate: zone 1 from 50%, zone 2 from 60%, zone 3 from 70%, zone 4 from 80% and zone 5 from 90%. Below 50% is below zone 1. `MaxHeartRate.zone(of:)` in the package is the rule, and the run screen, the card and History all ask it. It compares in whole numbers, `bpm × 100 ≥ percent × max`, so 60% of 190 is 114 exactly and 114 is in zone 2.
+
+The maximum is a setting from 120 to 220, 190 until the user changes it. Settings suggests 220 minus your age. A record keeps the maximum its zones were worked out with, so changing the setting does not change a past run.
+
+The zone colours run cool to hot: silver below zone 1, then sky blue, lime, yellow, orange and pink. A zone is drawn on top of a phase, whose fill already has a colour. So no zone colour is a phase colour, and each sits on a dark backing.
+
+### What the run screen shows
+
+The readout has its own slot, above the total in portrait and under the clock in landscape. The slot is there in every state of the run, so a pause or a wait moves nothing. `testNothingMovesWhenTheRunChangesState` runs with the stand-in remembered and measures the slot too. With no monitor remembered, the slot is not there at all, and the screen is as it was before heart rate.
+
+A number shows only while the link is up and the latest reading is at most 5 seconds old. Otherwise the slot shows a dash and "Connecting" or "No signal". A stale number is never shown as if it were live.
+
+The readout observes `HeartRateMonitor` by itself, through `LiveHeartRate`. A reading redraws the readout and nothing else, and a `TimelineView` redraws it once more when the reading goes stale. The run screen's own body never reads the reading, so it still redraws once a second while counting and not at all while paused or waiting.
+
+### Why the card waits for heart rate
+
+Everywhere else the card is the same for a whole phase, and iOS ticks the countdown. Heart rate is the one field that changes inside a phase. Sending it every second would mean an update a second for the whole workout, and iOS limits how often an app may update a Live Activity.
+
+So `LiveActivityController.reconcile` holds back a change of the heart rate alone until 5 seconds after the last card it sent. A change of zone goes out at once, and so does a reading that goes to a dash or comes back from one. Any other change, of phase or state, goes out at once as before and carries the heart rate of that moment. The card is at most 5 seconds behind the run screen within a zone, and its colour is never behind.
+
+### What History keeps
+
+`RunModel` keeps every reading while the run is active and not paused. A paused run keeps none, and neither does a run that has finished. When it reports the run, it hands the readings to `HeartRateSummary` with the max heart rate of the moment. A run with no reading has no summary, and its entry looks as entries did before.
+
+| The summary | How it is worked out |
+| --- | --- |
+| Average | The mean of the readings, rounded |
+| Maximum | The highest reading |
+| Time in each zone | From each reading to the next, in the zone of the first. A gap of more than 10 seconds counts for nothing, so a pause or a lost signal is not time in a zone. The last reading adds nothing |
+| Graph | One point for each 5 seconds after the start that had a reading, the mean of its readings. A gap in the readings is a gap in the line |
+
+The record carries the summary under an optional `heartRate` key. Files that versions before 1.4 wrote have no such key and load as before. A summary that is not valid, such as a heart rate outside 25 to 250, a maximum below the average, or a time in a zone that is no length, refuses the file like any damaged record, and the store sets the file aside. The file version stays 1. A new version would make an older app set aside a file it can still read: an older app ignores the key it does not know, and loses only the heart rate if it writes the file again.
+
+A point of the graph is written as a pair of numbers, `[second, bpm]`. An hour has 720 points, and with named keys the history file would grow several times over.
+
+Nothing goes to Apple Health or to Google. The summary lives in `history.json` only.
+
+### What only a phone can show
+
+- Whether the Fitbit Air streams to this app at all. The research is one open-source reader and one app listing, and one review says a bike computer could not read it.
+- Whether the Air asks to pair, and whether the app recovers when the prompt is declined.
+- Whether Share heart rate turns itself off after a while.
+- Whether readings keep arriving with the screen locked. The app has the `bluetooth-central` background mode, and a run's audio keeps it awake, but neither has been seen with a monitor.
+
+Settings shows the remembered monitor's live reading, so the owner can check the first two in ten seconds.
+
 ## What a running timer costs
 
 The digits change once a second, so the run screen redraws once a second. `Session.zeroDate` is the instant elapsed time was zero, and the screen redraws on the whole seconds after it, which is exactly when a digit changes. `Session.haltDate` is the instant the run next stops by itself, at a gate or at the finish. The screen is not redrawn after it, because a waiting run shows the same thing until you tap. A paused run is not redrawn either.
@@ -410,6 +487,15 @@ The question that the X asks redraws one line once a second while it is open. Th
 | The question open | 3.6%, 9.6% and 10.7% | 2.0%, 2.7% and 9.6% |
 
 The Mac was busy with other work, and the runs of one build differ by more than the two builds do. So these figures show no cost of the line, and they are too rough to rule a small one out.
+
+The heart rate was measured against `origin/main` on the same simulator with Debug builds, while the Mac ran two other simulators and had a load average near 220. A UI test started Norwegian 4x4 with the stand-in monitor remembered and checked that the readout showed a number. Each figure is the app's CPU time over 20 seconds of the warm-up, beginning 15 seconds after it started. The two builds took turns.
+
+| | Share of one core |
+| --- | --- |
+| Before heart rate | 2.6%, 2.45% and 2.25% |
+| With the readout showing one reading a second | 3.15%, 3.4% and 2.8% |
+
+The medians are 2.45% and 3.15%, so the readout costs about 0.7% of one core. It is redrawn once a second with each reading, apart from the clock's redraw, which is the likely cause. That was not profiled. A run with no monitor remembered has no readout, and nothing about it changes.
 
 The clock digits cut from one second to the next. In an earlier measurement, rolling them with SwiftUI's `numericText` transition took a warm-up from 3.0% to 71% of one core. Where that time goes was not profiled. The title, the captions, the buttons, and the chips do fade, because they change only when the run changes state.
 

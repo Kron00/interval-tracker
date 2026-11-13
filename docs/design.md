@@ -325,7 +325,7 @@ If silence does not make the app Now Playing, the fix is in one place: the silen
 
 ### Building workouts with ChatGPT
 
-No test contacts OpenAI, and nobody has signed in to ChatGPT from this app. The protocol comes from OpenAI's documentation and from three open-source clients that implement it.
+One test contacts OpenAI, `LiveOpenAITests`, and it is skipped unless `TEST_RUNNER_LIVE_OPENAI=1` is set, because a person has to sign in. Nobody has signed in to ChatGPT from the app on a phone. The protocol comes from OpenAI's documentation and from three open-source clients that implement it.
 
 What is proven without an account:
 
@@ -334,11 +334,18 @@ What is proven without an account:
 - That the system sign-in sheet reaches the listener on the simulator. A UI test signs in through the real sheet and the real listener. Only ChatGPT's page and the token endpoint are stand-ins.
 - That a signed simulator build stores the vault in the Keychain and reads it back. An unsigned build has no Keychain, so CI skips those two tests.
 
-What only an account can show:
+What one account showed. `LiveOpenAITests` ran against OpenAI on 12 November 2026 in the simulator. It drives `ChatGPTModel` with the real transport, the real listener, and a vault in memory. It prints the sign-in address, and the address is opened in a browser on the Mac, whose loopback interface the simulator shares. `Scripts/chatgpt-probe.py` sends the same requests without the app and ran the same day:
 
-- Whether OpenAI registers this app as a client, and whether the owner's plan may be used by other apps.
-- Whether a plan request may carry a JSON Schema, and which models the plan lists. `Scripts/chatgpt-probe.py` answers both from a Mac. It has never been run against OpenAI.
-- Whether the smallest model is found. The model list does not say which model is the smallest, so `ModelList.smallest` goes by the names "luna", "nano", and "mini", and otherwise takes the first model listed.
+- OpenAI registered a client it had never seen and issued it an `oaiapp_` identifier. It granted all six scopes, with a one-hour access token.
+- The plan may be used by other apps, and a plan request may carry a strict JSON Schema with `store: false` and `stream: true`. The fallback that writes the schema into the instructions was not needed.
+- The plan listed `gpt-6.1-sol`, `gpt-6-astra`, `gpt-6.1-terra`, `gpt-6-sol`, `gpt-6-luna`, `gpt-5.6-sol`, `gpt-5.6-terra` and `gpt-5.6-luna`. `ModelList.smallest` picks `gpt-6-luna` from that list, and a test pins it.
+- The app turned the plan's answer to "15-minute hip mobility routine" into a routine of eight stretches through `WorkoutBlueprint`.
+- Revoking the refresh token succeeded.
+
+What only an account can still show:
+
+- Whether another plan may be used by other apps. The probe checked one.
+- Whether the smallest model is found when OpenAI renames its models. The model list does not say which model is the smallest, so `ModelList.smallest` goes by the names "luna", "nano", and "mini", and otherwise takes the first model listed.
 
 What only a phone can show:
 

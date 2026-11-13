@@ -42,7 +42,7 @@ final class DescribeFlowUITests: XCTestCase {
         let save = app.buttons["saveGeneratedButton"]
         XCTAssertTrue(save.waitForExistence(timeout: Self.patience))
         XCTAssertTrue(app.navigationBars["Hip Mobility"].exists)
-        XCTAssertEqual(app.staticTexts["detailTotal"].label, "13:10 + reps")
+        XCTAssertEqual(app.staticTexts["detailTotal"].label, "11:57 + reps")
         XCTAssertTrue(app.staticTexts["Hip Circles"].exists)
         XCTAssertTrue(app.staticTexts["10 reps each side"].exists)
         XCTAssertTrue(app.staticTexts["1:30 each side"].exists)
@@ -61,7 +61,7 @@ final class DescribeFlowUITests: XCTestCase {
         let row = app.buttons["timerRow-Hip Mobility"]
         XCTAssertTrue(row.waitForExistence(timeout: Self.patience))
         XCTAssertTrue(row.label.contains("8 stretches · 4 each side"), row.label)
-        XCTAssertTrue(row.label.contains("13:10 + reps"), row.label)
+        XCTAssertTrue(row.label.contains("11:57 + reps"), row.label)
         snap(app, "74-generated-saved")
         app.terminate()
 

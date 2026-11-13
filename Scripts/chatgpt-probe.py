@@ -6,7 +6,8 @@ and the models the plan lists, asks for one routine with a JSON Schema, and revo
 It stores nothing. It leaves an app named "Intervals probe" in the ChatGPT account, which can be
 removed there. It does not verify the ID token, so it is a probe and not app code.
 
-It has never been run against OpenAI. No test runs it, and CI must not.
+It last ran against OpenAI on 2026-11-12 and every step answered. No test runs it, and CI must not.
+Run it with a Python whose certificate store works, such as /usr/bin/python3.
 
 Usage: chatgpt-probe.py            (optionally MODEL=gpt-6.1-sol chatgpt-probe.py)
 """

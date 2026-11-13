@@ -39,6 +39,7 @@
 		BA69632AA518B6209EFAFDB3 /* ChatGPTSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 99C7B98678A65E9D1AA18C0C /* ChatGPTSupport.swift */; };
 		BD5C0692E6356E044CEFED62 /* ChatGPTModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D391522F32AAFDF0379B8A73 /* ChatGPTModelTests.swift */; };
 		BEFF4E550D75B1070B67FCB5 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 0C603108A538A703403A3B48 /* Assets.xcassets */; };
+		CA23E86A3B15D597E3BBCFED /* LiveOpenAITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3CD2B6B089A5CD539F62901C /* LiveOpenAITests.swift */; };
 		D017DE89FF68837C075BE9E4 /* RunFlowUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 940EFE8E9FC571E61CC14BFA /* RunFlowUITests.swift */; };
 		D9642970128FB319A97FCAAF /* WorkoutGenerator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 57646BB9F1B0D10D5F8D2B00 /* WorkoutGenerator.swift */; };
 		DEB6F73EE4C142910EB7DAF8 /* SoundBankTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B564074ECDB7B22BE0C9414B /* SoundBankTests.swift */; };
@@ -77,6 +78,7 @@
 		33404E102E7A95FC2F888149 /* StubOpenAI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StubOpenAI.swift; sourceTree = "<group>"; };
 		378DA24400F7ABAC1D4826FD /* OpenAI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenAI.swift; sourceTree = "<group>"; };
 		37A0E52AAC7DCFA9945D0ABD /* EditorScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditorScreen.swift; sourceTree = "<group>"; };
+		3CD2B6B089A5CD539F62901C /* LiveOpenAITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveOpenAITests.swift; sourceTree = "<group>"; };
 		3FB42CB10B3A825E97F8DCEC /* RunScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RunScreen.swift; sourceTree = "<group>"; };
 		443CA32D43F94C087A951A1D /* LibraryStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryStore.swift; sourceTree = "<group>"; };
 		45ABF9DB89E5EFD5669F0BCC /* IntervalTrackerTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = IntervalTrackerTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -215,6 +217,7 @@
 				99C7B98678A65E9D1AA18C0C /* ChatGPTSupport.swift */,
 				491B8024DCB83D1ACD9C704E /* CuePlayerTests.swift */,
 				A435E01A4F405F0BAF59ED27 /* KeychainVaultStoreTests.swift */,
+				3CD2B6B089A5CD539F62901C /* LiveOpenAITests.swift */,
 				08BF0E68A8BC574615B5F6CD /* LoopbackCallbackTests.swift */,
 				6816BDD7F258B7B7991FEE07 /* RunModelTests.swift */,
 				0066280ACAA937862EB13544 /* SignInAttemptTests.swift */,
@@ -361,6 +364,7 @@
 				BA69632AA518B6209EFAFDB3 /* ChatGPTSupport.swift in Sources */,
 				1B28FD2E5BA4C13600F5E750 /* CuePlayerTests.swift in Sources */,
 				F94AFA1A2BCF4DA11CBE7C2C /* KeychainVaultStoreTests.swift in Sources */,
+				CA23E86A3B15D597E3BBCFED /* LiveOpenAITests.swift in Sources */,
 				801D6B13505CE0531F0C8797 /* LoopbackCallbackTests.swift in Sources */,
 				5DC64F5291516E01F3DB80A8 /* RunModelTests.swift in Sources */,
 				2794E8859D42AC72ED7B79E3 /* SignInAttemptTests.swift in Sources */,

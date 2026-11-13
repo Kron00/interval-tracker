@@ -191,17 +191,27 @@ ChatGPT ends a sign-in by sending the browser to an address on the phone itself,
 
 ### What is not proven about ChatGPT
 
-Nobody has signed in to ChatGPT from this app. The tests use a stand-in for OpenAI inside the app, and no test contacts OpenAI. Four things are untested:
+The tests use a stand-in for OpenAI inside the app. One test contacts OpenAI, and it runs only when asked for, because a person has to sign in.
 
-- Whether OpenAI accepts the sign-in from this app, and whether your plan may be used by other apps. OpenAI's pages disagree about which plans qualify.
-- Whether the request the app sends is accepted for a plan. In particular, OpenAI does not say whether a plan request may carry a JSON Schema. If it is refused, the app sends the request once more with the schema written into the instructions.
-- Which models your plan lists.
-- Whether the sign-in page comes back to the app on a real iPhone. On the simulator it does: a UI test signs in through the system sign-in page and the listener inside the app.
+That test ran on 12 November 2026 in the simulator with one ChatGPT account. The app's own code did every step:
 
-`Scripts/chatgpt-probe.py` checks the first three from a Mac, without the app. It opens the sign-in page in your browser, prints the scope you were granted and the models your plan lists, asks for one routine with a JSON Schema, and revokes its sign-in. It leaves an app named "Intervals probe" in your ChatGPT account. The script has never been run against OpenAI.
+- It signed in. OpenAI registered the app, sent the browser back to the listener inside the app, and granted every scope the app asks for, including plan usage.
+- It read the plan's eight models and picked `gpt-6-luna`.
+- It asked for a "15-minute hip mobility routine" and built a routine of eight stretches from the answer.
+- It signed out.
+
+Three things are still untested:
+
+- Signing in on a real iPhone. The simulator shares the Mac's network, and a phone does not.
+- Whether your plan may be used by other apps. One plan was checked, and OpenAI's pages disagree about which plans qualify.
+- Whether an app that AltStore signed keeps the sign-in in the Keychain. The live test kept its tokens in memory.
+
+`Scripts/chatgpt-probe.py` sends the same requests from a Mac, without the app or Xcode.
+
+To check your own account, run it. It opens the sign-in page in your browser, prints the scope you were granted and the models your plan lists, asks for one routine with a JSON Schema, and revokes its sign-in. It leaves an app named "Intervals probe" in your ChatGPT account.
 
 ```sh
-python3 Scripts/chatgpt-probe.py
+/usr/bin/python3 Scripts/chatgpt-probe.py
 ```
 
 | The script prints | It means |

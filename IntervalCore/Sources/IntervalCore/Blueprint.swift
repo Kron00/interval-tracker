@@ -59,17 +59,11 @@ public struct WorkoutBlueprint: Decodable, Equatable, Sendable {
             for (index, fields) in (stretches ?? []).prefix(Routine.maximumStretches).enumerated() {
                 built.append(try Self.stretch(fields, number: index + 1))
             }
-            // The model never chooses the gaps. A generated routine gets the ones a new routine has in the editor.
-            guard let getReady = Span(seconds: Self.getReadySeconds),
-                  let switchSides = Span(seconds: Self.switchSidesSeconds),
-                  let routine = Routine(getReady: getReady, switchSides: switchSides, stretches: built)
-            else { throw .noStretches }
+            // The model never chooses the count-in. A generated routine gets the one a new routine has in the editor.
+            guard let routine = Routine(stretches: built) else { throw .noStretches }
             return Workout(name: name, plan: .routine(routine))
         }
     }
-
-    private static let getReadySeconds = 10
-    private static let switchSidesSeconds = 5
 
     /// A stretch that names both a hold and reps is counted in reps, as a paced-reps stretch from app
     /// version 1.1 is.
@@ -145,8 +139,8 @@ extension WorkoutBlueprint {
         pace. Set the other one to null.
         - eachSide is true when the stretch is done on the left side and then on the right side. \
         holdSeconds and reps are then for one side.
-        - The app adds a pause of about \(getReadySeconds) seconds before each stretch by itself. Do \
-        not add pauses or rests as stretches.
+        - The user starts each stretch with a button, and the app counts in for a few seconds by \
+        itself. Do not add pauses, rests or get-ready steps as stretches.
 
         Set "kind", fill the part that matches it, and set the other part to null.
         "name" is a short title of at most 30 characters.

@@ -63,7 +63,7 @@ The owner updates the app from AltStore. A merge that changes the app must show 
 
 Locked-screen playback, music ducking, and headphone presses need a real iPhone. Do not claim they work from a simulator run. Settings has an audio check, a headphone check, three ducking methods, and a log for checking them on a phone. Keep those working.
 
-The ChatGPT feature needs a real account, and the sign-in sheet needs a real iPhone. The simulator proves the sheet, the listener, and every request against stand-ins. It does not prove that OpenAI accepts any of it. `docs/design.md` lists what is unproven. The Keychain tests run only in a signed build, so run them once without `CODE_SIGNING_ALLOWED=NO` when you change `KeychainVaultStore`.
+The ChatGPT feature needs a real account, and the sign-in sheet needs a real iPhone. The simulator proves the sheet, the listener, and every request against stand-ins. `LiveOpenAITests` runs the app's own sign-in and generation against OpenAI. It is skipped unless `TEST_RUNNER_LIVE_OPENAI=1` is set, and it needs a person to open the address it prints, so run it when you change a request. Nobody has signed in from the app on a phone. `docs/design.md` lists what is unproven. The Keychain tests run only in a signed build, so run them once without `CODE_SIGNING_ALLOWED=NO` when you change `KeychainVaultStore`.
 
 ## How to verify a change
 

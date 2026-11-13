@@ -69,15 +69,14 @@ struct BlueprintTests {
         #expect(made.allSatisfy { $0.howTo == nil })
     }
 
-    /// The model has no say over the gaps, even when it sends some.
-    @Test func aGeneratedRoutineHasTheGapsOfANewRoutineInTheEditor() throws {
+    /// The model has no say over the count-in, even when it sends one.
+    @Test func aGeneratedRoutineHasTheCountInOfANewRoutineInTheEditor() throws {
         let json = #"""
-            {"kind": "routine", "name": "Evening", "getReady": 60, "switchSides": 30,
-             "stretches": [{"name": "Pigeon", "holdSeconds": 45, "eachSide": true, "getReadySeconds": 60}]}
+            {"kind": "routine", "name": "Evening", "countIn": 60, "getReady": 60,
+             "stretches": [{"name": "Pigeon", "holdSeconds": 45, "eachSide": true, "countInSeconds": 60}]}
             """#
         guard case .routine(let routine) = try built(json).plan else { throw NotARoutine() }
-        #expect(routine.getReady.seconds == 10)
-        #expect(routine.switchSides.seconds == 5)
+        #expect(routine.countIn?.seconds == 3)
     }
 
     @Test func twoAnswersWithTheSameContentGetDifferentIDs() throws {

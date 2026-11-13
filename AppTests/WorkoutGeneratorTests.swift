@@ -294,6 +294,9 @@ final class WorkoutGeneratorTests: XCTestCase {
     func testTheSmallestListedModelIsTheDefault() {
         XCTAssertEqual(ModelList.smallest(of: ["gpt-6.1-sol", "gpt-6-luna"]), "gpt-6-luna")
         XCTAssertEqual(ModelList.smallest(of: ["gpt-7", "gpt-7-mini"]), "gpt-7-mini")
+        // The list a ChatGPT plan returned on 12 November 2026. The newest small model comes first.
+        XCTAssertEqual(ModelList.smallest(of: ["gpt-6.1-sol", "gpt-6-astra", "gpt-6.1-terra", "gpt-6-sol", "gpt-6-luna",
+                                                "gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna"]), "gpt-6-luna")
         XCTAssertEqual(ModelList.smallest(of: ["gpt-7", "gpt-7-pro"]), "gpt-7", "with no small model named, the first one listed")
         XCTAssertNil(ModelList.smallest(of: []))
     }

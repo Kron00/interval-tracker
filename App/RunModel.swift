@@ -55,11 +55,13 @@ final class RunModel {
     }
     func end() { change { $0 = nil } }
 
+    /// `Session.perform` decides what a press means, and a single press means Next while the run
+    /// waits. So Undo goes by what the press did. A press that moved the run and left it paused or
+    /// running as before can be taken back. A pause or a resume cannot.
     func handle(_ command: RunCommand) {
-        switch command {
-        case .next, .previous: jump { $0?.perform(command, at: .now) }
-        case .play, .pause, .togglePlayPause: change { $0?.perform(command, at: .now) }
-        }
+        let before = session
+        change { $0?.perform(command, at: .now) }
+        if session != before, session?.isPaused == before?.isPaused { offerUndo(of: before) }
     }
 
     func prepare(_ workout: Workout, cues: CuePreferences) {
@@ -71,10 +73,12 @@ final class RunModel {
     private func jump(_ body: (inout Session?) -> Void) {
         let before = session
         change(body)
-        if session != before {
-            undo = before
-            undoExpires = Date.now.addingTimeInterval(Self.undoWindow)
-        }
+        if session != before { offerUndo(of: before) }
+    }
+
+    private func offerUndo(of before: Session?) {
+        undo = before
+        undoExpires = Date.now.addingTimeInterval(Self.undoWindow)
     }
 
     private func change(_ body: (inout Session?) -> Void) {

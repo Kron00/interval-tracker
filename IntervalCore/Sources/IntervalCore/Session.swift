@@ -2,11 +2,20 @@ import Foundation
 
 /// What a headphone press or a lock-screen button asks of a run.
 public enum RunCommand: Hashable, Sendable {
+    /// A single press arrives as one of these. Each means `next` while the run waits and is not paused.
     case play, pause, togglePlayPause
     /// Ends the segment in progress, or the wait at its end.
     case next
     /// Restarts the segment in progress.
     case previous
+
+    /// A wait has nothing to pause, so the press that pauses a countdown moves a waiting run on.
+    fileprivate var duringAWait: RunCommand {
+        switch self {
+        case .play, .pause, .togglePlayPause, .next: .next
+        case .previous: .previous
+        }
+    }
 }
 
 public struct Session: Equatable, Sendable {
@@ -69,8 +78,9 @@ public struct Session: Equatable, Sendable {
 
     /// Does nothing once the run has finished.
     public mutating func perform(_ command: RunCommand, at now: Date) {
-        guard let current = timeline.place(at: elapsed(at: now), released: released).segment else { return }
-        switch command {
+        let place = timeline.place(at: elapsed(at: now), released: released)
+        guard let current = place.segment else { return }
+        switch place.isWaiting && !isPaused ? command.duringAWait : command {
         case .play: resume(at: now)
         case .pause: pause(at: now)
         case .togglePlayPause: if isPaused { resume(at: now) } else { pause(at: now) }

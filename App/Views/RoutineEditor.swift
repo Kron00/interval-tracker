@@ -273,7 +273,7 @@ struct StretchEditor: View {
             } header: {
                 Text("How-to link")
             } footer: {
-                Text("A video or a page that shows the stretch. You can open it from the routine and while you get ready.")
+                Text("A video or a page that shows the stretch. You can open it from the routine, while you get ready, and while the routine waits.")
             }
         }
         .scrollDismissesKeyboard(.immediately)
@@ -293,7 +293,7 @@ struct StretchEditor: View {
     }
 
     private var amountNote: String {
-        [stretch.usesReps ? "Reps are not timed. Do them at your own pace, then tap Next." : "The hold counts down and beeps at zero.",
+        [stretch.usesReps ? "Reps are not timed. Do them at your own pace, then tap Next." : "The hold counts down, beeps at zero, then waits for Next.",
          stretch.eachSide ? "Left side first, then right." : nil]
             .compactMap { $0 }
             .joined(separator: " ")

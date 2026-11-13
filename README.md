@@ -106,7 +106,7 @@ If the run screen ever shows **No sound**, the app could not start its audio. It
 - The forward button skips the current phase. The back button restarts it. From a stretch, the back button goes to the get-ready gap before the stretch, so the app names the stretch again.
 - **Undo** appears for 6 seconds after a skip, a **Next**, or a restart, also on the finish screen.
 - **Pause** stops the clock. The screen turns grey and reads PAUSED. With headphone controls off, it also releases your music.
-- **How to** appears while you get ready for a stretch that has a link. It pauses the workout and opens the link.
+- **How to** appears for a stretch that has a link while you get ready, while the workout is paused, and while a routine waits. It pauses the workout and opens the link.
 - The X asks before it ends the workout.
 - The finish screen shows the time you worked. Skipped time and paused time do not count. Restarted time counts twice.
 
@@ -118,11 +118,11 @@ Nothing in a stretch routine moves on by itself.
 - A stretch counted in reps shows the number of reps and no clock. Do the reps at your own pace. The routine waits from the start.
 - A stretch on each side waits two times, after the left side and after the right side.
 
-While the routine waits, the big white button is **Next**. Tap it, or tap the forward button, which does the same. The get-ready gap of the next stretch then runs by itself, and the hold starts by itself. That is one tap for each stretch.
+While the routine waits, the big white button is **Next** and the forward button is dimmed. Tap **Next**. The get-ready gap of the next stretch then runs by itself, and the hold starts by itself. That is one tap for each stretch.
 
 To end a hold early, tap the forward button while the hold counts down.
 
-The routine finishes by itself when a timed hold in last place runs out. If the last stretch is counted in reps, the routine finishes when you tap **Next**.
+The last stretch waits too. Tap **Next** to finish the routine. The finish tone and "Workout complete" play then.
 
 The time you worked includes the time you spent on reps. It does not include the time the routine waited after a timed hold.
 
@@ -145,7 +145,7 @@ Headphone controls are off until you turn them on. In **Settings**, turn on **He
 
 | Press | What it does |
 | --- | --- |
-| One press | Pause or resume |
+| One press | Pause or resume. While a stretch routine waits, one press is **Next** |
 | Two presses | Skip the current phase. In a stretch routine this is **Next** |
 | Three presses | Restart the current phase |
 

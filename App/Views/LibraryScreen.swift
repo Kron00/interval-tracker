@@ -386,7 +386,7 @@ private struct HeadphoneControlsCard: View {
                     .font(.headline)
             }
             .accessibilityIdentifier("headphoneControlsToggle")
-            Text("Other audio stops while this is on.")
+            Text("Other audio stops while this is on. When the routine waits, press once for Next.")
                 .font(.footnote)
                 .foregroundStyle(Color.secondary)
         }

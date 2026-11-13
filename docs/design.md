@@ -29,9 +29,9 @@ Two rules treat a gap as part of the hold it leads into. Restart from a hold goe
 
 ## How a routine waits for Next
 
-An interval timer moves on by itself. A stretch routine never does. Each stretch ends in a wait, and the run goes on when you tap **Next** or double-press the headphones.
+An interval timer moves on by itself. A stretch routine never does. Each stretch ends in a wait, and the run goes on when you tap **Next** or press the headphones.
 
-`Timeline` marks the segments that end in a wait. Such a segment is a gate. In a routine every hold is a gate, with one exception. A timed hold in last place has nothing after it, so the routine finishes when that hold runs out. An interval timer has no gates.
+`Timeline` marks the segments that end in a wait. Such a segment is a gate. In a routine every hold is a gate, and the last hold is one too. **Next** on the last hold finishes the workout. An interval timer has no gates.
 
 `Session` adds one number to its date, the count of gates the run has passed. Elapsed time is still `now` minus the date, but it stops at the end of the first gate that the run has not passed. A run whose elapsed time stands at that point is waiting. So waiting is derived from the date and the count, like "finished", and nothing has to set a flag when a hold runs out on a locked phone.
 
@@ -105,6 +105,8 @@ A switch-sides gap is 5 s, which is too short for the music to come back in the 
 
 A hold counted in reps has one sound, the tone that starts it. It has no countdown, because it has no end to count down to.
 
+The last hold ends like every other hold, on a tone and a wait. When you tap **Next**, the finish tone plays, and "Workout complete" follows one second later.
+
 ## How cues keep playing while the phone is locked
 
 Three things have to hold.
@@ -140,21 +142,27 @@ In mixing mode a waiting run releases the audio, so your music plays at full vol
 
 `HeadphoneRemote` is the only file that imports MediaPlayer. It publishes the current phase to the lock screen and turns the five remote commands into `RunCommand` values. While the run waits, the lock screen reads "Waiting for Next" under the name of the stretch. `Session.perform` decides what each command does, so that part is tested on a Mac. `RunModel` only forwards the command and reconciles.
 
+iOS reports a single press as play, pause, or a toggle of the two. A wait has nothing to pause. A press that paused a wait would also do harm, because **Next** keeps a paused run paused, and the next stretch would start paused. So while the run waits and is not paused, `Session.perform` treats those three commands as next. At every other time they pause and resume. A call can still pause a waiting run. A press then resumes the run, and the run goes back to its wait.
+
 ## Why nothing on the run screen moves
 
 The phone sits on the floor and you read it at a glance. If the clock moved every time you paused, you would have to find it again.
 
 So every block on the run screen has a fixed height and the clock takes the space that is left. A line with nothing to say still takes its line. The Undo and How to buttons appear inside a row that is always there. A state change swaps what is drawn inside a block, with a fade of a quarter of a second, and never changes where a block is. A UI test records where the title, the clock, the total, and two buttons are, and fails if any of them is somewhere else after a pause, a resume, a skip, a change of phase, or the start of a wait.
 
-A wait changes what three blocks draw:
+A wait changes what five blocks draw:
 
 | Block | While the clock counts | While the run waits |
 | --- | --- | --- |
 | Clock | The time left | The rep count, or "Done" after a timed hold |
 | Line under "Up next" | Empty | "Tap Next when done", or "Tap Next to continue" |
+| How to button | Shown in a get-ready gap only | Shown |
 | Big white button | Pause | Next |
+| Small forward button | Next | Dimmed, and does nothing |
 
-A clock stopped at 0:00 would look broken, so a hold that ran out shows "Done". The small forward button stays where it is and does the same as the big button. Whichever of the two you reach for is right.
+A clock stopped at 0:00 would look broken, so a hold that ran out shows "Done". A countdown leaves no time for a video, so the How to button is hidden while a hold counts, and a paused run shows it. A wait has no Pause button, so the How to button shows for the whole wait. Its place stays empty when the stretch has no link.
+
+Two buttons that both read Next would ask you to choose between them. So the small forward button keeps its place, goes dim, and does nothing until the clock counts again.
 
 The cost is height. A stretch name can be 40 characters, so the title block is two lines tall on every screen, and an interval timer shows more empty space than it used to.
 
@@ -198,7 +206,7 @@ Once one strategy passes the audio check in the README, delete the other two and
 
 ### Headphone presses
 
-Exclusive mode rests on one assumption. It is that iOS makes this app the Now Playing app when all the app plays is a silent loop and short cues, and keeps it there while the run is paused or waiting and the phone is locked. A stretch routine now depends on that assumption after every stretch, because the double-press for **Next** arrives during a wait. No simulator can show that.
+Exclusive mode rests on one assumption. It is that iOS makes this app the Now Playing app when all the app plays is a silent loop and short cues, and keeps it there while the run is paused or waiting and the phone is locked. A stretch routine now depends on that assumption after every stretch, because the press for **Next** arrives during a wait. No simulator can show that.
 
 What is proven without a phone:
 

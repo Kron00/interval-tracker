@@ -43,19 +43,44 @@ final class RunModelTests: XCTestCase {
         XCTAssertNil(run.undo)
     }
 
-    func testPauseAndResumeKeepAWait() throws {
+    func testASinglePressEndsAWaitAndUndoBringsTheWaitBack() throws {
+        for press in [RunCommand.togglePlayPause, .play, .pause] {
+            let run = makeRun()
+            defer { run.end() }
+            run.start(.dailyStretch, cues: CuePreferences())
+            run.handle(.next)
+            XCTAssertTrue(try progress(run).isWaiting)
+
+            run.handle(press)
+            let next = try progress(run)
+            XCTAssertEqual(next.phase.title, "Child's Pose", "\(press)")
+            XCTAssertEqual(next.phase.caption, "Get ready", "\(press)")
+            XCTAssertFalse(next.isPaused, "\(press)")
+            XCTAssertFalse(next.isWaiting, "\(press)")
+            XCTAssertNotNil(run.undo, "a press that moved on can be taken back like Next: \(press)")
+
+            run.undoLast()
+            let back = try progress(run)
+            XCTAssertEqual(back.phase.title, "Cat-Cow", "\(press)")
+            XCTAssertTrue(back.isWaiting, "\(press)")
+            XCTAssertFalse(back.isPaused, "\(press)")
+        }
+    }
+
+    func testAnInterruptionPausesAWaitAndResumeReturnsToIt() throws {
         let run = makeRun()
         defer { run.end() }
         run.start(.dailyStretch, cues: CuePreferences())
         run.handle(.next)
 
-        run.handle(.togglePlayPause)
+        run.pause()
         XCTAssertTrue(try progress(run).isPaused)
         XCTAssertTrue(try progress(run).isWaiting)
         run.handle(.togglePlayPause)
-        XCTAssertFalse(try progress(run).isPaused)
+        XCTAssertFalse(try progress(run).isPaused, "a press on a paused wait resumes it")
         XCTAssertTrue(try progress(run).isWaiting)
         XCTAssertEqual(try progress(run).phase.caption, "Stretch 1 of 10")
+        XCTAssertNil(run.undo, "a resume is not something to undo")
     }
 
     func testPreviousRestartsAHoldFromTheGapBeforeIt() throws {

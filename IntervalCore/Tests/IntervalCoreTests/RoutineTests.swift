@@ -161,7 +161,7 @@ struct RoutineTimelineTests {
             Row("Thread the Needle", "Switch sides · Right side next", start: 522, duration: 5),
             Row("Thread the Needle", "Right side · Stretch 9 of 10", start: 527, duration: 30, waits: true),
             Row("Passive Dead Hang", "Get ready", start: 557, duration: 8),
-            Row("Passive Dead Hang", "Stretch 10 of 10", start: 565, duration: 30),
+            Row("Passive Dead Hang", "Stretch 10 of 10", start: 565, duration: 30, waits: true),
         ])
         #expect(Workout.dailyStretch.totalDuration == 595)
         #expect(Workout.dailyStretch.outline.count == 28)
@@ -171,16 +171,16 @@ struct RoutineTimelineTests {
     @Test func aStretchDoneOnceIsAGapThenAHold() throws {
         #expect(try steps(of: try routine(getReady: 6, [try stretch("Cobra", try hold(30))])) == [
             Step("getReady Cobra 1/1", start: 0, duration: 6),
-            Step("hold Cobra 1/1", start: 6, duration: 30),
+            Step("hold Cobra 1/1", start: 6, duration: 30, waits: true),
         ])
     }
 
-    @Test func anEachSideStretchSwitchesSidesBetweenTwoHoldsAndWaitsAfterTheLeft() throws {
+    @Test func anEachSideStretchSwitchesSidesBetweenTwoHoldsAndWaitsAfterEach() throws {
         #expect(try steps(of: try routine(getReady: 6, switchSides: 4, [try stretch("Pigeon", try hold(45), .each)])) == [
             Step("getReady Pigeon left 1/1", start: 0, duration: 6),
             Step("hold Pigeon left 1/1", start: 6, duration: 45, waits: true),
             Step("switchSides to Pigeon right 1/1", start: 51, duration: 4),
-            Step("hold Pigeon right 1/1", start: 55, duration: 45),
+            Step("hold Pigeon right 1/1", start: 55, duration: 45, waits: true),
         ])
     }
 
@@ -195,27 +195,31 @@ struct RoutineTimelineTests {
             Step("switchSides to Leg Swings right 1/2", start: 5, duration: 3),
             Step("hold Leg Swings right 1/2", start: 8, duration: 0, waits: true),
             Step("getReady Cobra 2/2", start: 8, duration: 5),
-            Step("hold Cobra 2/2", start: 13, duration: 20),
+            Step("hold Cobra 2/2", start: 13, duration: 20, waits: true),
         ])
         #expect(workout.totalDuration == 33)
         #expect(workout.outline.map(\.duration) == [5, 0, 3, 0, 5, 20])
         #expect(workout.outline.map(\.phase.reps?.value) == [nil, 6, nil, 6, nil, nil])
     }
 
-    @Test func everyHoldWaitsExceptATimedHoldInLastPlace() throws {
+    @Test func everyHoldWaitsAndNoGapDoes() throws {
         let timedLast = try routine(getReady: 5, switchSides: 3, [
             try stretch("Cobra", try hold(20)),
             try stretch("Squat", try reps(8)),
             try stretch("Pigeon", try hold(30), .each),
         ])
-        #expect(try steps(of: timedLast).filter { $0.phase.hasPrefix("hold") }.map(\.waits) == [true, true, true, false])
-
         let repsLast = try routine(getReady: 5, switchSides: 3, [
             try stretch("Cobra", try hold(20)),
             try stretch("Squat", try reps(8), .each),
         ])
-        #expect(try steps(of: repsLast).filter { $0.phase.hasPrefix("hold") }.map(\.waits) == [true, true, true])
-        #expect(try steps(of: repsLast).filter { !$0.phase.hasPrefix("hold") }.allSatisfy { !$0.waits })
+        let timedOnly = try routine([try stretch("Cobra", try hold(20))])
+        for workout in [timedLast, repsLast, timedOnly, .dailyStretch] {
+            for step in try steps(of: workout) {
+                #expect(step.waits == step.phase.hasPrefix("hold"), "\(step)")
+            }
+        }
+        #expect(try steps(of: timedLast).filter(\.waits).count == 4)
+        #expect(try steps(of: .dailyStretch).filter(\.waits).count == 14)
     }
 }
 
@@ -321,7 +325,7 @@ struct RoutineCueTests {
 
     @Test func aHoldEndsOnAToneAndTheNextNameWaitsForNext() throws {
         let plans = try legs(.dailyStretch)
-        try #require(plans.count == 14)
+        try #require(plans.count == 15, "one leg up to each of the 14 holds, then the finish")
 
         let rightSideOfHipFlexor = try #require(plans[4].windows.last)
         #expect(bounds(rightSideOfHipFlexor) == [198_500, 202_600])
@@ -369,13 +373,34 @@ struct RoutineCueTests {
         ])
     }
 
-    @Test func theLastTimedHoldEndsOnTheFinish() throws {
-        let last = try #require(try legs(.dailyStretch).last?.windows.last)
-        #expect(bounds(last) == [591_500, 597_700])
-        #expect(cues(last) == [
-            Cue(592_000, .tick), Cue(593_000, .tick), Cue(594_000, .tick),
-            Cue(595_000, .finish), Cue(596_000, voice("Workout complete")),
+    @Test func theLastTimedHoldEndsOnAToneAndTheFinishSoundsWhenNextIsPressed() throws {
+        var run = try session(.dailyStretch, in: "hold Passive Dead Hang 10/10")
+        let hold = try #require(run.cueSchedule).remaining(after: t0)
+        #expect(hold.windows.map(bounds) == [[0, 600], [26_500, 30_600]])
+        #expect(cues(hold) == [
+            Cue(0, .phaseChange),
+            Cue(27_000, .tick), Cue(28_000, .tick), Cue(29_000, .tick),
+            Cue(30_000, .phaseChange),
         ])
+        #expect(hold.remaining(after: t0 + 31).isEmpty, "nothing sounds while the last hold waits")
+
+        run.perform(.next, at: t0 + 75)
+        let finish = try #require(run.cueSchedule)
+        #expect(finish.windows.map(bounds) == [[74_500, 77_700]])
+        #expect(cues(finish) == [Cue(75_000, .finish), Cue(76_000, voice("Workout complete"))])
+    }
+
+    @Test func theRightSideInLastPlaceEndsOnAToneAndTheFinishSoundsWhenNextIsPressed() throws {
+        let workout = try routine(getReady: 6, switchSides: 4, [try stretch("Pigeon", try hold(20), .each)])
+        var run = try session(workout, in: "hold Pigeon right 1/1")
+        #expect(cues(try #require(run.cueSchedule).remaining(after: t0)) == [
+            Cue(0, .phaseChange),
+            Cue(17_000, .tick), Cue(18_000, .tick), Cue(19_000, .tick),
+            Cue(20_000, .phaseChange),
+        ])
+
+        run.perform(.next, at: t0 + 40)
+        #expect(cues(try #require(run.cueSchedule)) == [Cue(40_000, .finish), Cue(41_000, voice("Workout complete"))])
     }
 
     @Test func aRepStretchInLastPlaceFinishesWhenNextIsPressed() throws {
@@ -425,7 +450,9 @@ struct RoutineCueTests {
         try #require(name.count == 40)
         let workout = try routine(getReady: 5, switchSides: 3, [try stretch(name, try hold(10), .each)])
         let plans = try legs(workout, countdown: .five)
-        #expect(plans.map { $0.windows.map(bounds) } == [[[0, 5600], [9500, 15_600]], [[14_500, 18_600], [22_500, 30_700]]])
+        #expect(plans.map { $0.windows.map(bounds) } == [
+            [[0, 5600], [9500, 15_600]], [[14_500, 18_600], [22_500, 28_600]], [[27_500, 30_700]],
+        ])
         #expect(plans.map { cues($0) } == [
             [
                 Cue(0, .phaseChange), Cue(500, voice("\(name), left side")),
@@ -439,8 +466,9 @@ struct RoutineCueTests {
                 Cue(17_000, .tick),
                 Cue(18_000, .phaseChange),
                 Cue(23_000, .tick), Cue(24_000, .tick), Cue(25_000, .tick), Cue(26_000, .tick), Cue(27_000, .tick),
-                Cue(28_000, .finish), Cue(29_000, voice("Workout complete")),
+                Cue(28_000, .phaseChange),
             ],
+            [Cue(28_000, .finish), Cue(29_000, voice("Workout complete"))],
         ])
     }
 

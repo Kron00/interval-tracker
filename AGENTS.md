@@ -42,7 +42,7 @@ The owner updates the app from AltStore. A merge that changes the app must show 
 
 - **Time comes from one anchor date.** `Session` stores when elapsed time was zero and derives everything else. Never count ticks. Never store a flag for a state you can derive, such as finished or waiting.
 - **The cue schedule is data.** The package decides what sounds when. `CuePlayer` only plays it. Timing constants live in `CueTiming`.
-- **Interval timers advance by themselves. Stretch routines never do.** In a routine every stretch ends in a wait for Next. Rep stretches are not timed.
+- **Interval timers advance by themselves. Stretch routines never do.** In a routine every stretch ends in a wait for Next, and the last stretch does too. Rep stretches are not timed. During a wait, a single headphone press means Next.
 - **Nothing on the run screen moves when its state changes.** It is fixed-height slots around the clock. `testNothingMovesWhenTheRunChangesState` compares frames. Add new states to that test.
 - **The run screen redraws once a second, and not at all while waiting or paused.** Do not animate the clock digits. A rolling digit transition cost 71% of one core.
 - **Speech never runs on the main thread.** A voice lookup there froze the app.

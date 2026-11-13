@@ -218,20 +218,18 @@ struct Timeline: Equatable, Sendable {
             for (index, stretch) in routine.stretches.enumerated() {
                 let position = Ordinal(number: index + 1, total: routine.stretches.count)
                 let length = stretch.amount.length
-                // Nothing follows a timed hold in last place, so the routine finishes when it does.
-                let lastHoldIsGate = !(position.isLast && length > 0)
                 switch stretch.sides {
                 case .once:
                     let pose = Pose(stretch: stretch, side: nil, position: position)
                     append(.getReady(pose), routine.getReady.interval)
-                    append(.hold(pose), length, isGate: lastHoldIsGate)
+                    append(.hold(pose), length, isGate: true)
                 case .each:
                     let left = Pose(stretch: stretch, side: .left, position: position)
                     let right = Pose(stretch: stretch, side: .right, position: position)
                     append(.getReady(left), routine.getReady.interval)
                     append(.hold(left), length, isGate: true)
                     append(.switchSides(to: right), routine.switchSides.interval)
-                    append(.hold(right), length, isGate: lastHoldIsGate)
+                    append(.hold(right), length, isGate: true)
                 }
             }
         }

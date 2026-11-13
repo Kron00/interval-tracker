@@ -121,15 +121,8 @@ struct ActiveRunView: View {
                 HStack(spacing: 24) {
                     VStack(spacing: 8) {
                         clock
-                        HStack(spacing: 12) {
-                            // These share a place because they never show together. The how-to chip
-                            // belongs to a get-ready gap or a pause, and the prompt to a wait.
-                            ZStack {
-                                waitLine
-                                howToChip.frame(width: 160)
-                            }
-                            undoChip.frame(width: 124)
-                        }
+                        waitLine
+                        chips
                     }
                     VStack(spacing: 6) {
                         header
@@ -151,10 +144,7 @@ struct ActiveRunView: View {
                         waitLine
                     }
                     overall
-                    HStack(spacing: 12) {
-                        howToChip
-                        undoChip
-                    }
+                    chips
                     controls
                 }
             }
@@ -307,7 +297,7 @@ struct ActiveRunView: View {
 
     private var waitLine: some View {
         let prompt = progress.isWaiting && !progress.isPaused
-            ? (progress.reps == nil ? "Tap Next to continue" : "Tap Next when done") : nil
+            ? (progress.reps != nil ? "Tap Next when done" : progress.upNext == nil ? "Tap Next to finish" : "Tap Next to continue") : nil
         return Line(font: .system(size: 34, weight: .bold, design: .rounded), padding: 6) {
             if let prompt {
                 Text(prompt)
@@ -339,25 +329,26 @@ struct ActiveRunView: View {
         }
     }
 
-    private var howToChip: some View {
-        let link = progress.isPaused ? progress.phase.howTo : progress.phase.howToWhileGettingReady
-        return RunChip(title: "How to", symbol: "play.circle.fill", identifier: "howToButton", action: link.map { link in
-            {
-                pauseForHowTo()
-                openURL(link)
-            }
-        })
-    }
-
-    private var undoChip: some View {
-        RunChip(title: "Undo", symbol: "arrow.uturn.backward", identifier: "undoButton", action: undo)
+    private var chips: some View {
+        // A countdown leaves no time for a video. A pause and a wait do, and so does the gap before a stretch.
+        let link = progress.isPaused || progress.isWaiting ? progress.phase.howTo : progress.phase.howToWhileGettingReady
+        return HStack(spacing: 12) {
+            RunChip(title: "How to", symbol: "play.circle.fill", identifier: "howToButton", action: link.map { link in
+                {
+                    pauseForHowTo()
+                    openURL(link)
+                }
+            })
+            RunChip(title: "Undo", symbol: "arrow.uturn.backward", identifier: "undoButton", action: undo)
+        }
     }
 
     /// Laid out like a music player, because the headphone presses mean the same things: previous
-    /// restarts, play and pause, next moves on. While the run waits, the big button is next as well,
-    /// so the one thing left to do is the easiest thing to hit.
+    /// restarts, play and pause, next moves on. While the run waits, next takes the big button and
+    /// the small one goes dim, so the one thing left to do is the only thing to hit.
     private var controls: some View {
         let primary = Primary(progress)
+        let advanceIsPrimary = primary == .advance
         return HStack(spacing: 12) {
             iconButton("End", "xmark", identifier: "endButton") { confirmingEnd = true }
             iconButton("Restart", "backward.end.fill", identifier: "restartButton", action: restart)
@@ -375,6 +366,10 @@ struct ActiveRunView: View {
             .accessibilityIdentifier("primaryButton")
 
             iconButton(progress.phase.advanceTitle, "forward.end.fill", identifier: "skipButton", action: skip)
+                .disabled(advanceIsPrimary)
+                .opacity(advanceIsPrimary ? 0.3 : 1)
+                .accessibilityHidden(advanceIsPrimary)
+                .animation(Motion.change, value: advanceIsPrimary)
         }
     }
 

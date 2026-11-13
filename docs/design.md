@@ -488,6 +488,15 @@ The question that the X asks redraws one line once a second while it is open. Th
 
 The Mac was busy with other work, and the runs of one build differ by more than the two builds do. So these figures show no cost of the line, and they are too rough to rule a small one out.
 
+The heart rate was measured against `origin/main` on the same simulator with Debug builds, while the Mac ran two other simulators and had a load average near 220. A UI test started Norwegian 4x4 with the stand-in monitor remembered and checked that the readout showed a number. Each figure is the app's CPU time over 20 seconds of the warm-up, beginning 15 seconds after it started. The two builds took turns.
+
+| | Share of one core |
+| --- | --- |
+| Before heart rate | 2.6%, 2.45% and 2.25% |
+| With the readout showing one reading a second | 3.15%, 3.4% and 2.8% |
+
+The medians are 2.45% and 3.15%, so the readout costs about 0.7% of one core. It is redrawn once a second with each reading, apart from the clock's redraw, which is the likely cause. That was not profiled. A run with no monitor remembered has no readout, and nothing about it changes.
+
 The clock digits cut from one second to the next. In an earlier measurement, rolling them with SwiftUI's `numericText` transition took a warm-up from 3.0% to 71% of one core. Where that time goes was not profiled. The title, the captions, the buttons, and the chips do fade, because they change only when the run changes state.
 
 ## Why the history has its own file

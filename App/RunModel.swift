@@ -68,7 +68,12 @@ final class RunModel {
         player.prepare(Session(workout, cues: cues, startingAt: .now).vocabulary)
     }
 
-    private static let undoWindow: TimeInterval = 6
+    /// Six seconds, unless a UI test passes `-undoWindow <seconds>`. On a slow CI machine the test
+    /// runner can take ten seconds to hand control back after a tap, and the chip was gone by then.
+    private static let undoWindow: TimeInterval = {
+        let requested = UserDefaults.standard.double(forKey: "undoWindow")
+        return requested > 0 ? requested : 6
+    }()
 
     private func jump(_ body: (inout Session?) -> Void) {
         let before = session

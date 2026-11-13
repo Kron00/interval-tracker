@@ -268,7 +268,7 @@ final class RunFlowUITests: XCTestCase {
         let undo = app.buttons["undoButton"]
         XCTAssertTrue(undo.exists)
         let gone = expectation(for: NSPredicate(format: "exists == false"), evaluatedWith: undo)
-        wait(for: [gone], timeout: 10)
+        wait(for: [gone], timeout: 35)
         XCTAssertEqual(clock.label, "0:05", "Undo goes away on a paused screen, which is not redrawn by the clock")
 
         app.buttons["endButton"].tap()
@@ -324,7 +324,7 @@ final class RunFlowUITests: XCTestCase {
         assertNothingMoved(in: app, since: running, "in Work while Undo is offered")
         snap(app, "32-undo-chip")
         let gone = expectation(for: NSPredicate(format: "exists == false"), evaluatedWith: undo)
-        wait(for: [gone], timeout: 10)
+        wait(for: [gone], timeout: 35)
         assertNothingMoved(in: app, since: running, "in Work after Undo went away")
 
         rotate(app, to: .landscapeLeft)
@@ -541,7 +541,7 @@ final class RunFlowUITests: XCTestCase {
 
     private func launch(_ argument: String) -> XCUIApplication {
         let app = XCUIApplication()
-        app.launchArguments = [argument]
+        app.launchArguments = [argument, "-undoWindow", "20"]
         app.launch()
         return app
     }

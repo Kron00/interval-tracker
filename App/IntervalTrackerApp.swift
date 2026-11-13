@@ -27,21 +27,25 @@ struct IntervalTrackerApp: App {
         }
     }
 
-    private static func fileURL(_ name: String) -> URL {
+    private static var isUITest: Bool {
         let arguments = ProcessInfo.processInfo.arguments
-        let fresh = arguments.contains("-uiTesting")
-        guard fresh || arguments.contains("-uiTestingKeepLibrary") else {
+        return arguments.contains("-uiTesting") || arguments.contains("-uiTestingKeepLibrary")
+    }
+
+    private static func fileURL(_ name: String) -> URL {
+        guard isUITest else {
             return URL.applicationSupportDirectory.appendingPathComponent("\(name).json")
         }
         let url = FileManager.default.temporaryDirectory.appendingPathComponent("uitest-\(name).json")
-        if fresh { try? FileManager.default.removeItem(at: url) }
+        if ProcessInfo.processInfo.arguments.contains("-uiTesting") { try? FileManager.default.removeItem(at: url) }
         return url
     }
 
-    /// A UI test hands over the history file it wants to start from in `UITEST_HISTORY`.
+    /// A UI test hands over the history file it wants to start from in `UITEST_HISTORY`. Only a
+    /// UI-test launch reads it, because any other launch has the user's own history at this address.
     private static func historyURL() -> URL {
         let url = fileURL("history")
-        if let seed = ProcessInfo.processInfo.environment["UITEST_HISTORY"] {
+        if isUITest, let seed = ProcessInfo.processInfo.environment["UITEST_HISTORY"] {
             try? Data(seed.utf8).write(to: url)
         }
         return url

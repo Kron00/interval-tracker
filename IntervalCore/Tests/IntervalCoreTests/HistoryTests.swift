@@ -144,6 +144,34 @@ struct HistoryTests {
         ])
     }
 
+    @Test func aFileWithANumberThatIsNoLengthOrNoDateIsRefused() {
+        func file(worked: String = "600", planned: String = "600", startedAt: String = "794793600") -> Data {
+            Data("""
+            {"version": 1, "records": [{"id": "11111111-2222-3333-4444-555555555555", "startedAt": \(startedAt),
+             "workoutID": "494E5456-4C43-4000-8000-000000000004", "name": "Daily Stretch", "kind": "routine",
+             "worked": \(worked), "planned": \(planned), "outcome": "completed"}]}
+            """.utf8)
+        }
+        #expect((try? History(json: file()))?.records.count == 1)
+        // The screen turns a length into whole seconds, and a number this large has none.
+        #expect(throws: DecodingError.self) { try History(json: file(worked: "1e100")) }
+        #expect(throws: DecodingError.self) { try History(json: file(worked: "-1")) }
+        #expect(throws: DecodingError.self) { try History(json: file(planned: "1e100")) }
+        #expect(throws: DecodingError.self) { try History(json: file(planned: "-1")) }
+        #expect(throws: DecodingError.self) { try History(json: file(startedAt: "1e300")) }
+        #expect(throws: DecodingError.self) { try History(json: file(startedAt: "-1")) }
+    }
+
+    @Test func aRunIsNeverRecordedAsLongerThanAWeek() throws {
+        let record = WorkoutRecord(startedAt: try march(10, 0), workoutID: Workout.dailyStretch.id, name: "Daily Stretch",
+                                   kind: .routine, worked: 30 * 24 * 3600, planned: -5, outcome: .endedEarly)
+        #expect(record.worked == 7 * 24 * 3600)
+        #expect(record.planned == 0)
+        var history = History()
+        history.add(record)
+        #expect(try History(json: try history.json()) == history, "what the app writes, it reads back")
+    }
+
     @Test func anUnknownVersionThrows() {
         #expect(throws: DecodingError.self) {
             try History(json: Data(#"{"version": 2, "records": []}"#.utf8))

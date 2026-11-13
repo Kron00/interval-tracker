@@ -22,11 +22,44 @@ public struct WorkoutRecord: Identifiable, Hashable, Sendable, Codable {
     public let planned: TimeInterval
     public let outcome: Outcome
 
+    /// No run is recorded as longer than this. A routine left waiting on a stretch counted in reps
+    /// keeps counting until it is ended, which can be days later.
+    public static let longest: TimeInterval = 7 * 24 * 3600
+
+    /// A length outside `0...longest` becomes the nearer end of that range.
     public init(id: UUID = UUID(), startedAt: Date, workoutID: Workout.ID, name: String, kind: Kind,
                 worked: TimeInterval, planned: TimeInterval, outcome: Outcome) {
         self.id = id; self.startedAt = startedAt; self.workoutID = workoutID; self.name = name
-        self.kind = kind; self.worked = worked; self.planned = planned; self.outcome = outcome
+        self.kind = kind; self.outcome = outcome
+        self.worked = min(max(worked, 0), Self.longest)
+        self.planned = min(max(planned, 0), Self.longest)
     }
+
+    /// A file can hold any number. One that is not a length or not a date would crash the screen
+    /// that formats it, so the file is refused here and the store sets it aside.
+    public init(from decoder: any Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(UUID.self, forKey: .id)
+        startedAt = try container.decode(Date.self, forKey: .startedAt)
+        workoutID = try container.decode(Workout.ID.self, forKey: .workoutID)
+        name = try container.decode(String.self, forKey: .name)
+        kind = try container.decode(Kind.self, forKey: .kind)
+        worked = try container.decode(TimeInterval.self, forKey: .worked)
+        planned = try container.decode(TimeInterval.self, forKey: .planned)
+        outcome = try container.decode(Outcome.self, forKey: .outcome)
+        guard (0...Self.longest).contains(worked) else {
+            throw DecodingError.dataCorruptedError(forKey: .worked, in: container, debugDescription: "Not a length: \(worked).")
+        }
+        guard (0...Self.longest).contains(planned) else {
+            throw DecodingError.dataCorruptedError(forKey: .planned, in: container, debugDescription: "Not a length: \(planned).")
+        }
+        guard Self.plausibleDates.contains(startedAt) else {
+            throw DecodingError.dataCorruptedError(forKey: .startedAt, in: container, debugDescription: "Not a date: \(startedAt).")
+        }
+    }
+
+    /// From 2001 to about 2318. Outside it a number is not a date this app wrote.
+    private static let plausibleDates = Date(timeIntervalSinceReferenceDate: 0)...Date(timeIntervalSinceReferenceDate: 10_000_000_000)
 
     /// What `session` amounts to when its run is over at `now`: completed if it has finished, and
     /// ended early with the time worked so far if it has not.

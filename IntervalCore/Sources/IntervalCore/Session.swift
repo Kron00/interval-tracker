@@ -4,7 +4,7 @@ import Foundation
 public enum RunCommand: Hashable, Sendable {
     /// A single press arrives as one of these. Each means `next` while the run waits and is not paused.
     case play, pause, togglePlayPause
-    /// Ends the segment in progress, or the wait at its end.
+    /// Ends the segment in progress, or the wait the run is in.
     case next
     /// Restarts the segment in progress.
     case previous
@@ -53,25 +53,25 @@ public struct Session: Equatable, Sendable {
         clock = .running(zeroAt: now - ran)
     }
 
-    /// Ends `segment` now and starts the next one. This is also what releases a gate, during its
-    /// hold or while the run waits at its end. No-op unless `segment` is the one in progress at `now`.
+    /// Ends `segment` now and starts what follows. This is also what releases the gate a run waits
+    /// at. From a count-in it ends the stretch, hold included. No-op unless `segment` is the one in
+    /// progress at `now`.
     public mutating func skip(_ segment: SegmentID, at now: Date) {
         let elapsed = elapsed(at: now)
         guard let current = timeline.place(at: elapsed, released: released).segment, current.id == segment else { return }
+        let target = timeline.skipPoint(for: current.id)
         leave(current, at: now)
-        skipped += current.end - elapsed
+        skipped += target - elapsed
         if current.isGate { released += 1 }
-        move(to: current.end, at: now)
+        move(to: target, at: now)
     }
 
-    /// Goes back to the start of `segment`, or from a hold to the start of the gap that leads into it,
-    /// so the stretch is named again and there is time to get back into position.
-    /// No-op unless `segment` is the one in progress at `now`.
+    /// Goes back to the start of `segment`, or from a hold to the start of its count-in.
+    /// No-op unless `segment` is counting at `now`. A wait has nothing to restart.
     public mutating func restart(_ segment: SegmentID, at now: Date) {
         let elapsed = elapsed(at: now)
-        guard let current = timeline.place(at: elapsed, released: released).segment, current.id == segment else { return }
+        guard case .inside(let current) = timeline.place(at: elapsed, released: released), current.id == segment else { return }
         let target = timeline.restartPoint(for: current.id)
-        leave(current, at: now)
         repeated += elapsed - target.start
         move(to: target.start, at: now)
     }
@@ -143,7 +143,7 @@ public struct Session: Equatable, Sendable {
     }
 
     /// Reps are done at their own pace, so the time spent on them is known only when they are left.
-    /// Time spent waiting after a timed hold is not work and is dropped.
+    /// Time spent waiting for Start is not work and is dropped.
     private mutating func leave(_ segment: Segment, at now: Date) {
         guard segment.phase.reps != nil else { return }
         inReps += ran(at: now) - segment.end
@@ -161,7 +161,7 @@ public enum Snapshot: Equatable, Sendable {
     case active(RunProgress)
     /// `worked` is the workout's timed length, minus what was skipped, plus what was restarted and
     /// done again, plus the time spent in stretches counted in reps. Paused time never counts, and
-    /// neither does a wait after a timed hold.
+    /// neither does a wait for Start.
     case finished(worked: TimeInterval)
 }
 
@@ -171,15 +171,16 @@ public struct RunProgress: Equatable, Sendable {
     public let phaseElapsed: TimeInterval
     /// 0 while waiting.
     public let phaseRemaining: TimeInterval
-    /// 0 for a stretch counted in reps.
+    /// 0 while waiting.
     public let phaseDuration: TimeInterval
     public let elapsed: TimeInterval
     public let totalRemaining: TimeInterval
     public let totalDuration: TimeInterval
-    /// The next phase that is not a gap, so a hold shows the stretch after it and not "get ready".
+    /// What follows this phase, or this stretch from its wait or its count-in: the next hold or
+    /// interval phase, never a wait or a count-in.
     public let upNext: PhaseSpan?
     public let isPaused: Bool
-    /// The phase is over, or has no length, and the run stays in it until `RunCommand.next` or a skip.
+    /// The phase has no length, and the run stays in it until `RunCommand.next` or a skip.
     public let isWaiting: Bool
 
     /// The rep count of a stretch counted in reps, nil for every other phase.

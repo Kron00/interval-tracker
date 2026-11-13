@@ -187,10 +187,7 @@ struct EditorScreen: View {
                 case .intervals:
                     IntervalSections(draft: $draft.plan.intervals, willShowWheel: { nameIsFocused = false })
                 case .routine:
-                    RoutineSections(
-                        draft: $draft.plan.routine,
-                        willShowWheel: { nameIsFocused = false },
-                        open: { openStretch = $0 })
+                    RoutineSections(draft: $draft.plan.routine, open: { openStretch = $0 })
                 }
             }
             .scrollDismissesKeyboard(.immediately)

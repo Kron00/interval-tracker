@@ -15,7 +15,7 @@ enum Sharing: Equatable {
 
 enum CueDemand: Equatable {
     case none
-    /// The run is on but has nothing to play. It is paused, or it waits for Next.
+    /// The run is on but has nothing to play. It is paused, or it waits for Start or Next.
     case standby
     case playing(CueSchedule)
 

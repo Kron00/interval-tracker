@@ -39,15 +39,6 @@ final class RunModel {
     func skip(_ segment: SegmentID) { jump { $0?.skip(segment, at: .now) } }
     func restart(_ segment: SegmentID) { jump { $0?.restart(segment, at: .now) } }
 
-    /// A how-to video plays in another app and can run for minutes. The run goes back to the start of
-    /// the stretch's lead-in and waits there, so Resume gives the whole get-ready time and says the name again.
-    func pauseForHowTo(_ segment: SegmentID) {
-        change {
-            $0?.restart(segment, at: .now)
-            $0?.pause(at: .now)
-        }
-    }
-
     /// Restores the session the skip or restart changed, so the run is where it would be had the button never been pressed.
     func undoLast() {
         guard let undo else { return }
@@ -55,8 +46,8 @@ final class RunModel {
     }
     func end() { change { $0 = nil } }
 
-    /// `Session.perform` decides what a press means, and a single press means Next while the run
-    /// waits. So Undo goes by what the press did. A press that moved the run and left it paused or
+    /// `Session.perform` decides what a press means, and a single press means Start or Next while the
+    /// run waits. So Undo goes by what the press did. A press that moved the run and left it paused or
     /// running as before can be taken back. A pause or a resume cannot.
     func handle(_ command: RunCommand) {
         let before = session

@@ -18,7 +18,7 @@
 <p align="center">
   <img src="docs/screenshots/20-stretch-library.jpg" width="19%" alt="Library with interval timers and stretch routines">
   <img src="docs/screenshots/04-work.jpg" width="19%" alt="Run screen during a work interval">
-  <img src="docs/screenshots/22-get-ready.jpg" width="19%" alt="Get-ready screen before a stretch">
+  <img src="docs/screenshots/45-waiting-to-start.jpg" width="19%" alt="A timed stretch, waiting for Start">
   <img src="docs/screenshots/40-reps-waiting.jpg" width="19%" alt="A stretch counted in reps, waiting for Next">
   <img src="docs/screenshots/21-stretch-detail.jpg" width="19%" alt="Stretch routine detail with how-to links">
 </p>
@@ -28,7 +28,7 @@ A workout timer for iPhone. It runs two kinds of workout from one library:
 - An **interval timer** has a warm-up, work and rest rounds, and a cool-down.
 - A **stretch routine** is a list of stretches. Each stretch is a timed hold or a number of reps, on one side or on each side, with an optional link to a how-to video.
 
-An interval timer moves from phase to phase by itself. A stretch routine waits for you after every stretch, and goes on when you tap **Next**.
+An interval timer moves from phase to phase by itself. A stretch routine waits for you before every stretch. A timed hold starts when you tap **Start**, and a stretch counted in reps ends when you tap **Next**.
 
 The app beeps, counts down, and speaks at each change. It keeps doing that with the screen locked, and it lowers your music for each cue without stopping it. Every screen is dark.
 
@@ -38,9 +38,9 @@ Three presets are built in:
 | --- | --- | --- |
 | Norwegian 4x4 | 5:00 warm-up, 4 × 4:00 work with 3:00 rest, 5:00 cool-down | 38:00 |
 | 20/20 HIIT | 5:00 warm-up, 9 × 0:20 work with 0:20 rest, 3:00 cool-down | 14:00 |
-| Daily Stretch | 10 stretches, 4 of them on each side, each with a video link | 9:55 + reps |
+| Daily Stretch | 10 stretches, 3 of them on each side, each with a video link | 8:21 + reps |
 
-Reps are not timed. The total of a routine is its timed holds and gaps, and "+ reps" means that the reps come on top.
+Reps are not timed. The total of a routine is its timed holds and their count-ins, and "+ reps" means that the reps come on top.
 
 You cannot edit a preset. To change one, tap it, tap **Duplicate**, and edit the copy.
 
@@ -103,28 +103,29 @@ If the run screen ever shows **No sound**, the app could not start its audio. It
 ## Run a workout
 
 - Tap a workout, then **Start**.
-- The forward button skips the current phase. The back button restarts it. From a stretch, the back button goes to the get-ready gap before the stretch, so the app names the stretch again.
-- **Undo** appears for 6 seconds after a skip, a **Next**, or a restart, also on the finish screen.
+- The forward button skips the current phase. The back button restarts it. From a hold, the back button goes to the count-in before the hold, so you have time to get back into position.
+- **Undo** appears for 6 seconds after a skip, a **Start**, a **Next**, or a restart, also on the finish screen.
 - **Pause** stops the clock. The screen turns grey and reads PAUSED. With headphone controls off, it also releases your music.
-- **How to** appears for a stretch that has a link while you get ready, while the workout is paused, and while a routine waits. It pauses the workout and opens the link.
+- **How to** appears for a stretch that has a link while a routine waits and while the workout is paused. It opens the link. No hold counts down in either state, so a video costs you no time.
 - The X asks before it ends the workout.
 - The finish screen shows the time you worked. Skipped time and paused time do not count. Restarted time counts twice.
 
-### In a stretch routine, tap Next after every stretch
+### In a stretch routine, tap Start for every hold
 
-Nothing in a stretch routine moves on by itself.
+Nothing in a stretch routine starts by itself.
 
-- A timed hold counts down and beeps at zero. The screen then reads **Done** and the routine waits.
-- A stretch counted in reps shows the number of reps and no clock. Do the reps at your own pace. The routine waits from the start.
-- A stretch on each side waits two times, after the left side and after the right side.
+- A timed hold waits first. The screen shows the stretch, the length of the hold, and a white **Start** button. Tap **Start**. A count-in of 3 seconds follows, with a beep each second, and then the hold counts down.
+- When the hold reaches zero, the app sounds a tone, shows the next stretch, and says its name. That stretch waits for its own **Start**.
+- A stretch on each side waits two times, once for the left side and once for the right side.
+- A stretch counted in reps shows the number of reps and no clock. Do the reps at your own pace, then tap **Next**.
 
-While the routine waits, the big white button is **Next** and the forward button is dimmed. Tap **Next**. The get-ready gap of the next stretch then runs by itself, and the hold starts by itself. That is one tap for each stretch.
+While the routine waits, the big white button is **Start** or **Next**, and the back and forward buttons are dimmed.
 
-To end a hold early, tap the forward button while the hold counts down.
+To leave a stretch early, tap the forward button during the count-in or the hold. The next stretch then waits.
 
-The last stretch waits too. Tap **Next** to finish the routine. The finish tone and "Workout complete" play then.
+The routine finishes by itself when the last hold reaches zero. If the last stretch is counted in reps, tap **Next** to finish.
 
-The time you worked includes the time you spent on reps. It does not include the time the routine waited after a timed hold.
+The time you worked includes the count-ins and the time you spent on reps. It does not include the time the routine waited for **Start**.
 
 ## Build a stretch routine
 
@@ -137,7 +138,7 @@ The time you worked includes the time you spent on reps. It does not include the
 
 Hold and drag a stretch to move it. Swipe a stretch left to delete it.
 
-**Get ready** is the gap before every stretch. The voice names the stretch in that gap, so the gap must be 0:05 or longer. **Switch sides** is the gap between the left side and the right side.
+**Count-in after Start** is the time between **Start** and each hold. It is 3 seconds unless you change it. Choose **Off** to begin each hold the moment you tap **Start**. Reps have no count-in.
 
 ## Control a workout from your headphones
 
@@ -145,17 +146,17 @@ Headphone controls are off until you turn them on. In **Settings**, turn on **He
 
 | Press | What it does |
 | --- | --- |
-| One press | Pause or resume. While a stretch routine waits, one press is **Next** |
-| Two presses | Skip the current phase. In a stretch routine this is **Next** |
-| Three presses | Restart the current phase |
+| One press | Pause or resume. While a stretch routine waits, one press is **Start** or **Next** |
+| Two presses | Skip the current phase. In a stretch routine this leaves the stretch, and the next one waits. While the routine waits, two presses are **Start** or **Next** |
+| Three presses | Restart the current phase. From a hold this goes back to the count-in. While a stretch routine waits, three presses do nothing |
 
-The lock screen shows the current phase with the same three controls. While a stretch routine waits, it reads "Waiting for Next".
+The lock screen shows the current phase with the same three controls. While a stretch routine waits, it reads "Waiting for Start" or "Waiting for Next".
 
 iOS sends headphone presses only to an app that plays audio alone. So while headphone controls are on, music from other apps stops for the whole workout. With headphone controls off, your music keeps playing and dips for each cue.
 
-A workout that is paused, or that waits for **Next**, keeps its audio for 15 minutes so that a press can reach it on a locked phone. After 15 minutes it lets go, and you carry on in the app.
+A workout that is paused, or that waits for **Start** or **Next**, keeps its audio for 15 minutes so that a press can reach it on a locked phone. After 15 minutes it lets go, and you carry on in the app.
 
-With headphone controls off, a routine that waits releases your music, and **Next** is only on the screen. iOS may suspend the app if you lock the phone during a wait.
+With headphone controls off, a routine that waits releases your music, and **Start** and **Next** are only on the screen. iOS may suspend the app if you lock the phone during a wait.
 
 While headphone controls are on, a phone call pauses the workout, and so does another app that starts to play.
 
@@ -164,7 +165,7 @@ While headphone controls are on, a phone call pauses the workout, and so does an
 Nobody has pressed a headphone button with this app on a real iPhone. The simulator has no headphones and no lock screen. Three things are untested:
 
 - Whether iOS shows the app on the lock screen when the app plays only silence between cues.
-- Whether a press reaches the app while the workout is paused or waits for **Next**, and the phone is locked.
+- Whether a press reaches the app while the workout is paused or waits for **Start** or **Next**, and the phone is locked.
 - Whether the workout resumes by itself after a phone call ends.
 
 Everything after the press is tested. To check the rest on your phone, follow **Headphone check** in **Settings**. If a press does nothing, open **Troubleshooting**, tap **Copy log**, and report it. The log has a line for every press that arrived.

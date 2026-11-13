@@ -175,14 +175,14 @@ final class RunFlowUITests: XCTestCase {
         let app = launch("-uiTesting")
         let preset = app.buttons["timerRow-Daily Stretch"]
         XCTAssertTrue(preset.waitForExistence(timeout: Self.patience))
-        XCTAssertTrue(preset.label.contains("10 stretches · 4 each side"), preset.label)
-        XCTAssertTrue(preset.label.contains("9:55 + reps"), preset.label)
+        XCTAssertTrue(preset.label.contains("10 stretches · 3 each side"), preset.label)
+        XCTAssertTrue(preset.label.contains("8:21 + reps"), preset.label)
         snap(app, "20-stretch-library")
 
         preset.tap()
         let start = app.buttons["startButton"]
         XCTAssertTrue(start.waitForExistence(timeout: Self.patience))
-        XCTAssertEqual(app.staticTexts["detailTotal"].label, "9:55 + reps")
+        XCTAssertEqual(app.staticTexts["detailTotal"].label, "8:21 + reps")
         XCTAssertTrue(app.staticTexts["0:45 each side"].firstMatch.exists)
         XCTAssertTrue(app.staticTexts["10 reps"].exists)
         XCTAssertTrue(app.buttons["howTo-Cat-Cow"].exists)
@@ -193,33 +193,26 @@ final class RunFlowUITests: XCTestCase {
         let phase = app.staticTexts["phaseTitle"]
         let caption = app.staticTexts["roundLabel"]
         let clock = app.staticTexts["timeRemaining"]
+        let length = app.staticTexts["holdLength"]
         let reps = app.staticTexts["repCount"]
         let prompt = app.staticTexts["waitPrompt"]
+        let total = app.staticTexts["totalRemaining"]
         let primary = app.buttons["primaryButton"]
         let skip = app.buttons["skipButton"]
-        XCTAssertTrue(phase.waitForExistence(timeout: Self.patience))
+        let restart = app.buttons["restartButton"]
+        let howTo = app.buttons["howToButton"]
+        XCTAssertTrue(reps.waitForExistence(timeout: Self.patience), "the routine opens on its first stretch, with nothing before it")
         XCTAssertEqual(phase.label, "CAT-COW")
-        XCTAssertEqual(caption.label, "Get ready")
-        XCTAssertTrue(app.buttons["howToButton"].exists)
-        XCTAssertTrue(app.staticTexts["Up next: Cat-Cow 10 reps"].exists)
-        XCTAssertEqual(primary.label, "Pause")
-        XCTAssertEqual(skip.label, "Next")
-        XCTAssertTrue(skip.isEnabled)
-        XCTAssertFalse(reps.exists)
-        XCTAssertFalse(prompt.exists)
-        let smallNext = skip.frame
-        snap(app, "22-get-ready")
-
-        XCTAssertTrue(reps.waitForExistence(timeout: Self.patience), "the get-ready gap ends by itself")
         XCTAssertEqual(reps.label, "10 reps")
-        XCTAssertEqual(phase.label, "CAT-COW")
         XCTAssertEqual(caption.label, "Stretch 1 of 10")
         waitFor(primary, toRead: "Next")
         XCTAssertEqual(prompt.label, "Tap Next when done")
+        XCTAssertTrue(app.staticTexts["Up next: Child's Pose 0:45"].exists)
         XCTAssertFalse(clock.exists, "a stretch counted in reps shows no clock")
-        let howTo = app.buttons["howToButton"]
         XCTAssertTrue(howTo.exists, "a wait has no Pause, so the how-to chip is offered in it")
         XCTAssertFalse(skip.isEnabled, "while the run waits, the big button is the only Next")
+        XCTAssertFalse(restart.isEnabled, "a wait has nothing to restart")
+        let smallNext = skip.frame
         app.coordinate(withNormalizedOffset: .zero).withOffset(CGVector(dx: smallNext.midX, dy: smallNext.midY)).tap()
         Thread.sleep(forTimeInterval: 3)
         XCTAssertEqual(phase.label, "CAT-COW", "a stretch counted in reps never moves on by itself")
@@ -236,45 +229,97 @@ final class RunFlowUITests: XCTestCase {
         rotate(app, to: .portrait)
 
         primary.tap()
-        waitFor(caption, toRead: "Get ready")
+        XCTAssertTrue(length.waitForExistence(timeout: Self.patience), "Next shows the next stretch, and it waits for Start")
         XCTAssertEqual(phase.label, "CHILD'S POSE")
-        waitFor(primary, toRead: "Pause")
+        XCTAssertEqual(caption.label, "Stretch 2 of 10")
+        XCTAssertEqual(length.label, "0:45")
+        waitFor(primary, toRead: "Start")
+        XCTAssertEqual(prompt.label, "Tap Start")
+        XCTAssertTrue(app.staticTexts["Up next: Cobra 0:30"].exists)
         XCTAssertTrue(app.buttons["undoButton"].exists)
+        XCTAssertTrue(howTo.exists)
+        XCTAssertFalse(skip.isEnabled)
+        XCTAssertFalse(restart.isEnabled)
         XCTAssertFalse(reps.exists)
+        XCTAssertFalse(clock.exists, "nothing counts down until Start")
+        let totalBeforeStart = total.label
+        Thread.sleep(forTimeInterval: 3)
+        XCTAssertEqual(length.label, "0:45", "nothing changes while the run waits for Start")
+        XCTAssertEqual(total.label, totalBeforeStart)
+        XCTAssertEqual(primary.label, "Start")
+        XCTAssertEqual(phase.label, "CHILD'S POSE")
+        snap(app, "45-waiting-to-start")
+        rotate(app, to: .landscapeLeft)
+        let wide = app.windows.firstMatch.frame
+        XCTAssertTrue(wide.contains(length.frame) && wide.contains(primary.frame) && wide.contains(prompt.frame))
+        XCTAssertFalse(length.frame.intersects(prompt.frame))
+        attach(XCUIScreen.main.screenshot(), "45b-waiting-to-start-landscape")
+        rotate(app, to: .portrait)
+
+        // The count-in lasts three seconds, so the test does not race it. Paused, a restart puts the
+        // run at the start of the count-in whether the pause landed in the count-in or in the hold.
+        primary.tap()
+        setPaused(true, with: primary)
+        restart.tap()
+        waitFor(caption, toRead: "Get ready")
+        XCTAssertEqual(clock.label, "0:03", "Start leads into a three-second count-in")
+        XCTAssertTrue(app.staticTexts["in Child's Pose"].exists)
+        XCTAssertTrue(app.staticTexts["Up next: Cobra 0:30"].exists)
+        XCTAssertFalse(length.exists)
+        setPaused(false, with: primary)
+        snap(app, "45a-count-in")
+
         let hold = expectation(for: NSPredicate(format: "label == %@", "Stretch 2 of 10"), evaluatedWith: caption)
         wait(for: [hold], timeout: Self.patience)
-        XCTAssertEqual(phase.label, "CHILD'S POSE", "one tap of Next runs the get-ready gap and then starts the hold")
+        XCTAssertEqual(phase.label, "CHILD'S POSE", "the count-in ends by itself and the hold starts")
         XCTAssertLessThanOrEqual(seconds(clock.label), 45)
         XCTAssertEqual(primary.label, "Pause")
+        XCTAssertTrue(skip.isEnabled)
+        XCTAssertEqual(skip.label, "Next")
         XCTAssertFalse(prompt.exists)
-        snap(app, "24-hold")
+        XCTAssertFalse(howTo.exists, "a countdown leaves no time for a video")
+        snap(app, "46-hold-running")
 
-        // A gap lasts a few seconds and ends by itself, so the run is paused while the test moves through
-        // it. Then no step depends on how fast the simulator is.
-        setPaused(true, with: primary)
-        advance(skip, until: caption, toRead: "Switch sides · Right side next")
-        XCTAssertEqual(clock.label, "0:05")
-        setPaused(false, with: primary)
+        skip.tap()
+        XCTAssertTrue(length.waitForExistence(timeout: Self.patience), "Next during a hold ends it, and the next stretch waits")
+        waitFor(phase, toRead: "COBRA")
+        XCTAssertEqual(length.label, "0:30")
+        waitFor(primary, toRead: "Start")
+
+        // Next leaves a stretch from its count-in and from its hold alike, so it does not matter
+        // which of the two these taps land in.
+        primary.tap()
+        waitFor(primary, toRead: "Pause")
+        skip.tap()
+        waitFor(caption, toRead: "Left side · Stretch 4 of 10")
         XCTAssertEqual(phase.label, "HIP FLEXOR COUCH STRETCH")
-        snap(app, "25-switch-sides")
+        XCTAssertEqual(length.label, "0:45")
+        XCTAssertTrue(app.staticTexts["Up next: Right side 0:45"].exists)
+        primary.tap()
+        waitFor(primary, toRead: "Pause")
+        skip.tap()
+        waitFor(caption, toRead: "Right side · Stretch 4 of 10")
+        waitFor(primary, toRead: "Start")
+        XCTAssertEqual(length.label, "0:45", "each side waits for its own Start")
+        XCTAssertTrue(app.staticTexts["Up next: Pigeon 0:45"].exists)
+        snap(app, "25-right-side-waiting")
 
+        primary.tap()
+        Thread.sleep(forTimeInterval: 4.5)
         setPaused(true, with: primary)
-        advance(skip, until: caption, toRead: "Right side · Stretch 4 of 10")
-        setPaused(false, with: primary)
-        Thread.sleep(forTimeInterval: 2)
-        setPaused(true, with: primary)
-        let before = seconds(app.staticTexts["totalRemaining"].label)
+        XCTAssertEqual(caption.label, "Right side · Stretch 4 of 10", "the count-in is over and the hold is counting")
+        let before = seconds(total.label)
         XCTAssertLessThan(seconds(clock.label), 45)
-        app.buttons["restartButton"].tap()
-        waitFor(caption, toRead: "Switch sides · Right side next")
-        XCTAssertEqual(clock.label, "0:05", "a restart from a hold goes back to the gap before it")
-        XCTAssertGreaterThan(seconds(app.staticTexts["totalRemaining"].label), before + 5)
+        restart.tap()
+        waitFor(caption, toRead: "Get ready · Right side")
+        XCTAssertEqual(clock.label, "0:03", "a restart from a hold goes back to its count-in")
+        XCTAssertGreaterThan(seconds(total.label), before + 3)
         XCTAssertEqual(primary.label, "Resume", "a restart keeps a paused run paused")
         let undo = app.buttons["undoButton"]
         XCTAssertTrue(undo.exists)
         let gone = expectation(for: NSPredicate(format: "exists == false"), evaluatedWith: undo)
         wait(for: [gone], timeout: 35)
-        XCTAssertEqual(clock.label, "0:05", "Undo goes away on a paused screen, which is not redrawn by the clock")
+        XCTAssertEqual(clock.label, "0:03", "Undo goes away on a paused screen, which is not redrawn by the clock")
 
         app.buttons["endButton"].tap()
         app.buttons["confirmEndButton"].tap()
@@ -285,8 +330,11 @@ final class RunFlowUITests: XCTestCase {
         let name = app.textFields["nameField"]
         XCTAssertTrue(name.waitForExistence(timeout: Self.patience))
         XCTAssertEqual(name.value as? String, "Daily Stretch copy")
-        XCTAssertEqual(app.staticTexts["editorTotal"].label, "9:55 + reps")
+        XCTAssertEqual(app.staticTexts["editorTotal"].label, "8:21 + reps")
         XCTAssertTrue(app.buttons["saveButton"].isEnabled)
+        XCTAssertTrue(app.buttons["countInPicker"].exists)
+        XCTAssertFalse(app.buttons["duration-getReady"].exists, "a routine has no gaps to set")
+        XCTAssertFalse(app.buttons["duration-switchSides"].exists)
         snap(app, "26-routine-editor")
 
         let pigeon = app.buttons["stretchRow-Pigeon"]
@@ -351,38 +399,49 @@ final class RunFlowUITests: XCTestCase {
         stretch.tap()
         XCTAssertTrue(start.waitForExistence(timeout: Self.patience))
         start.tap()
-        XCTAssertTrue(phase.waitForExistence(timeout: Self.patience))
+        let caption = app.staticTexts["roundLabel"]
+        let length = app.staticTexts["holdLength"]
         let howTo = app.buttons["howToButton"]
-        XCTAssertTrue(howTo.exists)
-        // The get-ready gap ends by itself after 8 seconds, so the run is paused while it is measured.
-        setPaused(true, with: primary)
-        let gettingReady = frames(in: app)
-        assertNothingMoved(in: app, since: running, "from an interval timer to a stretch routine")
-
-        skip.tap()
         XCTAssertTrue(app.staticTexts["repCount"].waitForExistence(timeout: Self.patience))
-        primary.tap()
         waitFor(primary, toRead: "Next")
         XCTAssertTrue(howTo.exists)
         XCTAssertTrue(app.staticTexts["waitPrompt"].exists)
         XCTAssertFalse(skip.isEnabled)
         XCTAssertFalse(app.staticTexts["timeRemaining"].exists)
-        assertNothingMoved(in: app, since: gettingReady, "from get ready to a wait, both with a How to chip")
-        assertNothingMoved(in: app, since: running, "from an interval timer to a wait with a How to chip")
+        assertNothingMoved(in: app, since: running, "from an interval timer to a stretch counted in reps, with a How to chip")
         snap(app, "44-wait-with-how-to")
 
+        primary.tap()
+        XCTAssertTrue(length.waitForExistence(timeout: Self.patience))
+        waitFor(primary, toRead: "Start")
+        let waitingToStart = frames(in: app)
+        assertNothingMoved(in: app, since: running, "from an interval timer to a stretch that waits for Start")
         rotate(app, to: .landscapeLeft)
         let wideWaiting = frames(in: app)
-        assertNothingMoved(in: app, since: wide, "in landscape from an interval timer to a wait with a How to chip")
+        assertNothingMoved(in: app, since: wide, "in landscape from an interval timer to a stretch that waits for Start")
+        rotate(app, to: .portrait)
+
+        // The count-in ends by itself after three seconds, so it is measured paused at its start.
         primary.tap()
-        waitFor(primary, toRead: "Pause")
         setPaused(true, with: primary)
+        app.buttons["restartButton"].tap()
+        waitFor(caption, toRead: "Get ready")
         XCTAssertEqual(phase.label, "PAUSED")
         XCTAssertTrue(app.staticTexts["in Child's Pose"].exists)
-        assertNothingMoved(in: app, since: wideWaiting, "in landscape from a wait to the next get-ready gap")
+        XCTAssertEqual(app.staticTexts["timeRemaining"].label, "0:03")
+        assertNothingMoved(in: app, since: waitingToStart, "from waiting for Start to the count-in")
+        assertNothingMoved(in: app, since: running, "from an interval timer to a count-in")
+
+        setPaused(false, with: primary)
+        waitFor(caption, toRead: "Stretch 2 of 10")
+        assertNothingMoved(in: app, since: waitingToStart, "from waiting for Start to the hold")
+        setPaused(true, with: primary)
+        assertNothingMoved(in: app, since: waitingToStart, "from waiting for Start to a paused hold")
+        assertNothingMoved(in: app, since: running, "from an interval timer to a hold")
+        rotate(app, to: .landscapeLeft)
+        assertNothingMoved(in: app, since: wideWaiting, "in landscape from waiting for Start to the hold")
         assertNothingMoved(in: app, since: wide, "in landscape from an interval timer to a stretch routine")
         rotate(app, to: .portrait)
-        assertNothingMoved(in: app, since: gettingReady, "after Next, in the get-ready gap of the next stretch")
     }
 
     func testBuildingARoutineAndRunningItToTheEnd() {
@@ -416,7 +475,14 @@ final class RunFlowUITests: XCTestCase {
         secondsWheel.adjust(toPickerWheelValue: "5 s")
         done.tap()
         XCTAssertTrue(app.buttons["stretchRow-Neck roll"].waitForExistence(timeout: Self.patience))
-        XCTAssertEqual(app.staticTexts["editorTotal"].label, "0:15", "get ready 0:10, then hold 0:05")
+        let editorTotal = app.staticTexts["editorTotal"]
+        XCTAssertEqual(editorTotal.label, "0:08", "count-in 0:03, then hold 0:05")
+        app.buttons["countInPicker"].tap()
+        let fiveSeconds = app.buttons["5 s"]
+        XCTAssertTrue(fiveSeconds.waitForExistence(timeout: Self.patience))
+        XCTAssertTrue(app.buttons["Off"].exists && app.buttons["3 s"].exists && app.buttons["10 s"].exists)
+        fiveSeconds.tap()
+        waitFor(editorTotal, toRead: "0:10")
 
         for _ in 0..<4 where !addStretch.isHittable { app.swipeUp() }
         addStretch.tap()
@@ -434,7 +500,7 @@ final class RunFlowUITests: XCTestCase {
         done.tap()
         XCTAssertTrue(app.buttons["stretchRow-Side bend"].waitForExistence(timeout: Self.patience))
         XCTAssertTrue(app.staticTexts["10 reps each side"].exists)
-        XCTAssertEqual(app.staticTexts["editorTotal"].label, "0:30 + reps", "0:15, then get ready 0:10 and switch 0:05")
+        XCTAssertEqual(editorTotal.label, "0:10 + reps", "reps add no time and have no count-in")
 
         for _ in 0..<4 where !addStretch.isHittable { app.swipeUp() }
         addStretch.tap()
@@ -449,7 +515,7 @@ final class RunFlowUITests: XCTestCase {
         secondsWheel.adjust(toPickerWheelValue: "5 s")
         done.tap()
         XCTAssertTrue(app.buttons["stretchRow-Calf stretch"].waitForExistence(timeout: Self.patience))
-        XCTAssertEqual(app.staticTexts["editorTotal"].label, "0:45 + reps", "0:30, then get ready 0:10 and hold 0:05")
+        XCTAssertEqual(editorTotal.label, "0:20 + reps", "0:10, then count-in 0:05 and hold 0:05")
         XCTAssertFalse(problem.exists)
         snap(app, "28-new-routine")
         save.tap()
@@ -457,7 +523,7 @@ final class RunFlowUITests: XCTestCase {
         let row = app.buttons["timerRow-Test routine"]
         XCTAssertTrue(row.waitForExistence(timeout: Self.patience))
         XCTAssertTrue(row.label.contains("3 stretches · 1 each side"), row.label)
-        XCTAssertTrue(row.label.contains("0:45 + reps"), row.label)
+        XCTAssertTrue(row.label.contains("0:20 + reps"), row.label)
         snap(app, "29-routine-saved")
 
         row.tap()
@@ -467,79 +533,55 @@ final class RunFlowUITests: XCTestCase {
         let phase = app.staticTexts["phaseTitle"]
         let caption = app.staticTexts["roundLabel"]
         let clock = app.staticTexts["timeRemaining"]
-        let holdDone = app.staticTexts["holdDone"]
+        let length = app.staticTexts["holdLength"]
         let reps = app.staticTexts["repCount"]
         let prompt = app.staticTexts["waitPrompt"]
         let primary = app.buttons["primaryButton"]
         let skip = app.buttons["skipButton"]
         let howTo = app.buttons["howToButton"]
-        XCTAssertTrue(phase.waitForExistence(timeout: Self.patience))
+        XCTAssertTrue(length.waitForExistence(timeout: Self.patience))
         XCTAssertEqual(phase.label, "NECK ROLL")
-        XCTAssertEqual(caption.label, "Get ready")
-
-        setPaused(true, with: primary)
-        skip.tap()
-        waitFor(caption, toRead: "Stretch 1 of 3")
-        XCTAssertEqual(clock.label, "0:05")
-        let counting = frames(in: app)
-        setPaused(false, with: primary)
-
-        XCTAssertTrue(holdDone.waitForExistence(timeout: Self.patience), "the hold counts down to zero by itself")
-        waitFor(primary, toRead: "Next")
-        XCTAssertEqual(prompt.label, "Tap Next to continue")
-        XCTAssertFalse(clock.exists, "a hold that ran out shows no clock stopped at 0:00")
-        XCTAssertEqual(phase.label, "NECK ROLL")
-        Thread.sleep(forTimeInterval: 2.5)
-        XCTAssertTrue(holdDone.exists, "a hold that ran out waits")
         XCTAssertEqual(caption.label, "Stretch 1 of 3")
+        XCTAssertEqual(length.label, "0:05")
+        waitFor(primary, toRead: "Start")
+        XCTAssertEqual(prompt.label, "Tap Start")
         XCTAssertTrue(app.staticTexts["Up next: Side bend 10 reps"].exists)
         XCTAssertFalse(howTo.exists, "a stretch with no link offers no how-to")
-        XCTAssertFalse(skip.isEnabled, "while the run waits, the big button is the only Next")
-        assertNothingMoved(in: app, since: counting, "when a hold runs out and the run waits, with no How to chip")
-        snap(app, "41-hold-done")
+        XCTAssertFalse(skip.isEnabled, "while the run waits, the big button is the only way on")
+        let waiting = frames(in: app)
 
         primary.tap()
-        waitFor(caption, toRead: "Get ready · Left side")
+        XCTAssertTrue(reps.waitForExistence(timeout: Self.patience), "the count-in and the hold run out by themselves, and the next stretch waits")
         XCTAssertEqual(phase.label, "SIDE BEND")
-        XCTAssertFalse(holdDone.exists)
-        skip.tap()
-        XCTAssertTrue(reps.waitForExistence(timeout: Self.patience))
         XCTAssertEqual(reps.label, "10 reps")
         XCTAssertEqual(caption.label, "Left side · Stretch 2 of 3")
         waitFor(primary, toRead: "Next")
+        XCTAssertEqual(prompt.label, "Tap Next when done")
         XCTAssertTrue(app.staticTexts["Up next: Right side 10 reps"].exists)
-        assertNothingMoved(in: app, since: counting, "from a hold to a stretch counted in reps")
-        snap(app, "42-next-prominent")
+        XCTAssertFalse(clock.exists)
+        XCTAssertFalse(length.exists)
+        assertNothingMoved(in: app, since: waiting, "from a wait for Start to a stretch counted in reps")
+        snap(app, "47-next-stretch-waiting")
 
         primary.tap()
-        waitFor(caption, toRead: "Switch sides · Right side next")
-        let rightSide = expectation(for: NSPredicate(format: "label == %@", "Right side · Stretch 2 of 3"), evaluatedWith: caption)
-        wait(for: [rightSide], timeout: Self.patience)
-        XCTAssertTrue(reps.exists, "the switch-sides gap ends by itself and the right side waits")
+        waitFor(caption, toRead: "Right side · Stretch 2 of 3")
+        XCTAssertTrue(reps.exists, "the right side waits for its own Next")
         XCTAssertTrue(app.staticTexts["Up next: Calf stretch 0:05"].exists)
 
         primary.tap()
-        waitFor(caption, toRead: "Get ready")
+        XCTAssertTrue(length.waitForExistence(timeout: Self.patience))
         XCTAssertEqual(phase.label, "CALF STRETCH")
-        setPaused(true, with: primary)
-        skip.tap()
-        waitFor(caption, toRead: "Stretch 3 of 3")
-        XCTAssertEqual(clock.label, "0:05")
-        setPaused(false, with: primary)
-
-        XCTAssertTrue(holdDone.waitForExistence(timeout: Self.patience), "the last hold counts down to zero by itself")
-        waitFor(primary, toRead: "Next")
-        XCTAssertEqual(prompt.label, "Tap Next to finish")
+        XCTAssertEqual(caption.label, "Stretch 3 of 3")
+        waitFor(primary, toRead: "Start")
         XCTAssertTrue(app.staticTexts["Up next: Finish"].exists)
         XCTAssertTrue(howTo.exists, "the how-to chip is offered while the run waits")
         Thread.sleep(forTimeInterval: 2.5)
-        XCTAssertTrue(holdDone.exists, "the last hold waits too")
-        XCTAssertFalse(app.staticTexts["Workout complete"].exists, "nothing in a routine finishes by itself")
-        assertNothingMoved(in: app, since: counting, "when the last hold runs out and the run waits, with a How to chip")
-        snap(app, "43-last-hold-done")
+        XCTAssertEqual(length.label, "0:05", "the last stretch waits for Start like every other")
+        assertNothingMoved(in: app, since: waiting, "from one wait for Start to the next, with a How to chip")
+        snap(app, "48-last-stretch-waiting")
 
         primary.tap()
-        XCTAssertTrue(app.staticTexts["Workout complete"].waitForExistence(timeout: Self.patience), "Next on the last Done finishes the routine")
+        XCTAssertTrue(app.staticTexts["Workout complete"].waitForExistence(timeout: Self.patience), "the last hold reaches zero and the workout finishes by itself")
         XCTAssertTrue(app.buttons["doneButton"].exists)
         XCTAssertTrue(app.staticTexts["timeWorked"].label.hasPrefix("0:"), app.staticTexts["timeWorked"].label)
     }
@@ -573,16 +615,18 @@ final class RunFlowUITests: XCTestCase {
         var frames = Dictionary(uniqueKeysWithValues: Self.fixedInPlace.map { identifier in
             (identifier, app.descendants(matching: .any).matching(identifier: identifier).firstMatch.frame)
         })
-        // The digits give way to a rep count or to "Done" while the run waits. Where they show, they stay put too.
-        let digits = app.staticTexts["timeRemaining"]
-        if digits.exists { frames["timeRemaining"] = digits.frame }
+        // The digits give way to a rep count in a stretch counted in reps. Where they show, counting
+        // or waiting for Start, they stay put too.
+        for digits in [app.staticTexts["timeRemaining"], app.staticTexts["holdLength"]] where digits.exists {
+            frames["digits"] = digits.frame
+        }
         return frames
     }
 
     private func assertNothingMoved(in app: XCUIApplication, since before: [String: CGRect], _ when: String) {
         for (identifier, now) in frames(in: app) {
             guard let was = before[identifier] else { continue }
-            // The total is set against the right edge and is as wide as its digits, so "9:55" is narrower than "38:00".
+            // The total is set against the right edge and is as wide as its digits, so "8:21" is narrower than "38:00".
             let leftEdge = identifier == "totalRemaining" ? 0 : now.minX - was.minX
             let moved = [leftEdge, now.maxX - was.maxX, now.minY - was.minY, now.height - was.height]
                 .map(abs).max() ?? .infinity

@@ -19,6 +19,7 @@ private enum LibrarySheet: Identifiable {
 
 struct LibraryScreen: View {
     let store: LibraryStore
+    let history: HistoryStore
     let run: RunModel
     let log: AudioLog
 
@@ -74,6 +75,15 @@ struct LibraryScreen: View {
                     }
                     .accessibilityLabel("Settings")
                     .accessibilityIdentifier("settingsButton")
+                }
+                ToolbarItem(placement: .topBarLeading) {
+                    NavigationLink {
+                        HistoryScreen(history: history, library: store, run: run)
+                    } label: {
+                        Image(systemName: "clock.arrow.circlepath")
+                    }
+                    .accessibilityLabel("History")
+                    .accessibilityIdentifier("historyButton")
                 }
                 ToolbarItem(placement: .topBarTrailing) {
                     Menu {

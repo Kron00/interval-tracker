@@ -368,7 +368,38 @@ In front the two builds do not differ. The Mac ran other work during these runs,
 
 In a stretch routine the Live Activity was checked with a 15-second `sample` of a waiting run, with the run screen in front. `LiveActivityController.reconcile` took 2 of 5,843 main-thread samples while the run waited for **Next**, and 10 of 11,005 while it waited for **Start**. Three alternating runs of each build were also timed in those states, but the Mac was running other work and the runs of one build differed by more than the two builds did, so they show nothing.
 
+The history needs one more check on each of the ten ticks a second, a snapshot that says whether the workout has finished. Five runs of a counting warm-up with the check and five without, taken in turn over 30 seconds each, gave a median of 2.8% and 2.6% of one core. The ranges were 2.4% to 3.5% with the check and 2.5% to 4.7% without, on a Mac that was busy with other work, so the check has no cost that this measurement can show.
+
 The clock digits cut from one second to the next. In an earlier measurement, rolling them with SwiftUI's `numericText` transition took a warm-up from 3.0% to 71% of one core. Where that time goes was not profiled. The title, the captions, the buttons, and the chips do fade, because they change only when the run changes state.
+
+## Why the history has its own file
+
+The library file holds the workouts you built. The history holds one `WorkoutRecord` for each run. They are two files, `library.json` and `history.json`. Each has its own version number and its own store. `LibraryStore` is the only writer of the first file, and `HistoryStore` is the only writer of the second.
+
+A store that cannot read its file moves the file aside and starts empty. If the history were part of the library file, one damaged history entry would take every saved workout with it. With two files, a bad history file costs the history and nothing else. The app writes the history after every run and writes the library only when you edit a workout, so the file that changes most is the one that can be lost.
+
+A record keeps the id of its workout and a copy of the name and the kind. The History screen shows the copy, so an entry reads the same after you rename or delete the workout. The id has one use. **Start again** looks the workout up in the library by it, and the button is absent when the workout is gone.
+
+`History` in the package decides what the history keeps. It keeps every completed run, a run ended early only after 60 seconds of work, and no more than the newest 1000 entries. `HistoryStore` adds one rule that the package cannot know. It drops the audio check, because that run tests the phone and is not a workout.
+
+Grouping by day and the summary of the week take a `Calendar`, and no code in the package asks for the current date. So the package tests choose the time zone and the first day of the week, and the app passes the calendar of the phone.
+
+## When a run goes into the history
+
+`RunModel` reports every run one time, as a `WorkoutRecord`, to `onRunOver`. A run is reported at the first of two moments:
+
+- You leave the run screen. That is **Done** on the finish screen, or **End workout** after the X. A new run that starts over a run in progress leaves that run too.
+- A tick finds the workout finished and no Undo on offer.
+
+The second moment is for a workout that finishes by itself while the phone is locked. Without it, the run would be recorded only when you come back and tap **Done**.
+
+Undo is the reason the second moment waits. A skip of the last phase finishes the workout, and for 6 seconds **Undo** can bring the run back. If the skip recorded the run, Undo would have to delete the entry from the file again. Nothing is recorded while Undo is on offer, so Undo never has an entry to delete.
+
+`RunModel` keeps the start date of the run that it has not reported, and sets the date to nil when it reports. That one optional is the start time of the record and also says whether the run was reported. **Done** after a finish that a tick already reported finds nil and reports nothing.
+
+Only the tick checks for a finished workout. The `reconcile` that follows a change must not, because of an order inside `RunModel`. `change` clears `undo` before it applies a skip, and the skip offers Undo again only after `change` returns. A check in between would find a finished workout with no Undo, and it would report a run that Undo can still bring back.
+
+A run that ends part way is recorded with `Session.worked(at:)`. That is the arithmetic of the finish screen, taken at the moment you end the run. It counts the time you have spent so far in a stretch counted in reps, and it does not count a wait for **Start**.
 
 ## What is not proven yet
 

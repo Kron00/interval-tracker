@@ -6,8 +6,8 @@ Intervals is an iPhone app that runs interval timers and stretch routines. It ke
 
 | Path | What lives there |
 | --- | --- |
-| `IntervalCore/` | Pure Swift package, Foundation only. Workouts, the compiled timeline, `Session`, the cue schedule, the library file, and `WorkoutBlueprint`, which turns a model's answer into a workout. All timer logic is here. |
-| `App/` | The SwiftUI app. `RunModel` is the only writer of the session. `Audio/` holds `CuePlayer`, `SoundBank`, `HeadphoneRemote`. `Views/` holds the screens and `Theme`. `LiveActivityController` starts, updates and ends the Live Activity. |
+| `IntervalCore/` | Pure Swift package, Foundation only. Workouts, the compiled timeline, `Session`, the cue schedule, the library file, the history, and `WorkoutBlueprint`, which turns a model's answer into a workout. All timer logic is here. |
+| `App/` | The SwiftUI app. `RunModel` is the only writer of the session. `LibraryStore` and `HistoryStore` are the only writers of their files. `Audio/` holds `CuePlayer`, `SoundBank`, `HeadphoneRemote`. `Views/` holds the screens and `Theme`. `LiveActivityController` starts, updates and ends the Live Activity. |
 | `App/ChatGPT/` | The ChatGPT sign-in and the request for a workout. `ChatGPTAccount` owns the Keychain and the tokens. `LoopbackCallback` is the listener on 127.0.0.1. `WorkoutGenerator` talks to the Responses API. `ChatGPTModel` is what the screens observe. `StubOpenAI` stands in for OpenAI in UI tests. |
 | `Widgets/` | The `IntervalTrackerWidgets` app extension. It draws the Live Activity and nothing else. |
 | `Shared/` | The one file that both the app and the extension compile: what the Live Activity shows, and the phase colours. |
@@ -61,7 +61,10 @@ The owner updates the app from AltStore. A merge that changes the app must show 
 - **`LiveActivityController.swift` is the only file in the app that imports ActivityKit.** Guard every call. A user can turn Live Activities off, and the extension can be missing.
 - **The extension does not import `IntervalCore`.** The app sends it plain values. A decision about a run belongs in the package, and a text or a colour key belongs in the content state.
 - **Every screen is dark.**
-- **A released library file must keep loading.** If you change the file format, decode the shapes that released versions wrote.
+- **A released library file must keep loading.** If you change the file format, decode the shapes that released versions wrote. The same holds for the history file.
+- **The history is its own file.** `history.json` is apart from `library.json`. A history file that cannot be read is set aside, and it must never cost the saved workouts. Do not move the history into the library file.
+- **A run is reported once, and never while Undo can bring it back.** `RunModel` reports from `end()` and from its tick, and never from `change`. `History.add` decides what is kept. `docs/design.md` has the reasons.
+- **The package takes dates and calendars as arguments.** Nothing in `IntervalCore` reads the clock or the calendar of the phone.
 - Validate at the boundary only: the failable initialisers in the package and the `Decodable` code. Editors hold plain drafts and convert on Save.
 - **A model's answer becomes a workout in one function.** `WorkoutBlueprint.workout()` is the only code that maps model output to a `Workout`. The schema and the instructions sit beside it. The model never chooses the count-in of a routine.
 - **No test or script in CI contacts OpenAI.** Tests pass a stub as `OpenAITransport`. UI tests launch the app with `-aiStub signedIn` or `-aiStub signedOut`, which swaps in `StubOpenAI` and an in-memory vault. Never sign in from a test.

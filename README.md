@@ -132,6 +132,22 @@ The routine finishes by itself when the last hold reaches zero. If the last stre
 
 The time you worked includes the count-ins and the time you spent on reps. It does not include the time the routine waited for **Start**.
 
+## Look at your history
+
+The app records every workout you finish. It also records a workout you end early, if you worked for at least 60 seconds. The audio check is never recorded.
+
+To open **History**, tap the clock button at the top left of the library.
+
+- The newest workout is first, and the workouts are grouped by day.
+- The card at the top counts the workouts of this week and adds up the time you worked.
+- Each entry shows the name of the workout, the time you worked, the time of day, and **Completed** or **Ended early**. If you worked less than the workout plans, the entry also shows the planned length.
+- Tap an entry to see its details. **Start again** starts that workout as the library has it now.
+- Swipe an entry left to delete it. **Clear all** deletes every entry after you confirm.
+
+An entry keeps the name the workout had when you ran it. If you rename or delete the workout, the entry stays as it was. An entry whose workout you deleted has no **Start again** button.
+
+The app keeps the newest 1000 entries. The history stays on the phone, in a file apart from your saved workouts.
+
 ## Build a stretch routine
 
 1. Tap **+**, then **Stretch routine**.

@@ -93,7 +93,7 @@ public struct Session: Equatable, Sendable {
         let elapsed = elapsed(at: now)
         let place = timeline.place(at: elapsed, released: released)
         guard let current = place.segment else {
-            return .finished(worked: timeline.total - skipped + repeated + inReps)
+            return .finished(worked: worked(at: now))
         }
         return .active(RunProgress(
             segment: current.id, phase: current.phase,
@@ -101,6 +101,17 @@ public struct Session: Equatable, Sendable {
             elapsed: elapsed, totalRemaining: timeline.total - elapsed, totalDuration: timeline.total,
             upNext: timeline.upNext(after: current.id)?.span, isPaused: isPaused, isWaiting: place.isWaiting,
             isHeadsUp: timeline.headsUp(in: current, cues.headsUp).map { elapsed >= $0 } ?? false))
+    }
+
+    /// The time worked up to `now`: the elapsed time, minus what was skipped, plus what was restarted
+    /// and done again, plus the time spent in stretches counted in reps, the one in progress included.
+    public func worked(at now: Date) -> TimeInterval {
+        let elapsed = elapsed(at: now)
+        var worked = elapsed - skipped + repeated + inReps
+        if case .waiting(let gate) = timeline.place(at: elapsed, released: released), gate.phase.reps != nil {
+            worked += ran(at: now) - gate.end
+        }
+        return worked
     }
 
     /// The instant elapsed time was zero, or nil while paused. Every figure a snapshot reports changes

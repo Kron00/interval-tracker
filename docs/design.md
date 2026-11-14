@@ -63,17 +63,27 @@ The time you worked follows from the same numbers. It is the timed length, minus
 
 `Session.vocabulary` lists every sound of the whole run. The app renders the voice phrases from that list before the run starts, so the name of the fifth stretch is ready long before the run reaches it.
 
-For one phase change at time T:
+For a phase that runs out at time T:
 
 | When | What |
 | --- | --- |
 | T − 3.5 s | Music dips |
 | T − 3, T − 2, T − 1 s | Countdown beeps |
 | T | Phase tone |
-| T + 0.5 s | Voice, in its slot |
+| T + 0.5 s | Voice: the name of the next phase, in its slot |
 | End of the slot + 0.2 s | Music returns |
 
 All of these numbers are in `CueTiming` in `Cues.swift`.
+
+The tone means a phase ran out. Nothing starts with one. These begin with no tone, and their name, if they have one, still comes half a second after they begin:
+
+- The workout's first phase.
+- A hold after its count-in. The count-in's beeps lead into it.
+- A hold that **Start** begins in a routine with no count-in. A wait never runs out: a tap ends it.
+- The place **Restart** goes back to.
+- A skip's landing, as the next section describes.
+
+`CueSchedule` plays the tone at the start of a segment only when the segment before it is timed and is not a count-in, and the run did not get there by hand. `Session` keeps the last place the run was moved to by hand, a skip's landing or Restart's point, because the date cannot tell it from a place reached by time passing. With voice cues off, the start of a workout is silent.
 
 ### What a skip sounds like
 
@@ -82,25 +92,28 @@ A skip by hand moves the run at once. The screen, the clock, the Live Activity a
 | When | What |
 | --- | --- |
 | S | Music dips. The screen shows REST |
-| S + 1 s | Phase tone |
 | S + 1.5 s | Voice: "Rest" |
 | End of the slot + 0.2 s | Music returns |
 
-You skip Rest at S + 0.5 s, before the tone. The run lands on Round two, the music stays down, and the tone sounds at S + 1.5 s and "Round two" at S + 2 s. Nothing about Rest sounds.
+A landing has no tone. Rest did not run out, and the tone would say it had. The name comes `CueTiming.settle`, one second, after the skip, plus the usual half second.
 
-`Session` records where the last skip landed, in elapsed time. The date cannot say it: a run that got to the start of Rest by time passing has the same date as one that skipped there. `CueSchedule` moves the tone and the name of the phase there to `CueTiming.settle`, one second, after the skip, and starts the dip at the skip. Each skip makes a new schedule, and `CuePlayer` queues the new schedule in place of the old one, so a run of taps is silent and only the last landing sounds. A locked phone still answers every tap with the dip. The music stays down from one tap to the next, so **Dip, then restart audio** does not restart the audio at each tap.
+You skip Rest at S + 0.5 s, before the name. The run lands on Round two, the music stays down, and "Round two" sounds at S + 2 s. Nothing about Rest sounds.
 
-The usual rules apply, counted from the moved tone:
+`Session` records where the last skip landed, in elapsed time. The date cannot say it: a run that got to the start of Rest by time passing has the same date as one that skipped there. `CueSchedule` moves the name of the phase there to one second after the skip, and starts the name's dip at the skip. Each skip makes a new schedule, and `CuePlayer` queues the new schedule in place of the old one, so a run of taps is silent and only the last landing sounds. A locked phone answers every tap with the dip. The music stays down from one tap to the next, so **Dip, then restart audio** does not restart the audio at each tap.
 
-- No countdown beep sounds in the two seconds after the tone, or while the name plays.
-- A name that cannot finish before its phase ends is dropped.
-- A phase too short for the moved tone and two quiet seconds after it is not announced. The next phase's own tone announces it, so two tones never sound one on top of the other. A wait has no length but holds the run, so a landing on a wait is always announced.
+The dip at the tap belongs to the landing's own sound: its name, or the finish tone. A landing with nothing to announce makes no sound and no dip. That is every landing with voice cues off, except the finish, and a landing on a phase too short for its name. The music then stays up until the next sound that would come anyway, such as the countdown at the end of the phase.
 
-Skipping to the finish shows the finish screen at once. The finish tone sounds one second after the tap, and "Workout complete" one second after that.
+The usual rules apply, counted from one second after the skip:
 
-A pause during that second holds the announcement back with the clock. After **Resume** the rest of the second runs, then the tone. **Undo** before the announcement takes it back too, because the schedule of the restored run replaces it.
+- No countdown beep sounds in the next two seconds, or while the name plays.
+- A name that cannot finish before its phase ends is dropped. The landing is then silent, and the end of that phase sounds as usual.
+- A wait has no length but holds the run, so a landing on a wait is always named.
 
-A skip by hand is the forward button, a double press, **Next** in a stretch counted in reps, and **Skip stretch**. **Start**, **Restart** and **Resume** sound at once, and so does every phase that begins by itself. **Start** and **Restart** clear the landing.
+Skipping to the finish shows the finish screen at once. The finish is an end, so it keeps its tone. The finish tone sounds one second after the tap, the music dips at the tap for it, and "Workout complete" follows one second after the tone.
+
+A pause during that second holds the announcement back with the clock. After **Resume** the rest of the second runs, then the name. **Undo** before the announcement takes it back too, because the schedule of the restored run replaces it.
+
+A skip by hand is the forward button, a double press, **Next** in a stretch counted in reps, and **Skip stretch**. **Start**, **Restart** and **Resume** sound at once, and so does every phase that begins by itself. **Start** clears the landing. **Restart** replaces it with the point it went back to, which has no tone either.
 
 ### What the heads-up sounds like
 
@@ -160,18 +173,20 @@ Nothing sounds during the wait. You tap **Start** at S.
 | --- | --- |
 | S | Music dips. First count-in beep. The screen shows "Get ready · Left side" and 0:03 |
 | S + 1, S + 2 s | Count-in beeps |
-| S + 3 s | Phase tone. The hold starts with no voice, because the wait already named it |
-| S + 3.6 s | Music returns |
+| S + 2.3 s | Music returns |
+| S + 3 s | The hold starts in silence. The count-in led into it, so it has no tone, and the wait already named it |
 
 A count-in beeps once for each of its seconds, whatever the Countdown setting is, unless Countdown is off. The rule that keeps the first two seconds of a phase free of beeps does not apply to a count-in, because a count-in has no tone and no voice of its own.
 
 The other side of a stretch is one more stretch as far as the sounds go. When the left side runs out, the tone sounds and the voice says "Pigeon, right side".
 
-A hold counted in reps has two sounds, the tone that starts it and its name. It has no countdown, because it has no end to count down to.
+A routine with no count-in has nothing between **Start** and the hold, so **Start** begins the hold with no sound at all.
+
+A hold counted in reps has its name, and before it the tone of the timed hold that ran out into it, if one did. At the start of the workout or after **Next**, it has its name alone. It has no countdown, because it has no end to count down to.
 
 The last timed hold ends on the finish tone, and "Workout complete" follows one second later. If the last stretch is counted in reps, **Next** ends it like a skip, so the finish tone sounds one second after the tap.
 
-**Next** in a stretch counted in reps, **Next** during a count-in or a hold, and **Skip stretch** in a wait all land quietly, as [What a skip sounds like](#what-a-skip-sounds-like) describes. The tone and the name of the stretch they land on come one second after the tap. **Start** in that second begins the count-in at once, and the name is not spoken.
+**Next** in a stretch counted in reps, **Next** during a count-in or a hold, and **Skip stretch** in a wait all land quietly, as [What a skip sounds like](#what-a-skip-sounds-like) describes. The name of the stretch they land on comes one and a half seconds after the tap, with no tone. **Start** before then begins the count-in at once, and the name is not spoken.
 
 ## How cues keep playing while the phone is locked
 
@@ -181,7 +196,7 @@ Three things have to hold.
 - **Beeps do not depend on timers.** `CuePlayer` queues every remaining sound on an `AVAudioPlayerNode` at an exact host time. The audio thread plays them. Voice phrases are rendered to buffers before the run starts, so a voice cue is queued the same way as a beep.
 - **Recovery is one code path.** `RunModel` calls `CuePlayer.reconcile` ten times a second with what the run needs: nothing, standby, or a schedule to play. `reconcile` compares that with what it last queued and repairs any difference. A route change or a skip only marks the queued state as unknown, and the next call rebuilds it.
 
-Standby means the run is on but has nothing to play. A paused run is on standby. So is a waiting run, once the tone and the name that began the wait have sounded. After a skip those come one second late, and the run keeps its audio until they have played. Waiting has no audio code of its own.
+Standby means the run is on but has nothing to play. A paused run is on standby. So is a waiting run, once the sounds that began the wait have played: the tone of the hold that ran out, if one did, and the name. After a skip the name comes one second late, and the run keeps its audio until it has played. Waiting has no audio code of its own.
 
 ## How the workout shows outside the app
 
@@ -608,7 +623,7 @@ What is proven without a phone:
 - What each command does to a run. The package tests cover it.
 - That `RunModel` applies a command and offers Undo for a skip or a restart. The app tests cover it.
 - That the lock-screen card carries the phase title, the caption, the workout name, the phase length, and the elapsed time, and that it reads "Waiting for Start" or "Waiting for Next" during a wait. An app test reads the card back.
-- That a waiting run asks the audio for standby once its tone and its name have sounded, and not before. An app test covers it.
+- That a waiting run asks the audio for standby once its name has sounded, and not before. An app test covers it.
 
 What only a phone can show:
 

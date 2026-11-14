@@ -214,7 +214,24 @@ final class RunModelTests: XCTestCase {
         XCTAssertEqual(card[MPNowPlayingInfoPropertyPlaybackRate] as? Double, 0)
     }
 
-    func testAWaitIsStandbyOnceItsToneAndItsNameHaveSounded() throws {
+    /// With voice off a wait has no name to say and nothing else to play, so it is on standby from
+    /// the start. Headphone controls hold the audio on standby, and only on standby.
+    func testWithVoiceOffAWaitIsStandbyAtOnce() throws {
+        let start = Date(timeIntervalSinceReferenceDate: 0)
+        var session = Session(.dailyStretch, cues: CuePreferences(voice: false), startingAt: start)
+        XCTAssertEqual(CueDemand(for: session, playing: session.cueSchedule, at: start + 0.1), .standby,
+                       "Cat-Cow is counted in reps and waits for Next from the start")
+
+        session.perform(.next, at: start + 100)
+        XCTAssertEqual(CueDemand(for: session, playing: session.cueSchedule, at: start + 100.1), .standby,
+                       "Next lands on the wait for Child's Pose, and with voice off nothing announces it")
+
+        session.perform(.play, at: start + 110)
+        XCTAssertEqual(CueDemand(for: session, playing: session.cueSchedule, at: start + 110.5),
+                       .playing(try XCTUnwrap(session.cueSchedule)), "Start begins the count-in, which ticks")
+    }
+
+    func testAWaitIsStandbyOnceItsNameHasSounded() throws {
         let start = Date(timeIntervalSinceReferenceDate: 0)
         var session = Session(.dailyStretch, cues: CuePreferences(), startingAt: start)
         func demand(at offset: TimeInterval) -> CueDemand {
@@ -222,7 +239,7 @@ final class RunModelTests: XCTestCase {
         }
         let schedule = try XCTUnwrap(session.cueSchedule)
 
-        XCTAssertEqual(demand(at: 1), .playing(schedule), "the wait has begun, but its tone and the name are still sounding")
+        XCTAssertEqual(demand(at: 1), .playing(schedule), "the wait has begun, but its name is still sounding")
         XCTAssertEqual(demand(at: 3), .standby)
         XCTAssertEqual(demand(at: 3600), .standby)
 
@@ -256,7 +273,7 @@ final class RunModelTests: XCTestCase {
         }
 
         XCTAssertEqual(demand(at: 20), .playing(landed), "the music dips at the tap")
-        XCTAssertEqual(demand(at: 20.9), .playing(landed), "the tone is still to come")
+        XCTAssertEqual(demand(at: 21.4), .playing(landed), "the name is still to come")
         XCTAssertEqual(demand(at: 22.9), .playing(landed), "the name is being spoken")
         XCTAssertEqual(demand(at: 23.3), .standby)
     }
@@ -273,8 +290,8 @@ final class RunModelTests: XCTestCase {
         let skipped = try XCTUnwrap(run.session?.cueSchedule)
         XCTAssertEqual(CueDemand(for: run.session, playing: skipped, at: .now), .playing(skipped))
         let landing = try XCTUnwrap(skipped.remaining(after: .now).windows.first?.sounds.first)
-        XCTAssertEqual(landing.sound, .phaseChange)
-        XCTAssertEqual(landing.at.timeIntervalSince(tap), 1, accuracy: 0.2, "the skip is announced a second after the tap")
+        XCTAssertEqual(landing.sound, .voice(Utterance("Round one")), "a landing has no tone")
+        XCTAssertEqual(landing.at.timeIntervalSince(tap), 1.5, accuracy: 0.2, "the name comes half a second after the one-second settle")
 
         run.undoLast()
         let restored = try XCTUnwrap(run.session?.cueSchedule)

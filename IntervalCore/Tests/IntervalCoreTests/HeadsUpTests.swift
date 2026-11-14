@@ -18,7 +18,7 @@ struct HeadsUpCueTests {
             0, 269_500, 296_500, 536_500, 689_500, 716_500, 956_500, 1_109_500, 1_136_500,
             1_376_500, 1_529_500, 1_556_500, 1_796_500, 1_976_500, 2_276_500,
         ])
-        #expect(cues(plan).count == 56)
+        #expect(cues(plan).count == 55)
         #expect(spoken(plan) == [
             "Warm up", "Get ready. Thirty seconds.", "Round one",
             "Rest", "Get ready. Thirty seconds.", "Round two",
@@ -46,7 +46,7 @@ struct HeadsUpCueTests {
         let plan = try #require(session(.hiit2020).cueSchedule)
         #expect(headsUps(in: plan) == [270_000])
         #expect(plan.windows.count == 22)
-        #expect(cues(plan).count == 103)
+        #expect(cues(plan).count == 102)
     }
 
     @Test func theAudioCheckSpeaksTenSecondsBeforeItsFirstRound() throws {

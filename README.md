@@ -111,7 +111,8 @@ If the run screen ever shows **No sound**, the app could not start its audio. It
 
 - Tap a workout, then **Start**.
 - The forward button skips the current phase. The back button restarts it. From a hold, the back button goes to the count-in before the hold, so you have time to get back into position.
-- A skip is quiet. Your music dips at the tap, and one second later the app sounds the tone of the phase you landed on and says its name. Tap the forward button several times in a row and you hear only where you stopped. Skip the last phase and the finish screen shows at once, with the finish tone one second later.
+- The tone means a phase ran out. Nothing starts with one: not the workout, not a hold after its count-in, not a restart and not a skip.
+- A skip is quiet. Your music dips at the tap, and a moment later the app says the name of the phase you landed on. With voice cues off, a skip to anything but the finish makes no sound and leaves your music alone. Tap the forward button several times in a row and you hear only where you stopped. Skip the last phase and the finish screen shows at once, with the finish tone one second later.
 - **Undo** appears for 6 seconds after a skip, a **Start**, a **Next**, or a restart, also on the finish screen.
 - **Pause** stops the clock. The screen turns grey and reads PAUSED. With headphone controls off, it also releases your music.
 - **How to** appears for a stretch that has a link while a routine waits and while the workout is paused. It opens the link. No hold counts down in either state, so a video costs you no time.

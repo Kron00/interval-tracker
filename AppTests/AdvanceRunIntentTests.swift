@@ -37,7 +37,6 @@ final class AdvanceRunIntentTests: XCTestCase {
         let waiting = try progress()
         XCTAssertEqual(waiting.phase.title, "Child's Pose")
         XCTAssertTrue(waiting.isWaiting, "a timed stretch waits for its own Start")
-        XCTAssertNotNil(run.undo, "it can be taken back like Next on the screen")
         XCTAssertEqual(display.shown.last?.state.title, "Child's Pose", "the card has changed by the time the tap returns")
         let startButton = try await button()
         XCTAssertEqual(startButton.advance, .start)
@@ -66,21 +65,21 @@ final class AdvanceRunIntentTests: XCTestCase {
         XCTAssertTrue(try progress().isWaiting)
     }
 
-    func testATapThatUndoOvertookDoesNotAdvanceTheRunAgain() async throws {
+    func testATapThatTheBackButtonOvertookDoesNotAdvanceTheRunAgain() async throws {
         run.start(.dailyStretch, cues: CuePreferences())
         let catCow = try await button().wait
         try await tap(wait: catCow)
         XCTAssertEqual(try progress().phase.title, "Child's Pose")
 
-        run.undoLast()
+        run.back(try progress().segment)
         let backAtCatCow = run.session
+        XCTAssertEqual(try progress().phase.title, "Cat-Cow")
         try await tap(wait: catCow)
 
-        XCTAssertEqual(run.session, backAtCatCow, "the same tap, delivered a second time after Undo, is not a new press")
-        XCTAssertEqual(try progress().phase.title, "Cat-Cow")
+        XCTAssertEqual(run.session, backAtCatCow, "the same tap, delivered a second time after going back, is not a new press")
 
         try await tap(wait: try await button().wait)
-        XCTAssertEqual(try progress().phase.title, "Child's Pose", "the button that Undo brought back works")
+        XCTAssertEqual(try progress().phase.title, "Child's Pose", "the button on the card it went back to works")
     }
 
     func testATapFromAnEarlierWorkoutDoesNothingToTheNextOne() async throws {
@@ -126,7 +125,6 @@ final class AdvanceRunIntentTests: XCTestCase {
         let warmUp = run.session
         try await tap(wait: 0)
         XCTAssertEqual(run.session, warmUp, "an interval timer never waits, so it has no button and takes no tap")
-        XCTAssertNil(run.undo)
     }
 
     private func tap(wait: Int) async throws {

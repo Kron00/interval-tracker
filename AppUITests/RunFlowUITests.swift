@@ -35,12 +35,12 @@ final class RunFlowUITests: XCTestCase {
         XCTAssertEqual(skip.label, "Skip")
         skip.tap()
         waitFor(phase, toRead: "WORK")
-        let undo = app.buttons["undoButton"]
-        XCTAssertTrue(undo.waitForExistence(timeout: Self.patience))
-        snap(app, "04a-undo-offered")
-        undo.tap()
+        XCTAssertFalse(app.buttons["undoButton"].exists, "a skip is taken back with the back button, and there is no Undo")
+        let back = app.buttons["backButton"]
+        XCTAssertEqual(back.label, "Back")
+        back.tap()
         waitFor(phase, toRead: "WARM-UP")
-        XCTAssertFalse(undo.exists)
+        snap(app, "04a-back-to-warm-up")
         skip.tap()
         waitFor(phase, toRead: "WORK")
         XCTAssertEqual(app.staticTexts["roundLabel"].label, "Round 1 of 4")
@@ -65,6 +65,14 @@ final class RunFlowUITests: XCTestCase {
         waitFor(phase, toRead: "REST")
         XCTAssertEqual(app.staticTexts["roundLabel"].label, "Round 1 of 4")
         snap(app, "06-rest")
+        back.tap()
+        waitFor(phase, toRead: "WORK")
+        XCTAssertEqual(app.staticTexts["roundLabel"].label, "Round 1 of 4", "back from a rest goes to the work before it")
+        let workAgain = app.staticTexts["timeRemaining"].label
+        XCTAssertTrue(workAgain == "4:00" || workAgain.hasPrefix("3:5"), "the round starts from the top, and it read \(workAgain)")
+        snap(app, "06a-back-to-work")
+        skip.tap()
+        waitFor(phase, toRead: "REST")
 
         let done = app.buttons["doneButton"]
         var taps = 0
@@ -74,11 +82,6 @@ final class RunFlowUITests: XCTestCase {
         }
         XCTAssertTrue(done.waitForExistence(timeout: Self.patience))
         XCTAssertEqual(taps, 8, "rest 1, then work and rest for rounds 2 to 4, then cool-down")
-        XCTAssertTrue(undo.exists, "a skip that ends the workout can still be taken back")
-        undo.tap()
-        waitFor(phase, toRead: "COOL-DOWN")
-        skip.tap()
-        XCTAssertTrue(done.waitForExistence(timeout: Self.patience))
         let worked = app.staticTexts["timeWorked"].label
         let minutesWorked = Int(worked.split(separator: ":").first ?? "") ?? .max
         XCTAssertLessThan(minutesWorked, 10, "nearly all of a 38:00 timer was skipped, yet time worked read \(worked)")
@@ -200,7 +203,7 @@ final class RunFlowUITests: XCTestCase {
         let total = app.staticTexts["totalRemaining"]
         let primary = app.buttons["primaryButton"]
         let skip = app.buttons["skipButton"]
-        let restart = app.buttons["restartButton"]
+        let back = app.buttons["backButton"]
         let howTo = app.buttons["howToButton"]
         XCTAssertTrue(reps.waitForExistence(timeout: Self.patience), "the routine opens on its first stretch, with nothing before it")
         XCTAssertEqual(phase.label, "CAT-COW")
@@ -213,7 +216,7 @@ final class RunFlowUITests: XCTestCase {
         XCTAssertTrue(howTo.exists, "a wait has no Pause, so the how-to chip is offered in it")
         XCTAssertTrue(skip.isEnabled, "a wait can skip its stretch")
         XCTAssertEqual(skip.label, "Skip stretch")
-        XCTAssertFalse(restart.isEnabled, "a wait has nothing to restart")
+        XCTAssertTrue(back.isEnabled, "the back button stays lit in a wait")
         Thread.sleep(forTimeInterval: 3)
         XCTAssertEqual(phase.label, "CAT-COW", "a stretch counted in reps never moves on by itself")
         XCTAssertEqual(caption.label, "Stretch 1 of 10")
@@ -236,11 +239,10 @@ final class RunFlowUITests: XCTestCase {
         waitFor(primary, toRead: "Start")
         XCTAssertEqual(prompt.label, "Tap Start")
         XCTAssertTrue(app.staticTexts["Up next: Cobra 0:30"].exists)
-        XCTAssertTrue(app.buttons["undoButton"].exists)
         XCTAssertTrue(howTo.exists)
         XCTAssertTrue(skip.isEnabled)
         XCTAssertEqual(skip.label, "Skip stretch")
-        XCTAssertFalse(restart.isEnabled)
+        XCTAssertTrue(back.isEnabled)
         XCTAssertFalse(reps.exists)
         XCTAssertFalse(clock.exists, "nothing counts down until Start")
         let totalBeforeStart = total.label
@@ -257,18 +259,16 @@ final class RunFlowUITests: XCTestCase {
         attach(XCUIScreen.main.screenshot(), "45b-waiting-to-start-landscape")
         rotate(app, to: .portrait)
 
-        // The count-in lasts three seconds, so the test does not race it. Paused, a restart puts the
-        // run at the start of the count-in whether the pause landed in the count-in or in the hold.
+        // The count-in lasts three seconds, and a slow machine can take longer than that between
+        // two taps. So the pause lands in the count-in or early in the hold, both of Child's Pose.
         primary.tap()
         setPaused(true, with: primary)
-        restart.tap()
-        waitFor(caption, toRead: "Get ready")
-        XCTAssertEqual(clock.label, "0:03", "Start leads into a three-second count-in")
+        XCTAssertTrue(["Get ready", "Stretch 2 of 10"].contains(caption.label), "Start leads into the count-in, and it read \(caption.label)")
         XCTAssertTrue(app.staticTexts["in Child's Pose"].exists)
         XCTAssertTrue(app.staticTexts["Up next: Cobra 0:30"].exists)
         XCTAssertFalse(length.exists)
-        setPaused(false, with: primary)
         snap(app, "45a-count-in")
+        setPaused(false, with: primary)
 
         let hold = expectation(for: NSPredicate(format: "label == %@", "Stretch 2 of 10"), evaluatedWith: caption)
         wait(for: [hold], timeout: Self.patience)
@@ -297,7 +297,7 @@ final class RunFlowUITests: XCTestCase {
         XCTAssertEqual(length.label, "0:45")
         XCTAssertTrue(app.staticTexts["Up next: Right side 0:45"].exists)
 
-        // Skip stretch leaves a wait without Start, one side at a time, and Undo takes back the last skip only.
+        // Skip stretch leaves a wait without Start, one side at a time, and back goes the other way the same way.
         waitFor(primary, toRead: "Start")
         XCTAssertEqual(skip.label, "Skip stretch")
         skip.tap()
@@ -311,10 +311,9 @@ final class RunFlowUITests: XCTestCase {
         XCTAssertEqual(prompt.label, "Tap Start")
         XCTAssertTrue(skip.isEnabled)
         XCTAssertEqual(skip.label, "Skip stretch")
-        XCTAssertFalse(restart.isEnabled)
-        XCTAssertTrue(app.buttons["undoButton"].exists)
+        XCTAssertTrue(back.isEnabled)
         snap(app, "47a-skip-stretch-from-wait")
-        app.buttons["undoButton"].tap()
+        back.tap()
         waitFor(phase, toRead: "HIP FLEXOR COUCH STRETCH")
         waitFor(caption, toRead: "Right side · Stretch 4 of 10")
         waitFor(primary, toRead: "Start")
@@ -328,16 +327,13 @@ final class RunFlowUITests: XCTestCase {
         XCTAssertEqual(caption.label, "Right side · Stretch 4 of 10", "the count-in is over and the hold is counting")
         let before = seconds(total.label)
         XCTAssertLessThan(seconds(clock.label), 45)
-        restart.tap()
-        waitFor(caption, toRead: "Get ready · Right side")
-        XCTAssertEqual(clock.label, "0:03", "a restart from a hold goes back to its count-in")
-        XCTAssertGreaterThan(seconds(total.label), before + 3)
-        XCTAssertEqual(primary.label, "Resume", "a restart keeps a paused run paused")
-        let undo = app.buttons["undoButton"]
-        XCTAssertTrue(undo.exists)
-        let gone = expectation(for: NSPredicate(format: "exists == false"), evaluatedWith: undo)
-        wait(for: [gone], timeout: 35)
-        XCTAssertEqual(clock.label, "0:03", "Undo goes away on a paused screen, which is not redrawn by the clock")
+        back.tap()
+        waitFor(caption, toRead: "Left side · Stretch 4 of 10")
+        XCTAssertEqual(length.label, "0:45", "back from a hold goes to the side before, which waits for Start again")
+        XCTAssertFalse(clock.exists)
+        XCTAssertGreaterThan(seconds(total.label), before + 45)
+        XCTAssertEqual(primary.label, "Resume", "going back keeps a paused run paused")
+        snap(app, "47b-back-from-a-hold")
 
         app.buttons["endButton"].tap()
         app.buttons["confirmEndButton"].tap()
@@ -378,7 +374,7 @@ final class RunFlowUITests: XCTestCase {
         let phase = app.staticTexts["phaseTitle"]
         let primary = app.buttons["primaryButton"]
         let skip = app.buttons["skipButton"]
-        let undo = app.buttons["undoButton"]
+        let back = app.buttons["backButton"]
         XCTAssertTrue(phase.waitForExistence(timeout: Self.patience))
         let running = frames(in: app)
         XCTAssertNotNil(running["heartRate"], "the stand-in monitor is remembered, so the readout has its slot")
@@ -393,12 +389,13 @@ final class RunFlowUITests: XCTestCase {
 
         skip.tap()
         waitFor(phase, toRead: "WORK")
-        XCTAssertTrue(undo.exists)
-        assertNothingMoved(in: app, since: running, "in Work while Undo is offered")
-        snap(app, "32-undo-chip")
-        let gone = expectation(for: NSPredicate(format: "exists == false"), evaluatedWith: undo)
-        wait(for: [gone], timeout: 35)
-        assertNothingMoved(in: app, since: running, "in Work after Undo went away")
+        assertNothingMoved(in: app, since: running, "in Work after a skip")
+        snap(app, "32-work-after-skip")
+        back.tap()
+        waitFor(phase, toRead: "WARM-UP")
+        assertNothingMoved(in: app, since: running, "in the warm-up after going back")
+        skip.tap()
+        waitFor(phase, toRead: "WORK")
 
         rotate(app, to: .landscapeLeft)
         let wide = frames(in: app)
@@ -407,9 +404,8 @@ final class RunFlowUITests: XCTestCase {
         setPaused(false, with: primary)
         skip.tap()
         waitFor(phase, toRead: "REST")
-        XCTAssertTrue(undo.exists)
-        assertNothingMoved(in: app, since: wide, "in landscape while Undo is offered")
-        attach(XCUIScreen.main.screenshot(), "33-landscape-undo-chip")
+        assertNothingMoved(in: app, since: wide, "in landscape after a skip")
+        attach(XCUIScreen.main.screenshot(), "33-landscape-rest")
         rotate(app, to: .portrait)
 
         app.buttons["endButton"].tap()
@@ -446,23 +442,22 @@ final class RunFlowUITests: XCTestCase {
         waitFor(phase, toRead: "COBRA")
         waitFor(primary, toRead: "Start")
         assertNothingMoved(in: app, since: waitingToStart, "after Skip stretch from a wait")
-        undo.tap()
+        back.tap()
         waitFor(phase, toRead: "CHILD'S POSE")
         waitFor(primary, toRead: "Start")
-        assertNothingMoved(in: app, since: waitingToStart, "after Undo of Skip stretch")
+        assertNothingMoved(in: app, since: waitingToStart, "after going back to a wait")
         rotate(app, to: .landscapeLeft)
         let wideWaiting = frames(in: app)
         assertNothingMoved(in: app, since: wide, "in landscape from an interval timer to a stretch that waits for Start")
         rotate(app, to: .portrait)
 
-        // The count-in ends by itself after three seconds, so it is measured paused at its start.
+        // The count-in ends by itself after three seconds, so it is measured paused, and a slow
+        // machine may pause it early in the hold instead.
         primary.tap()
         setPaused(true, with: primary)
-        app.buttons["restartButton"].tap()
-        waitFor(caption, toRead: "Get ready")
         XCTAssertEqual(phase.label, "PAUSED")
         XCTAssertTrue(app.staticTexts["in Child's Pose"].exists)
-        XCTAssertEqual(app.staticTexts["timeRemaining"].label, "0:03")
+        XCTAssertTrue(app.staticTexts["timeRemaining"].exists)
         assertNothingMoved(in: app, since: waitingToStart, "from waiting for Start to the count-in")
         assertNothingMoved(in: app, since: running, "from an interval timer to a count-in")
 
@@ -699,21 +694,16 @@ final class RunFlowUITests: XCTestCase {
         let end = app.buttons["endButton"]
         let primary = app.buttons["primaryButton"]
         let skip = app.buttons["skipButton"]
-        let done = app.buttons["doneButton"]
 
-        // A finished workout's activity has ended, so Undo has to start a new one.
         startAudioCheck(in: app)
         setPaused(true, with: primary)
-        for _ in 0..<6 where !done.exists { skip.tap() }
-        XCTAssertTrue(done.waitForExistence(timeout: Self.patience))
-        app.buttons["undoButton"].tap()
-        XCTAssertTrue(end.waitForExistence(timeout: Self.patience))
-        // iOS starts an activity only for an app that is on the screen, and the app first has to
-        // end the finished one. On a busy simulator that takes seconds, and a lock that comes
-        // sooner leaves no card.
+        skip.tap()
+        XCTAssertTrue(app.staticTexts["in Work"].waitForExistence(timeout: Self.patience))
+        // iOS starts an activity only for an app that is on the screen. On a busy simulator that
+        // takes seconds, and a lock that comes sooner leaves no card.
         Thread.sleep(forTimeInterval: 4)
         try showLockScreen()
-        XCTAssertTrue(springboard.staticTexts["PAUSED"].waitForExistence(timeout: Self.patience), "Undo brings the activity back with the run")
+        XCTAssertTrue(springboard.staticTexts["PAUSED"].waitForExistence(timeout: Self.patience), "the card shows the paused run")
         allowLiveActivities()
         XCTAssertTrue(springboard.staticTexts["WORK"].exists)
         XCTAssertTrue(springboard.staticTexts["0:10"].exists)
@@ -761,7 +751,6 @@ final class RunFlowUITests: XCTestCase {
         XCTAssertTrue(end.waitForExistence(timeout: Self.patience))
         XCTAssertEqual(app.staticTexts["phaseTitle"].label, "CHILD'S POSE", "the app is where the lock screen left the run")
         waitFor(primary, toRead: "Start")
-        XCTAssertTrue(app.buttons["undoButton"].exists, "Next on the card can be taken back like Next in the app")
         XCUIDevice.shared.press(.home)
         Thread.sleep(forTimeInterval: 4)
         attach(XCUIScreen.main.screenshot(), "56a-waiting-for-start-dynamic-island")
@@ -870,7 +859,7 @@ final class RunFlowUITests: XCTestCase {
 
     private func launch(_ arguments: String...) -> XCUIApplication {
         let app = XCUIApplication()
-        app.launchArguments = arguments + ["-undoWindow", "20"]
+        app.launchArguments = arguments
         app.launch()
         return app
     }

@@ -165,14 +165,14 @@ struct HeadsUpProgressTests {
         #expect(try progress(run, at: 280).isHeadsUp)
     }
 
-    @Test func aPauseKeepsItAndARestartEndsIt() throws {
+    @Test func aPauseKeepsItAndGoingBackEndsIt() throws {
         var run = session()
         run.pause(at: t0 + 280)
         let paused = try progress(run, at: 5000)
         #expect(paused.isPaused)
         #expect(paused.isHeadsUp)
 
-        run.restart(paused.segment, at: t0 + 5000)
+        run.back(paused.segment, at: t0 + 5000)
         #expect(!(try progress(run, at: 5000).isHeadsUp))
     }
 

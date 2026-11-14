@@ -110,14 +110,13 @@ If the run screen ever shows **No sound**, the app could not start its audio. It
 ## Run a workout
 
 - Tap a workout, then **Start**.
-- The forward button skips the current phase. The back button restarts it. From a hold, the back button goes to the count-in before the hold, so you have time to get back into position.
-- The tone means a phase ran out. Nothing starts with one: not the workout, not a hold after its count-in, not a restart and not a skip.
-- A skip is quiet. Your music dips at the tap, and a moment later the app says the name of the phase you landed on. With voice cues off, a skip to anything but the finish makes no sound and leaves your music alone. Tap the forward button several times in a row and you hear only where you stopped. Skip the last phase and the finish screen shows at once, with the finish tone one second later.
-- **Undo** appears for 6 seconds after a skip, a **Start**, a **Next**, or a restart, also on the finish screen.
+- The forward button skips to the next phase. The back button goes to the start of the phase before. Tap it several times to go back several phases. In the first phase it starts that phase again.
+- The tone means a phase ran out. Nothing starts with one: not the workout, not a hold after its count-in, and not a skip back or forward.
+- A skip is quiet. Your music dips at the tap, and a moment later the app says the name of the phase you landed on. With voice cues off, a skip to anything but the finish makes no sound and leaves your music alone. Tap the forward or back button several times in a row and you hear only where you stopped. Skip the last phase and the finish screen shows at once, with the finish tone one second later.
 - **Pause** stops the clock. The screen turns grey and reads PAUSED. With headphone controls off, it also releases your music.
 - **How to** appears for a stretch that has a link while a routine waits and while the workout is paused. It opens the link. No hold counts down in either state, so a video costs you no time.
 - The X asks before it ends the workout. The question also says whether the workout will be saved to **History**.
-- The finish screen shows the time you worked. Skipped time and paused time do not count. Restarted time counts twice.
+- The finish screen shows the time you worked. Skipped time and paused time do not count. Time you went back over counts twice.
 
 ### In a stretch routine, tap Start for every hold
 
@@ -128,7 +127,9 @@ Nothing in a stretch routine starts by itself.
 - A stretch on each side waits two times, once for the left side and once for the right side.
 - A stretch counted in reps shows the number of reps and no clock. Do the reps at your own pace, then tap **Next**.
 
-While the routine waits, the big white button is **Start** or **Next**, and the back button is dimmed. The forward button is **Skip stretch**. It leaves the stretch without a count-in, and the next stretch waits. One side counts as one stretch, so a skip from the left side lands on the right side. Tap it several times to skip several stretches. **Undo** takes back the last one.
+While the routine waits, the big white button is **Start** or **Next**. The forward button is **Skip stretch**. It leaves the stretch without a count-in, and the next stretch waits. One side counts as one stretch, so a skip from the left side lands on the right side. Tap it several times to skip several stretches.
+
+The back button goes to the stretch before, from its wait, its count-in or its hold, and that stretch waits for **Start** again. One side counts as one stretch here too.
 
 To leave a stretch early, tap the forward button during the count-in or the hold. The next stretch then waits.
 
@@ -313,7 +314,7 @@ iOS draws the countdown, so it keeps ticking while the app does nothing.
 
 In a stretch routine, the card follows each stretch through its wait, its count-in and its hold. During the count-in it reads "Get ready" beside the name of the workout.
 
-While the routine waits, you do not have to open the app. Tap **Start** or **Next** on the card. The button does what the big white button in the app does, and **Undo** in the app takes it back. In the Dynamic Island, touch and hold the island to see the button. The card can take a few seconds to change after a tap, because iOS has to wake the app first. A second tap does no harm.
+While the routine waits, you do not have to open the app. Tap **Start** or **Next** on the card. The button does what the big white button in the app does, and the back button in the app takes you back. In the Dynamic Island, touch and hold the island to see the button. The card can take a few seconds to change after a tap, because iOS has to wake the app first. A second tap does no harm.
 
 <p align="center">
   <img src="docs/screenshots/56-waiting-for-start-lock-screen.jpg" width="30%" alt="Lock screen card for Child's Pose that shows 0:45 and a Start button">
@@ -354,7 +355,7 @@ Headphone controls are off until you turn them on. In **Settings**, turn on **He
 | --- | --- |
 | One press | Pause or resume. While a stretch routine waits, one press is **Start** or **Next** |
 | Two presses | Skip the current phase. In a stretch routine this leaves the stretch, and the next one waits. While the routine waits, two presses skip the stretch |
-| Three presses | Restart the current phase. From a hold this goes back to the count-in. While a stretch routine waits, three presses do nothing |
+| Three presses | Go back to the start of the phase before. In a stretch routine this goes to the stretch before, which waits |
 
 The lock screen shows the current phase as Now Playing, with the same three controls. While a stretch routine waits, it reads "Waiting for Start" or "Waiting for Next". This is separate from the card in [See the workout while you use other apps](#see-the-workout-while-you-use-other-apps), which shows with headphone controls on or off.
 

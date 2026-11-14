@@ -6,7 +6,7 @@ public enum RunCommand: Hashable, Sendable {
     case play, pause, togglePlayPause
     /// What the forward button does: `Session.forward`.
     case next
-    /// Restarts the segment in progress.
+    /// What the back button does: `Session.back`.
     case previous
 }
 
@@ -28,9 +28,9 @@ public struct Session: Equatable, Sendable {
     private var repeated: TimeInterval = 0
     /// Time spent in stretches counted in reps. They have no length of their own.
     private var inReps: TimeInterval = 0
-    /// Where the run was last moved by hand, in elapsed time. A run that got there by time passing
-    /// has the same date, so the date cannot tell the two apart, and the two sound different.
-    private var arrival: Arrival?
+    /// Where a skip or a press of the back button last landed, in elapsed time. A run that got there
+    /// by time passing has the same date, so the date cannot tell the two apart, and the two sound different.
+    private var landing: TimeInterval?
 
     public init(_ workout: Workout, cues: CuePreferences, startingAt now: Date) {
         self.workout = workout
@@ -61,14 +61,20 @@ public struct Session: Equatable, Sendable {
         leave(segment, keepingTheStretch: false, at: now)
     }
 
-    /// Goes back to the start of `segment`, or from a hold to the start of its count-in.
-    /// No-op unless `segment` is counting at `now`. A wait has nothing to restart.
-    public mutating func restart(_ segment: SegmentID, at now: Date) {
+    /// The mirror of `forward`: goes back to the start of the phase before `segment`, or to the start
+    /// of `segment` when it is the first. A stretch goes back to the wait of the stretch before, which
+    /// waits for Start again. No-op unless `segment` is the one in progress at `now`.
+    public mutating func back(_ segment: SegmentID, at now: Date) {
         let elapsed = elapsed(at: now)
-        guard case .inside(let current) = timeline.place(at: elapsed, released: released), current.id == segment else { return }
-        let target = timeline.restartPoint(for: current.id)
+        let place = timeline.place(at: elapsed, released: released)
+        guard let current = place.segment, current.id == segment else { return }
+        let target = timeline.backPoint(for: current.id)
+        // Back at the very start there is nothing to go back to, and moving the clock would lose reps in progress.
+        guard target.id != current.id || elapsed > target.start else { return }
+        if place.isWaiting, current.phase.reps != nil { inReps += ran(at: now) - current.end }
         repeated += elapsed - target.start
-        arrival = .restart(target.start)
+        released = timeline.gates.prefix { $0.id.index < target.id.index }.count
+        landing = target.start
         move(to: target.start, at: now)
     }
 
@@ -84,7 +90,7 @@ public struct Session: Equatable, Sendable {
         case .pause: pause(at: now)
         case .togglePlayPause: if isPaused { resume(at: now) } else { pause(at: now) }
         case .next: forward(current.id, at: now)
-        case .previous: restart(current.id, at: now)
+        case .previous: back(current.id, at: now)
         }
     }
 
@@ -102,8 +108,8 @@ public struct Session: Equatable, Sendable {
             isHeadsUp: timeline.headsUp(in: current, cues.headsUp).map { elapsed >= $0 } ?? false))
     }
 
-    /// The time worked up to `now`: the elapsed time, minus what was skipped, plus what was restarted
-    /// and done again, plus the time spent in stretches counted in reps, the one in progress included.
+    /// The time worked up to `now`: the elapsed time, minus what was skipped, plus what was gone back
+    /// over and done again, plus the time spent in stretches counted in reps, the one in progress included.
     public func worked(at now: Date) -> TimeInterval {
         let elapsed = elapsed(at: now)
         var worked = elapsed - skipped + repeated + inReps
@@ -138,7 +144,7 @@ public struct Session: Equatable, Sendable {
 
     /// Every cue up to the next gate, or up to the finish, at its wall-clock time. nil while paused.
     public var cueSchedule: CueSchedule? {
-        zeroDate.map { CueSchedule(timeline, cues, zeroAt: $0, released: released, arrival: arrival) }
+        zeroDate.map { CueSchedule(timeline, cues, zeroAt: $0, released: released, landing: landing) }
     }
 
     /// Every distinct sound of the whole run in order of first use, whatever gates lie ahead.
@@ -173,7 +179,7 @@ public struct Session: Equatable, Sendable {
         if current.phase.reps != nil { inReps += ran(at: now) - current.end }
         skipped += target - elapsed
         if current.isGate { released += 1 }
-        arrival = starts ? nil : .landing(target)
+        landing = starts ? nil : target
         move(to: target, at: now)
     }
 
@@ -187,7 +193,7 @@ public struct Session: Equatable, Sendable {
 
 public enum Snapshot: Equatable, Sendable {
     case active(RunProgress)
-    /// `worked` is the workout's timed length, minus what was skipped, plus what was restarted and
+    /// `worked` is the workout's timed length, minus what was skipped, plus what was gone back over and
     /// done again, plus the time spent in stretches counted in reps. Paused time never counts, and
     /// neither does a wait for Start.
     case finished(worked: TimeInterval)

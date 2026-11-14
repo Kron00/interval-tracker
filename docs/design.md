@@ -4,7 +4,7 @@
 
 iOS suspends a backgrounded app within seconds, and timers that do fire can fire late. A timer that adds one second per tick falls behind every time that happens.
 
-A `Session` stores one date instead: the moment at which elapsed time would be zero. Everything on the run screen is computed from `now` minus that date. Pause stores the elapsed time. Resume, skip, and restart move the date. "Finished" is not a stored state, so nothing has to notice the end and set a flag while the app is suspended. "Waiting" is not a stored state either. [How a routine waits for Start](#how-a-routine-waits-for-start) explains it.
+A `Session` stores one date instead: the moment at which elapsed time would be zero. Everything on the run screen is computed from `now` minus that date. Pause stores the elapsed time. Resume, skip, and back move the date. "Finished" is not a stored state, so nothing has to notice the end and set a flag while the app is suspended. "Waiting" is not a stored state either. [How a routine waits for Start](#how-a-routine-waits-for-start) explains it.
 
 `Session` lives in the `IntervalCore` package, which imports only Foundation. That is why its tests run on a Mac with no simulator.
 
@@ -28,8 +28,8 @@ Each segment is one `Phase`. A phase knows its own title, caption, colour family
 
 Three rules treat the wait and the count-in as part of the hold they lead into:
 
-- Restart from a hold goes back to the start of its count-in, so you have time to get back into position.
 - Next from a count-in, and **Skip stretch** from a wait, end the whole stretch, hold included. The forward button always means "the next stretch".
+- The back button from a wait, a count-in or a hold goes to the wait of the stretch before. It always means "the stretch before".
 - "Up next" names what follows the hold, from the wait and from the count-in too.
 
 ## How a routine waits for Start
@@ -53,9 +53,9 @@ An interval timer moves on by itself. A stretch routine starts nothing by itself
 
 **Skip stretch** in a wait for **Start** adds one to the count, as **Start** does, and moves the date to the end of the hold, as **Next** does. The count-in and the hold count as skipped, so neither is worked, and the run is at the next gate. One side is one stretch, so a skip from the left side lands on the wait of the right side. In a wait for **Next**, **Skip stretch** is **Next**. `Session.forward` is the one function for it, and `Timeline.skipPoint` says where it lands.
 
-Restart leaves the count alone too. It moves the date back to the start of the count-in. A waiting run ignores restart, because a wait has nothing to restart.
+The back button is the mirror of the forward button. `Timeline.backPoint` finds the start of the step the run is in, where a wait, its count-in and its hold are one step, and returns the start of the step before. `Session.back` sets the count to the gates before that point and moves the date there, so the run waits for **Start** or **Next** again. In an interval timer every phase is a step and there are no gates, so it goes to the start of the phase before. From the first step it goes to that step's own start, and at that start it does nothing. Reps done before going back count as worked, as they do for **Next**.
 
-The time you worked follows from the same numbers. It is the timed length, minus what you skipped, plus what you restarted, plus the time you spent in holds counted in reps. A wait for **Start** is not work, so `Session` drops that time when you tap **Start**. The clock keeps the time the run has been running even while the run waits, which is how a hold counted in reps knows how long you took.
+The time you worked follows from the same numbers. It is the timed length, minus what you skipped, plus what you went back over and did again, plus the time you spent in holds counted in reps. A wait for **Start** is not work, so `Session` drops that time when you tap **Start**. The clock keeps the time the run has been running even while the run waits, which is how a hold counted in reps knows how long you took.
 
 ## Why the cue schedule is data
 
@@ -80,14 +80,13 @@ The tone means a phase ran out. Nothing starts with one. These begin with no ton
 - The workout's first phase.
 - A hold after its count-in. The count-in's beeps lead into it.
 - A hold that **Start** begins in a routine with no count-in. A wait never runs out: a tap ends it.
-- The place **Restart** goes back to.
-- A skip's landing, as the next section describes.
+- A skip's landing, back or forward, as the next section describes.
 
-`CueSchedule` plays the tone at the start of a segment only when the segment before it is timed and is not a count-in, and the run did not get there by hand. `Session` keeps the last place the run was moved to by hand, a skip's landing or Restart's point, because the date cannot tell it from a place reached by time passing. With voice cues off, the start of a workout is silent.
+`CueSchedule` plays the tone at the start of a segment only when the segment before it is timed and is not a count-in, and the run did not get there by hand. `Session` keeps the last place a skip landed, because the date cannot tell it from a place reached by time passing. With voice cues off, the start of a workout is silent.
 
 ### What a skip sounds like
 
-A skip by hand moves the run at once. The screen, the clock, the Live Activity and **Undo** change at the tap, and nothing sounds then. You skip Round one at S, and the run lands on Rest.
+A skip by hand moves the run at once. The screen, the clock and the Live Activity change at the tap, and nothing sounds then. You skip Round one at S, and the run lands on Rest.
 
 | When | What |
 | --- | --- |
@@ -111,9 +110,9 @@ The usual rules apply, counted from one second after the skip:
 
 Skipping to the finish shows the finish screen at once. The finish is an end, so it keeps its tone. The finish tone sounds one second after the tap, the music dips at the tap for it, and "Workout complete" follows one second after the tone.
 
-A pause during that second holds the announcement back with the clock. After **Resume** the rest of the second runs, then the name. **Undo** before the announcement takes it back too, because the schedule of the restored run replaces it.
+A pause during that second holds the announcement back with the clock. After **Resume** the rest of the second runs, then the name. A press of back before the announcement replaces it too, with the name of the place it went back to.
 
-A skip by hand is the forward button, a double press, **Next** in a stretch counted in reps, and **Skip stretch**. **Start**, **Restart** and **Resume** sound at once, and so does every phase that begins by itself. **Start** clears the landing. **Restart** replaces it with the point it went back to, which has no tone either.
+A skip by hand is the forward button, the back button, a double or triple press, **Next** in a stretch counted in reps, and **Skip stretch**. **Start** and **Resume** sound at once, and so does every phase that begins by itself. **Start** clears the landing.
 
 ### What the heads-up sounds like
 
@@ -227,9 +226,9 @@ A waiting run has a button on the card, **Start** or **Next**, where the other s
 
 The button runs `AdvanceRunIntent`, a `LiveActivityIntent`. `Shared/RunActivity.swift` holds the intent, so the extension can draw the button. iOS runs `perform` in the app's process, also when the phone is locked, and it starts the app in the background if it has to. The app points the intent at its one `RunModel` when it launches. The extension has no run, and its copy of the intent never runs.
 
-A tap arrives some time after iOS drew the card. By then the run may have moved on, and a second tap may follow the first. So a waiting card carries one more plain value, a number that `RunModel` replaces with every change to the run, and the button hands that number back. `RunModel.advance(fromWait:)` does nothing unless the number is still the newest and the run waits and is not paused. A tap that comes late or comes twice therefore changes nothing. It cannot pause or skip a hold that is counting, and a second tap on **Next** cannot also start the stretch that follows. The number is not the place in the workout, because **Undo** comes back to the same place and so does the next workout: a tap that **Undo** overtook would press again, and a tap for one workout would move the next.
+A tap arrives some time after iOS drew the card. By then the run may have moved on, and a second tap may follow the first. So a waiting card carries one more plain value, a number that `RunModel` replaces with every change to the run, and the button hands that number back. `RunModel.advance(fromWait:)` does nothing unless the number is still the newest and the run waits and is not paused. A tap that comes late or comes twice therefore changes nothing. It cannot pause or skip a hold that is counting, and a second tap on **Next** cannot also start the stretch that follows. The number is not the place in the workout, because the back button comes back to the same place and so does the next workout: a tap that a press of back overtook would press again, and a tap for one workout would move the next.
 
-A tap that passes this check is a headphone press. `RunModel.handle` gets the play command, `Session.perform` reads it as **Start** or **Next** because the run waits, and **Undo** is offered as for any press. The extension still decides nothing about a run.
+A tap that passes this check is a headphone press. `RunModel.handle` gets the play command, `Session.perform` reads it as **Start** or **Next** because the run waits. The extension still decides nothing about a run.
 
 `advance(fromWait:)` returns only when the card shows the change. iOS may suspend the app as soon as the intent returns, and an update that was still on its way would be lost.
 
@@ -249,10 +248,9 @@ The button needs no entitlement, no app group and no `UsageDescription` key.
 | --- | --- |
 | Starts | Requested. iOS allows a request only while the app is in front, and Start is a tap in the app |
 | Changes phase or state | Updated |
-| Reaches its heads-up | Updated with an alert, which lights a locked screen and opens the Dynamic Island. The alert carries a silent sound file, because the system's alert sound would play over the voice and an alert cannot have no sound. It alerts once for each run through the phase, so a skip and its Undo do not alert again |
+| Reaches its heads-up | Updated with an alert, which lights a locked screen and opens the Dynamic Island. The alert carries a silent sound file, because the system's alert sound would play over the voice and an alert cannot have no sound. It alerts once for each run through the phase. A card that leaves the heads-up and comes back into the same one does not alert again |
 | Finishes | Updated, then ended, and left on the lock screen for two minutes |
 | Is ended, or **Done** is tapped | Removed at once |
-| Is brought back by Undo after the finish | Requested again, because an ended activity takes no updates |
 
 A session is not saved, so a crash or a force quit leaves an activity that counts down to a run that no longer exists. Every launch removes all activities of the app before it does anything else.
 
@@ -293,7 +291,7 @@ A double press arrives as next, which is the forward button: a skip, and in a wa
 
 The phone sits on the floor and you read it at a glance. If the clock moved every time you paused, you would have to find it again.
 
-So every block on the run screen has a fixed height and the clock takes the space that is left. A line with nothing to say still takes its line. The Undo and How to buttons appear inside a row that is always there. A state change swaps what is drawn inside a block, with a fade of a quarter of a second, and never changes where a block is. A UI test records where the title, the clock, the total, and two buttons are, and fails if any of them is somewhere else after a pause, a resume, a skip, a change of phase, a wait for **Start**, a count-in, or a hold.
+So every block on the run screen has a fixed height and the clock takes the space that is left. A line with nothing to say still takes its line. The How to button appears inside a row that is always there. A state change swaps what is drawn inside a block, with a fade of a quarter of a second, and never changes where a block is. A UI test records where the title, the clock, the total, and two buttons are, and fails if any of them is somewhere else after a pause, a resume, a skip, a change of phase, a wait for **Start**, a count-in, or a hold.
 
 A wait changes what six blocks draw:
 
@@ -303,14 +301,14 @@ A wait changes what six blocks draw:
 | Line under "Up next" | Empty | "Tap Start", or "Tap Next when done" |
 | How to button | Hidden | Shown |
 | Big white button | Pause | Start, or Next |
-| Small back button | Restart | Dimmed, and does nothing |
+| Small back button | Back to the phase before | Back to the stretch before, which waits |
 | Small forward button | Next | **Skip stretch**: leaves the stretch, and the next one waits |
 
 Before **Start**, the clock block shows the length of the hold. You see what you are about to start, and the digits are already the size and in the place they have when the countdown begins. They are dimmed, so a clock that has not started does not look like one that has stopped. The waiting screen takes the amber of the count-in and the hold takes green, so the two differ at a glance.
 
 A countdown leaves no time for a video, so the How to button is hidden while the count-in or the hold counts. A wait and a pause show it. Nothing counts down in either, so opening a video costs no time and the app does not have to rewind anything. The button's place stays empty when the stretch has no link.
 
-A wait has nothing to restart, so the small back button keeps its place, goes dim, and does nothing until the clock counts again. The small forward button stays lit as **Skip stretch**, so a routine can be skipped through one stretch at a time without starting any of them. Its icon is the same in every state. Only its accessibility label changes, from "Next" to "Skip stretch". `RunProgress.forwardTitle` holds that label, and `Phase.advanceTitle` stays the word for ending the phase, which the lock screen reads.
+The small back and forward buttons stay lit in a wait. Forward is **Skip stretch** and back goes to the stretch before, so a routine can be stepped through one stretch at a time in either direction without starting any of them. Its icon is the same in every state. Only its accessibility label changes, from "Next" to "Skip stretch". `RunProgress.forwardTitle` holds that label, and `Phase.advanceTitle` stays the word for ending the phase, which the lock screen reads.
 
 The question that the X asks is drawn over the run screen and moves nothing under it. Its line about the history has room for two lines of text whichever sentence it shows.
 
@@ -564,15 +562,11 @@ Grouping by day and the summary of the week take a `Calendar`, and no code in th
 `RunModel` reports every run one time, as a `WorkoutRecord`, to `onRunOver`. A run is reported at the first of two moments:
 
 - You leave the run screen. That is **Done** on the finish screen, or **End workout** after the X. A new run that starts over a run in progress leaves that run too.
-- A tick finds the workout finished and no Undo on offer.
+- A tick finds the workout finished.
 
-The second moment is for a workout that finishes by itself while the phone is locked. Without it, the run would be recorded only when you come back and tap **Done**.
-
-Undo is the reason the second moment waits. A skip of the last phase finishes the workout, and for 6 seconds **Undo** can bring the run back. If the skip recorded the run, Undo would have to delete the entry from the file again. Nothing is recorded while Undo is on offer, so Undo never has an entry to delete.
+The second moment is for a workout that finishes by itself while the phone is locked. Without it, the run would be recorded only when you come back and tap **Done**. A skip of the last phase finishes the workout too, and the next tick records it. Nothing brings a finished run back, so a recorded run is never taken out of the file again.
 
 `RunModel` keeps the start date of the run that it has not reported, and sets the date to nil when it reports. That one optional is the start time of the record and also says whether the run was reported. **Done** after a finish that a tick already reported finds nil and reports nothing.
-
-Only the tick checks for a finished workout. The `reconcile` that follows a change must not, because of an order inside `RunModel`. `change` clears `undo` before it applies a skip, and the skip offers Undo again only after `change` returns. A check in between would find a finished workout with no Undo, and it would report a run that Undo can still bring back.
 
 A run that ends part way is recorded with `Session.worked(at:)`. That is the arithmetic of the finish screen, taken at the moment you end the run. It counts the time you have spent so far in a stretch counted in reps, and it does not count a wait for **Start**.
 
@@ -598,7 +592,7 @@ Once one strategy passes the audio check in the README, delete the other two and
 
 ### The Live Activity on a phone
 
-The UI tests lock the simulator and read the card from the lock screen. They show that the card starts with the run, says to get ready, follows the run into work, shows the finish, comes back with Undo, and goes away with the run. In a routine they show that the card waits for **Next** with the rep count, and waits for **Start** with the length of the hold, which does not count down. They tap **Next** on the lock screen and **Start** in the opened Dynamic Island, and see the routine move on each time. They also show that a launch removes the card of a run that was force quit. Screenshots show the Dynamic Island in its compact and expanded forms, and that the alert opens it.
+The UI tests lock the simulator and read the card from the lock screen. They show that the card starts with the run, says to get ready, follows the run into work, shows a paused run, shows the finish, and goes away with the run. In a routine they show that the card waits for **Next** with the rep count, and waits for **Start** with the length of the hold, which does not count down. They tap **Next** on the lock screen and **Start** in the opened Dynamic Island, and see the routine move on each time. They also show that a launch removes the card of a run that was force quit. Screenshots show the Dynamic Island in its compact and expanded forms, and that the alert opens it.
 
 No UI test asserts on the count-in or the hold of a stretch on the lock screen. Both end by themselves, and a slow machine could miss them. The app tests cover what the card carries in those two phases, and two screenshots taken two seconds apart show the hold counting down on the lock screen.
 
@@ -621,7 +615,7 @@ Exclusive mode rests on one assumption. It is that iOS makes this app the Now Pl
 What is proven without a phone:
 
 - What each command does to a run. The package tests cover it.
-- That `RunModel` applies a command and offers Undo for a skip or a restart. The app tests cover it.
+- That `RunModel` applies a command, and that back and forward step a run through its phases and stretches. The app tests cover it.
 - That the lock-screen card carries the phase title, the caption, the workout name, the phase length, and the elapsed time, and that it reads "Waiting for Start" or "Waiting for Next" during a wait. An app test reads the card back.
 - That a waiting run asks the audio for standby once its name has sounded, and not before. An app test covers it.
 

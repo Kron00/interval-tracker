@@ -76,8 +76,8 @@ final class LiveActivityController {
     /// The one task that talks to the display. Updates are async, and a second task could overtake the first.
     @ObservationIgnored private var worker: Task<Void, Never>?
     @ObservationIgnored private var lastNote: String?
-    /// The end of the phase whose heads-up last alerted. A skip and its Undo come back into the
-    /// same heads-up after the voice has spoken, and the card must not alert a second time.
+    /// The end of the phase whose heads-up last alerted. A card that leaves that heads-up and comes
+    /// back into it after the voice has spoken must not alert a second time.
     @ObservationIgnored private var alertedPhaseEnd: Date?
 
     init(display: any RunActivityDisplay, log: AudioLog) {

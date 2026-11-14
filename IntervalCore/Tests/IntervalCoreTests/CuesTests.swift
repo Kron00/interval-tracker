@@ -484,12 +484,12 @@ struct QuietSkipTests {
         ])
     }
 
-    @Test func restartNamesThePhaseAtOnceWithNoToneEvenBeforeALandingWasAnnounced() throws {
+    @Test func goingBackBeforeALandingWasAnnouncedNamesOnlyThePlaceItWentBackTo() throws {
         var run = session()
         run.skip(try progress(run, at: 100).segment, at: t0 + 100)
-        run.restart(try progress(run, at: 100.5).segment, at: t0 + 100.5)
+        run.back(try progress(run, at: 100.5).segment, at: t0 + 100.5)
         #expect(cues(try #require(run.cueSchedule).remaining(after: t0 + 100.5).windows[0]) == [
-            Cue(101_000, voice("Round one")),
+            Cue(102_000, voice("Warm up")),
         ])
     }
 

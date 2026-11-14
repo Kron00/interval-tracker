@@ -11,10 +11,6 @@ enum SettingsKey {
 @MainActor @Observable
 final class RunModel {
     private(set) var session: Session?
-    /// The session as it was before the last skip or restart, kept for a few seconds so a mis-press can be taken back.
-    private(set) var undo: Session?
-
-    @ObservationIgnored private var undoExpires = Date.distantPast
     /// The schedule changes only when the session does, so it is built once per change and not on every tick.
     @ObservationIgnored private var schedule: CueSchedule?
     /// The paused session an interruption left behind. Only that exact session resumes when the interruption ends.
@@ -25,8 +21,8 @@ final class RunModel {
     /// then leaving the finish screen reports it once.
     @ObservationIgnored private var unreportedStart: Date?
     /// A number that every change to the run replaces. The button on the Live Activity carries the
-    /// one its card was drawn with. A place in the workout would not do: Undo comes back to the
-    /// same place, and so does the next workout. It starts at random, so that a card left by an
+    /// one its card was drawn with. A place in the workout would not do: the back button comes back
+    /// to the same place, and so does the next workout. It starts at random, so that a card left by an
     /// earlier launch does not match either.
     @ObservationIgnored private var revision = Int.random(in: 0..<1_000_000_000)
     @ObservationIgnored private let player: CuePlayer
@@ -57,37 +53,24 @@ final class RunModel {
     }
     func pause() { change { $0?.pause(at: .now) } }
     func resume() { change { $0?.resume(at: .now) } }
-    func skip(_ segment: SegmentID) { jump { $0?.skip(segment, at: .now) } }
-    func forward(_ segment: SegmentID) { jump { $0?.forward(segment, at: .now) } }
-    func restart(_ segment: SegmentID) { jump { $0?.restart(segment, at: .now) } }
-
-    /// Restores the session the skip or restart changed, so the run is where it would be had the button never been pressed.
-    func undoLast() {
-        guard let undo else { return }
-        change { $0 = undo }
-        // Undo of Start puts the run's clock back. Readings it took since then lie ahead of the clock
-        // now, and the same seconds will be run again.
-        let worked = undo.worked(at: .now)
-        samples.removeAll { $0.second > worked }
-    }
+    func skip(_ segment: SegmentID) { change { $0?.skip(segment, at: .now) } }
+    func forward(_ segment: SegmentID) { change { $0?.forward(segment, at: .now) } }
+    func back(_ segment: SegmentID) { change { $0?.back(segment, at: .now) } }
     func end() {
         report()
         change { $0 = nil }
     }
 
     /// `Session.perform` decides what a press means, and a single press means Start or Next while the
-    /// run waits. So Undo goes by what the press did. A press that moved the run and left it paused or
-    /// running as before can be taken back. A pause or a resume cannot.
+    /// run waits.
     func handle(_ command: RunCommand) {
-        let before = session
         change { $0?.perform(command, at: .now) }
-        if session != before, session?.isPaused == before?.isPaused { offerUndo(of: before) }
     }
 
     /// A tap on Start or Next in the Live Activity. The card it came from can be out of date: the
-    /// tap can come twice, after an Undo, or after another workout has started. So it counts only
-    /// while nothing has changed the run since that card was drawn, and then it is a headphone
-    /// press. iOS may suspend the app once the intent returns, so this returns only when the card
+    /// tap can come twice, after the run went back to the same wait, or after another workout has
+    /// started. So it counts only while nothing has changed the run since that card was drawn, and
+    /// then it is a headphone press. iOS may suspend the app once the intent returns, so this returns only when the card
     /// shows the change.
     func advance(fromWait revision: Int) async {
         guard revision == self.revision, case .active(let progress)? = session?.snapshot(at: .now),
@@ -100,26 +83,7 @@ final class RunModel {
         player.prepare(Session(workout, cues: cues, startingAt: .now).vocabulary)
     }
 
-    /// Six seconds, unless a UI test passes `-undoWindow <seconds>`. On a slow CI machine the test
-    /// runner can take ten seconds to hand control back after a tap, and the chip was gone by then.
-    private static let undoWindow: TimeInterval = {
-        let requested = UserDefaults.standard.double(forKey: "undoWindow")
-        return requested > 0 ? requested : 6
-    }()
-
-    private func jump(_ body: (inout Session?) -> Void) {
-        let before = session
-        change(body)
-        if session != before { offerUndo(of: before) }
-    }
-
-    private func offerUndo(of before: Session?) {
-        undo = before
-        undoExpires = Date.now.addingTimeInterval(Self.undoWindow)
-    }
-
     private func change(_ body: (inout Session?) -> Void) {
-        undo = nil
         revision &+= 1
         body(&session)
         schedule = session?.cueSchedule
@@ -137,12 +101,9 @@ final class RunModel {
         reconcile()
     }
 
-    /// A workout that a skip finished can be brought back with Undo, so it is not over until Undo
-    /// is gone. Only a tick checks. `change` clears `undo` before a skip offers it again, and a check
-    /// in between would report a run that Undo can still bring back.
     private func tick() {
         reconcile()
-        if unreportedStart != nil, undo == nil, case .finished? = session?.snapshot(at: .now) { report() }
+        if unreportedStart != nil, case .finished? = session?.snapshot(at: .now) { report() }
     }
 
     private func report() {
@@ -172,7 +133,6 @@ final class RunModel {
 
     private func reconcile() {
         let now = Date.now
-        if undo != nil, now >= undoExpires { undo = nil }
         let defaults = UserDefaults.standard
         let headphoneControls = defaults.bool(forKey: SettingsKey.headphoneControls)
         let strategy = defaults.string(forKey: SettingsKey.duckingStrategy).flatMap(DuckingStrategy.init) ?? .toggleOption

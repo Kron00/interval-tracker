@@ -306,10 +306,17 @@ struct Timeline: Equatable, Sendable {
         return segments[(phase + 1)...].first { !$0.phase.isLeadIn }
     }
 
-    /// A hold restarts from its count-in, so there is time to get back into position.
-    func restartPoint(for id: SegmentID) -> Segment {
-        guard id.index > 0, segments[id.index - 1].phase.isCountIn else { return segments[id.index] }
-        return segments[id.index - 1]
+    /// Where going back from the segment lands: the start of the step before its own, or of its own
+    /// step when that is the first. A wait and a count-in lead into a hold, so the three are one step,
+    /// as they are for `skipPoint`.
+    func backPoint(for id: SegmentID) -> Segment {
+        func stepStart(_ index: Int) -> Segment {
+            var first = index
+            while first > 0, segments[first - 1].phase.isLeadIn { first -= 1 }
+            return segments[first]
+        }
+        let own = stepStart(id.index)
+        return own.id.index > 0 ? stepStart(own.id.index - 1) : own
     }
 
     /// Where leaving the segment lands. A wait and a count-in lead into a hold, so leaving either

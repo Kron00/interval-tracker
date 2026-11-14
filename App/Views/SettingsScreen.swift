@@ -57,7 +57,7 @@ struct SettingsScreen: View {
                 } header: {
                     Text("Headphones")
                 } footer: {
-                    Text("Music from other apps stops during a workout. Press to pause or resume. Double-press to skip a phase, or to move on from a stretch. Triple-press to restart. While a stretch routine waits, a single press is Start or Next.")
+                    Text("Music from other apps stops during a workout. Press to pause or resume. Double-press to skip a phase, or to move on from a stretch. Triple-press to go back a phase, or to the stretch before. While a stretch routine waits, a single press is Start or Next.")
                 }
 
                 HeartRateSettings(monitor: heartRate)
@@ -91,7 +91,7 @@ struct SettingsScreen: View {
                     Text("Turn on Headphone controls, run the audio check, then lock the phone.")
                     Label("The lock screen shows \"Warm-up\" and \"Audio check\" with pause, back and forward buttons.", systemImage: "1.circle")
                     Label("Press pause, wait 10 seconds, then press play. The countdown carries on from where it stopped.", systemImage: "2.circle")
-                    Label("Now press the headphones. One press pauses, two skip, three restart.", systemImage: "3.circle")
+                    Label("Now press the headphones. One press pauses, two skip, three go back.", systemImage: "3.circle")
                 } header: {
                     Text("Headphone check")
                 } footer: {

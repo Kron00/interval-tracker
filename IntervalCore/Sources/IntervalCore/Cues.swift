@@ -106,14 +106,6 @@ public struct DuckWindow: Equatable, Sendable {
     public let sounds: [TimedSound]
 }
 
-/// Where the run was last moved by hand, in elapsed time.
-enum Arrival: Equatable, Sendable {
-    /// A skip landed here. The place is announced `CueTiming.settle` after the skip.
-    case landing(TimeInterval)
-    /// Restart went back to here. The place is announced at once.
-    case restart(TimeInterval)
-}
-
 /// The cues a run plays without help: up to the gate it will wait at, or up to the finish.
 public struct CueSchedule: Equatable, Sendable {
     /// Sorted and disjoint, with at least `mergeGap` between neighbours.
@@ -132,11 +124,10 @@ public struct CueSchedule: Equatable, Sendable {
         }
     }
 
-    /// `arrival` is where the run was last moved by hand. After a skip, the phase it landed on, or
-    /// the finish, is announced `CueTiming.settle` later, and the music goes down at the skip.
-    init(_ timeline: Timeline, _ preferences: CuePreferences, zeroAt: Date, released: Int, arrival: Arrival?) {
-        var cues = Self.cues(in: timeline.leg(after: released), of: timeline, preferences, arrival: arrival)
-        let landing: TimeInterval? = if case .landing(let point) = arrival { point } else { nil }
+    /// `landing` is where a skip by hand last landed, in elapsed time. The phase there, or the finish,
+    /// is announced `CueTiming.settle` after the skip, and the music goes down at the skip.
+    init(_ timeline: Timeline, _ preferences: CuePreferences, zeroAt: Date, released: Int, landing: TimeInterval?) {
+        var cues = Self.cues(in: timeline.leg(after: released), of: timeline, preferences, landing: landing)
         if timeline.gate(after: released) == nil { cues += Self.finish(of: timeline, preferences, landing: landing) }
 
         let spans = cues.map {
@@ -163,14 +154,14 @@ public struct CueSchedule: Equatable, Sendable {
 
     static func vocabulary(of timeline: Timeline, _ preferences: CuePreferences) -> [Sound] {
         var seen: Set<Sound> = []
-        return (cues(in: timeline.segments[...], of: timeline, preferences, arrival: nil)
+        return (cues(in: timeline.segments[...], of: timeline, preferences, landing: nil)
             + finish(of: timeline, preferences, landing: nil))
             .map(\.sound).filter { seen.insert($0).inserted }
     }
 
     /// In time order.
     private static func cues(in segments: ArraySlice<Segment>, of timeline: Timeline,
-                             _ preferences: CuePreferences, arrival: Arrival?) -> [Cue] {
+                             _ preferences: CuePreferences, landing: TimeInterval?) -> [Cue] {
         var cues: [Cue] = []
         for segment in segments {
             if segment.phase.isCountIn {
@@ -180,7 +171,7 @@ public struct CueSchedule: Equatable, Sendable {
                 }
                 continue
             }
-            let landed = arrival == .landing(segment.start)
+            let landed = landing == segment.start
             let delay = landed ? CueTiming.settle : 0
             let announced = segment.start + delay
             var quietUntil = announced + CueTiming.quietHead
@@ -188,8 +179,7 @@ public struct CueSchedule: Equatable, Sendable {
             // its count-in or straight after Start, and not a place the run was moved to by hand. A
             // gate never runs out: Start or Next ends it.
             let previous = segment.id.index > 0 ? timeline.segments[segment.id.index - 1] : nil
-            if let previous, !previous.isGate, !previous.phase.isCountIn,
-               !landed, arrival != .restart(segment.start) {
+            if let previous, !previous.isGate, !previous.phase.isCountIn, !landed {
                 cues.append(Cue(segment.start, .phaseChange))
             }
             // A phrase that cannot finish inside its phase would talk over the next tone. A gate holds

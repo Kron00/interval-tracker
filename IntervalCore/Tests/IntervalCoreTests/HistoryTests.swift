@@ -217,8 +217,8 @@ struct WorkoutRecordTests {
         #expect(record.planned == 2280)
 
         run.resume(at: t0 + 900)
-        run.restart(try progress(run, at: 910).segment, at: t0 + 910)
-        #expect(WorkoutRecord(run, startedAt: t0, endedAt: t0 + 915).worked == 145, "the restarted 40 s count twice")
+        run.back(try progress(run, at: 910).segment, at: t0 + 910)
+        #expect(WorkoutRecord(run, startedAt: t0, endedAt: t0 + 915).worked == 145, "the 40 s of work gone back over count twice")
     }
 
     @Test func aRoutineCountsRepsInProgressAndNotAWaitForStart() throws {

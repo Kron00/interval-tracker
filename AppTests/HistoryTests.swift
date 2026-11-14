@@ -27,25 +27,6 @@ final class RunReportTests: XCTestCase {
         XCTAssertEqual(reports.count, 1, "leaving the finish screen reports nothing new")
     }
 
-    func testASkipThatFinishesIsNotReportedWhileUndoCanBringTheRunBack() throws {
-        let run = makeRun()
-        run.start(try timer(work: 30), cues: CuePreferences())
-        run.skip(try progress(run).segment)
-        XCTAssertThrowsError(try progress(run), "the skip finished the workout")
-        XCTAssertNotNil(run.undo)
-
-        letTheTimerTick()
-        XCTAssertEqual(reports, [], "Undo is still offered")
-
-        run.undoLast()
-        letTheTimerTick()
-        XCTAssertEqual(try progress(run).phase.title, "Work")
-        XCTAssertEqual(reports, [], "the run is back, and there is nothing to take out of the history")
-
-        run.end()
-        XCTAssertEqual(reports.map(\.outcome), [.endedEarly])
-    }
-
     func testASkipThatFinishesIsReportedWhenTheFinishScreenIsLeft() throws {
         let run = makeRun()
         run.start(try timer(work: 30), cues: CuePreferences())
@@ -57,13 +38,13 @@ final class RunReportTests: XCTestCase {
         XCTAssertEqual(reports.first?.planned, 30)
     }
 
-    func testASkipThatFinishesIsReportedOnceUndoIsGone() throws {
+    func testASkipThatFinishesIsReportedWhileTheFinishScreenShows() throws {
         let run = makeRun()
         run.start(try timer(work: 30), cues: CuePreferences())
         run.skip(try progress(run).segment)
+        XCTAssertThrowsError(try progress(run), "the skip finished the workout")
 
         waitForReports(1)
-        XCTAssertNil(run.undo)
         XCTAssertEqual(reports.map(\.outcome), [.completed])
 
         run.end()

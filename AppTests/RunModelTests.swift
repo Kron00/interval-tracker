@@ -14,10 +14,9 @@ final class RunModelTests: XCTestCase {
         run.handle(.next)
 
         XCTAssertEqual(try progress(run).phase.title, "Work")
-        XCTAssertNotNil(run.undo, "a skip from the headphones can be taken back like a skip on the screen")
     }
 
-    func testNextEndsAWaitAndUndoBringsTheWaitBack() throws {
+    func testNextEndsAWaitAndPreviousBringsTheWaitBack() throws {
         let run = makeRun()
         defer { run.end() }
         run.start(.dailyStretch, cues: CuePreferences())
@@ -33,16 +32,14 @@ final class RunModelTests: XCTestCase {
         XCTAssertEqual(next.phase.title, "Child's Pose")
         XCTAssertEqual(next.phase.pendingHold, 45)
         XCTAssertTrue(next.isWaiting, "a timed stretch waits for Start")
-        XCTAssertNotNil(run.undo, "moving on from a wait can be taken back")
 
-        run.undoLast()
+        run.handle(.previous)
         let back = try progress(run)
         XCTAssertEqual(back.phase.title, "Cat-Cow")
         XCTAssertTrue(back.isWaiting)
-        XCTAssertNil(run.undo)
     }
 
-    func testASinglePressWhileWaitingToStartBeginsTheCountInAndUndoBringsTheWaitBack() throws {
+    func testASinglePressWhileWaitingToStartBeginsTheCountIn() throws {
         for press in [RunCommand.togglePlayPause, .play, .pause] {
             let run = makeRun()
             defer { run.end() }
@@ -60,14 +57,6 @@ final class RunModelTests: XCTestCase {
             XCTAssertEqual(countIn.phase.caption, "Get ready", "\(press)")
             XCTAssertFalse(countIn.isPaused, "\(press)")
             XCTAssertFalse(countIn.isWaiting, "\(press)")
-            XCTAssertNotNil(run.undo, "a press that started the stretch can be taken back like Start: \(press)")
-
-            run.undoLast()
-            let back = try progress(run)
-            XCTAssertEqual(back.phase.title, "Child's Pose", "\(press)")
-            XCTAssertEqual(back.phase.pendingHold, 45, "\(press)")
-            XCTAssertTrue(back.isWaiting, "\(press)")
-            XCTAssertFalse(back.isPaused, "\(press)")
         }
     }
 
@@ -84,41 +73,24 @@ final class RunModelTests: XCTestCase {
         XCTAssertFalse(try progress(run).isPaused, "a press on a paused wait resumes it")
         XCTAssertTrue(try progress(run).isWaiting)
         XCTAssertEqual(try progress(run).phase.pendingHold, 45)
-        XCTAssertNil(run.undo, "a resume is not something to undo")
     }
 
-    func testPreviousDoesNothingWhileTheRunWaitsAndOffersNoUndo() throws {
+    func testPreviousGoesBackToThePhaseBefore() throws {
         let run = makeRun()
         defer { run.end() }
-        run.start(.dailyStretch, cues: CuePreferences())
-        run.handle(.play)
-        let waiting = run.session
+        run.start(.norwegian4x4, cues: CuePreferences())
+        run.handle(.next)
+        run.handle(.next)
+        XCTAssertEqual(try progress(run).phase.title, "Rest")
 
         run.handle(.previous)
+        let work = try progress(run)
+        XCTAssertEqual(work.phase.title, "Work")
+        XCTAssertEqual(work.phase.caption, "Round 1 of 4")
+        XCTAssertGreaterThan(work.phaseRemaining, 239, "the round starts from the top")
 
-        XCTAssertEqual(run.session, waiting)
-        XCTAssertNil(run.undo, "nothing happened, so there is nothing to take back")
-    }
-
-    func testPreviousRestartsACountInAndUndoTakesItBack() throws {
-        let run = makeRun()
-        defer { run.end() }
-        let cobra = try XCTUnwrap(Stretch(name: "Cobra", amount: .hold(try XCTUnwrap(Span(seconds: 30))), sides: .once, howTo: nil))
-        let routine = try XCTUnwrap(Routine(countIn: Span(seconds: 30), stretches: [cobra]))
-        run.start(Workout(name: "Test", plan: .routine(routine)), cues: CuePreferences())
-        run.handle(.play)
-        Thread.sleep(forTimeInterval: 1.2)
-        let before = try progress(run)
-        XCTAssertEqual(before.phase.caption, "Get ready")
-        XCTAssertLessThan(before.phaseRemaining, 29)
-
-        run.handle(.previous)
-
-        XCTAssertGreaterThan(try progress(run).phaseRemaining, 29, "the count-in starts again")
-        XCTAssertNotNil(run.undo)
-
-        run.undoLast()
-        XCTAssertLessThan(try progress(run).phaseRemaining, 29)
+        run.back(work.segment)
+        XCTAssertEqual(try progress(run).phase.title, "Warm-up", "the back button on the screen does the same")
     }
 
     func testTogglePausesAndResumesARunThatIsCounting() throws {
@@ -128,7 +100,6 @@ final class RunModelTests: XCTestCase {
 
         run.handle(.togglePlayPause)
         XCTAssertTrue(try progress(run).isPaused)
-        XCTAssertNil(run.undo, "a pause is not something to undo")
 
         run.handle(.togglePlayPause)
         XCTAssertFalse(try progress(run).isPaused)
@@ -146,7 +117,6 @@ final class RunModelTests: XCTestCase {
         for command in [RunCommand.play, .pause, .togglePlayPause, .next, .previous] {
             run.handle(command)
             XCTAssertNil(run.session, "\(command)")
-            XCTAssertNil(run.undo, "\(command)")
         }
     }
 
@@ -279,8 +249,8 @@ final class RunModelTests: XCTestCase {
     }
 
     /// The player queues what remains of the schedule it is given, and starts both of its nodes again
-    /// when the schedule changes. So what a skip queued is gone once Undo hands it the old schedule.
-    func testUndoBeforeTheLandingIsAnnouncedLeavesNothingOfItToPlay() throws {
+    /// when the schedule changes. So what a skip queued is gone once going back hands it a new schedule.
+    func testGoingBackBeforeTheLandingIsAnnouncedLeavesNothingOfItToPlay() throws {
         let run = makeRun()
         defer { run.end() }
         run.start(.norwegian4x4, cues: CuePreferences(headsUp: .off))
@@ -293,15 +263,17 @@ final class RunModelTests: XCTestCase {
         XCTAssertEqual(landing.sound, .voice(Utterance("Round one")), "a landing has no tone")
         XCTAssertEqual(landing.at.timeIntervalSince(tap), 1.5, accuracy: 0.2, "the name comes half a second after the one-second settle")
 
-        run.undoLast()
-        let restored = try XCTUnwrap(run.session?.cueSchedule)
-        XCTAssertNotEqual(restored, skipped, "a new schedule, so the player queues again")
+        let backTap = Date.now
+        run.back(try progress(run).segment)
+        let back = try XCTUnwrap(run.session?.cueSchedule)
+        XCTAssertNotEqual(back, skipped, "a new schedule, so the player queues again")
         XCTAssertEqual(try progress(run).phase.title, "Warm-up")
-        let next = try XCTUnwrap(restored.remaining(after: .now).windows.first?.sounds.first)
-        XCTAssertGreaterThan(next.at.timeIntervalSinceNow, 290, "the warm-up has begun, and its own countdown is the next sound")
+        let first = try XCTUnwrap(back.remaining(after: .now).windows.first)
+        XCTAssertEqual(first.sounds.map(\.sound), [.voice(Utterance("Warm up"))], "only the place it went back to is named")
+        XCTAssertEqual(first.sounds[0].at.timeIntervalSince(backTap), 1.5, accuracy: 0.2)
     }
 
-    func testSkipStretchFromAWaitCanBeTakenBack() throws {
+    func testSkipStretchAndBackStepThroughTheWaits() throws {
         let run = makeRun()
         defer { run.end() }
         run.start(.dailyStretch, cues: CuePreferences())
@@ -311,12 +283,11 @@ final class RunModelTests: XCTestCase {
         run.forward(try progress(run).segment)
         XCTAssertEqual(try progress(run).phase.title, "Cobra")
         XCTAssertTrue(try progress(run).isWaiting, "Child's Pose was skipped, not started")
-        XCTAssertNotNil(run.undo)
 
         run.forward(try progress(run).segment)
         XCTAssertEqual(try progress(run).phase.title, "Hip Flexor Couch Stretch")
-        run.undoLast()
-        XCTAssertEqual(try progress(run).phase.title, "Cobra", "Undo takes back only the last skip")
+        run.back(try progress(run).segment)
+        XCTAssertEqual(try progress(run).phase.title, "Cobra", "back goes one stretch at a time")
         XCTAssertTrue(try progress(run).isWaiting)
     }
 
@@ -328,7 +299,6 @@ final class RunModelTests: XCTestCase {
         run.handle(.next)
         XCTAssertEqual(try progress(run).phase.title, "Cobra")
         XCTAssertTrue(try progress(run).isWaiting)
-        XCTAssertNotNil(run.undo)
     }
 
     func testAnIntervalTimerIsNeverOnStandbyWhileItRuns() throws {

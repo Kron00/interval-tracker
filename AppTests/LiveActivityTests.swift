@@ -198,14 +198,14 @@ final class LiveActivityControllerTests: XCTestCase {
         XCTAssertEqual(display.shown.last?.state.tone, .paused)
     }
 
-    func testAHeadsUpAlertsOnceThoughASkipAndItsUndoComeBackIntoIt() async {
+    func testAHeadsUpAlertsOnceThoughTheCardLeavesItAndComesBack() async {
         let (controller, display) = await make()
         let session = Session(.norwegian4x4, cues: CuePreferences(), startingAt: start)
         var skipped = session
         skipped.perform(.next, at: start + 280)
 
-        // The warm-up's heads-up begins at 4:30. The skip at 4:40 goes to work, and Undo puts the
-        // run back as it was.
+        // The warm-up's heads-up begins at 4:30. The skip at 4:40 goes to work, and then the card
+        // shows the run as it was before the skip.
         for (run, second) in [(session, 270.0), (skipped, 280), (session, 282)] {
             controller.reconcile(run, at: start + second)
             await settle(controller)
@@ -215,8 +215,8 @@ final class LiveActivityControllerTests: XCTestCase {
             .show(card(session, at: 282), alerting: false),
         ])
 
-        // A pause and a resume move the end of the warm-up. A skip and its Undo after that still
-        // come back into the heads-up that alerted.
+        // A pause and a resume move the end of the warm-up. Leaving after that and coming back
+        // still comes back into the heads-up that alerted.
         var paused = session
         paused.pause(at: start + 283)
         var resumed = paused

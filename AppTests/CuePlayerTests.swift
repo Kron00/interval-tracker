@@ -21,8 +21,8 @@ final class CuePlayerTests: XCTestCase {
         XCTAssertFalse(CuePlayer.voiceIsSounding(in: schedule, at: betweenPhrases))
     }
 
-    /// A skip and its Undo each hand the player a new schedule. The player must queue the new one in
-    /// place of the old, or the landing that Undo took back would still sound.
+    /// Every skip and every press of back hands the player a new schedule. The player must queue the
+    /// new one in place of the old, or a landing the run has already left would still sound.
     func testEachNewScheduleIsQueuedInPlaceOfTheLast() throws {
         let log = AudioLog()
         let player = CuePlayer(bank: SoundBank(log: log), log: log)
@@ -40,6 +40,6 @@ final class CuePlayerTests: XCTestCase {
         player.reconcile(.playing(try XCTUnwrap(skipped.cueSchedule)), at: now + 0.1)
         XCTAssertEqual(queued(), 1, "the same schedule is not queued again")
         player.reconcile(.playing(try XCTUnwrap(before.cueSchedule)), at: now + 0.2)
-        XCTAssertEqual(queued(), 2, "the schedule Undo restored is queued, and that stops what the skip queued")
+        XCTAssertEqual(queued(), 2, "a different schedule is queued, and that stops what the skip queued")
     }
 }

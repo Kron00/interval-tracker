@@ -275,7 +275,7 @@ final class DescribeFlowUITests: XCTestCase {
     private func launch(signedIn: Bool, keepLibrary: Bool = false, replies: String? = nil) -> XCUIApplication {
         let app = XCUIApplication()
         app.launchArguments = [
-            keepLibrary ? "-uiTestingKeepLibrary" : "-uiTesting", "-undoWindow", "20",
+            keepLibrary ? "-uiTestingKeepLibrary" : "-uiTesting",
             "-aiStub", signedIn ? "signedIn" : "signedOut",
         ] + (replies.map { ["-aiStubReplies", $0] } ?? [])
         app.launch()

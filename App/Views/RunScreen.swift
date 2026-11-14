@@ -16,7 +16,6 @@ struct RunScreen: View {
 
     var body: some View {
         // Read out here. A paused or waiting run has no tick left to notice a change with.
-        let undo: (() -> Void)? = run.undo == nil ? nil : { run.undoLast() }
         let cuesAreSilent = log.cuesAreSilent
         // The readout observes the monitor itself, so a reading redraws it and nothing else.
         let heartRate = run.heartRate.remembered == nil ? nil : run.heartRate
@@ -40,13 +39,12 @@ struct RunScreen: View {
                         resume: run.resume,
                         skip: { run.skip(progress.segment) },
                         forward: { run.forward(progress.segment) },
-                        restart: { run.restart(progress.segment) },
-                        undo: undo,
+                        back: { run.back(progress.segment) },
                         end: run.end,
                         endIsKept: HistoryStore.records(session.workout.id)
                             ? { History.keeps(.endedEarly, worked: session.worked(at: $0)) } : nil)
                 case .finished(let worked):
-                    FinishedView(name: session.workout.name, worked: worked, undo: undo, close: run.end)
+                    FinishedView(name: session.workout.name, worked: worked, close: run.end)
                 }
             }
         }
@@ -93,8 +91,7 @@ struct ActiveRunView: View {
     let resume: () -> Void
     let skip: () -> Void
     let forward: () -> Void
-    let restart: () -> Void
-    let undo: (() -> Void)?
+    let back: () -> Void
     let end: () -> Void
     /// Whether the history keeps the run if it is ended at a date. nil for a run that is never recorded.
     let endIsKept: ((Date) -> Bool)?
@@ -347,26 +344,20 @@ struct ActiveRunView: View {
     private var chips: some View {
         // A countdown leaves no time for a video. A pause and a wait do, and nothing counts in either.
         let link = progress.isPaused || progress.isWaiting ? progress.phase.howTo : nil
-        return HStack(spacing: 12) {
-            RunChip(title: "How to", symbol: "play.circle.fill", identifier: "howToButton", action: link.map { link in
-                { openURL(link) }
-            })
-            RunChip(title: "Undo", symbol: "arrow.uturn.backward", identifier: "undoButton", action: undo)
-        }
+        return RunChip(title: "How to", symbol: "play.circle.fill", identifier: "howToButton", action: link.map { link in
+            { openURL(link) }
+        })
     }
 
     /// Laid out like a music player, because the headphone presses mean the same things: previous
-    /// restarts, play and pause, next moves on. While the run waits, Start or Next takes the big
-    /// button. A wait has nothing to restart, so the back button goes dim. The forward button stays
-    /// lit and skips the stretch, so a routine can be skipped through without doing each stretch.
+    /// goes back a phase, play and pause, next moves on. While the run waits, Start or Next takes the
+    /// big button. Back and forward stay lit and move a stretch at a time, so a routine can be
+    /// stepped through in either direction without doing each stretch.
     private var controls: some View {
         let primary = Primary(progress)
         return HStack(spacing: 12) {
             iconButton("End", "xmark", identifier: "endButton") { confirmingEnd = true }
-            iconButton("Restart", "backward.end.fill", identifier: "restartButton", action: restart)
-                .disabled(progress.isWaiting)
-                .opacity(progress.isWaiting ? 0.3 : 1)
-                .animation(Motion.change, value: progress.isWaiting)
+            iconButton("Back", "backward.end.fill", identifier: "backButton", action: back)
 
             Button(action: action(for: primary)) {
                 HStack(spacing: 8) {
@@ -499,7 +490,6 @@ private struct RunChip: View {
 struct FinishedView: View {
     let name: String
     let worked: TimeInterval
-    let undo: (() -> Void)?
     let close: () -> Void
 
     @Environment(\.verticalSizeClass) private var verticalSizeClass
@@ -528,7 +518,6 @@ struct FinishedView: View {
                 .font(.headline)
                 .opacity(0.8)
             Spacer(minLength: 0)
-            RunChip(title: "Undo", symbol: "arrow.uturn.backward", identifier: "undoButton", action: undo)
             Button("Done", action: close)
                 .buttonStyle(RunButtonStyle(isProminent: true))
                 .accessibilityIdentifier("doneButton")

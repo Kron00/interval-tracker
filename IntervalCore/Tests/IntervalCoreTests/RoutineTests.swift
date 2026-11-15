@@ -330,13 +330,13 @@ struct RoutineCueTests {
         #expect(plan.remaining(after: t0 + 104).isEmpty, "nothing counts in until Start")
     }
 
-    @Test func startTicksThroughTheCountInThenHoldsWithNoToneAndStopsAtTheNextWait() throws {
+    @Test func startTicksThroughTheCountInAndTheToneStartsTheHoldThenItStopsAtTheNextWait() throws {
         var run = try session(.dailyStretch, in: "ready Child's Pose 2/10")
         run.perform(.play, at: t0 + 100)
         let plan = try #require(run.cueSchedule).remaining(after: t0 + 100)
-        #expect(plan.windows.map(bounds) == [[100_000, 102_320], [144_500, 150_200]])
+        #expect(plan.windows.map(bounds) == [[100_000, 103_600], [144_500, 150_200]])
         #expect(cues(plan) == [
-            Cue(100_000, .tick), Cue(101_000, .tick), Cue(102_000, .tick),
+            Cue(100_000, .tick), Cue(101_000, .tick), Cue(102_000, .tick), Cue(103_000, .phaseChange),
             Cue(145_000, .tick), Cue(146_000, .tick), Cue(147_000, .tick),
             Cue(148_000, .phaseChange), Cue(148_500, voice("Cobra")),
         ])
@@ -347,21 +347,23 @@ struct RoutineCueTests {
         let fiveSecondCountIn = try routine(countIn: 5, [try stretch("Cobra", try hold(20))])
         #expect(cues(try legs(fiveSecondCountIn)[1]) == [
             Cue(0, .tick), Cue(1000, .tick), Cue(2000, .tick), Cue(3000, .tick), Cue(4000, .tick),
+            Cue(5000, .phaseChange),
             Cue(22_000, .tick), Cue(23_000, .tick), Cue(24_000, .tick),
             Cue(25_000, .finish), Cue(26_000, voice("Workout complete")),
         ])
 
         let threeSecondCountIn = try routine([try stretch("Cobra", try hold(20))])
         #expect(cues(try legs(threeSecondCountIn, countdown: .five)[1]) == [
-            Cue(0, .tick), Cue(1000, .tick), Cue(2000, .tick),
+            Cue(0, .tick), Cue(1000, .tick), Cue(2000, .tick), Cue(3000, .phaseChange),
             Cue(18_000, .tick), Cue(19_000, .tick), Cue(20_000, .tick), Cue(21_000, .tick), Cue(22_000, .tick),
             Cue(23_000, .finish), Cue(24_000, voice("Workout complete")),
         ])
     }
 
-    @Test func countdownOffSilencesTheCountInToo() throws {
+    @Test func countdownOffSilencesTheBeepsOfTheCountInButNotItsTone() throws {
         let workout = try routine([try stretch("Cobra", try hold(20))])
         #expect(cues(try legs(workout, countdown: .off)[1]) == [
+            Cue(3000, .phaseChange),
             Cue(23_000, .finish), Cue(24_000, voice("Workout complete")),
         ])
     }
@@ -381,9 +383,9 @@ struct RoutineCueTests {
         let plans = try legs(.dailyStretch)
         try #require(plans.count == 14, "one leg up to each of the 13 waits, then the last hold and the finish")
 
-        #expect(plans[5].windows.map(bounds) == [[128_500, 131_320], [173_500, 179_200]])
+        #expect(plans[5].windows.map(bounds) == [[128_500, 132_600], [173_500, 179_200]])
         #expect(cues(plans[5]) == [
-            Cue(129_000, .tick), Cue(130_000, .tick), Cue(131_000, .tick),
+            Cue(129_000, .tick), Cue(130_000, .tick), Cue(131_000, .tick), Cue(132_000, .phaseChange),
             Cue(174_000, .tick), Cue(175_000, .tick), Cue(176_000, .tick),
             Cue(177_000, .phaseChange), Cue(177_500, voice("Pigeon, left side")),
         ])
@@ -391,7 +393,7 @@ struct RoutineCueTests {
 
     @Test func theOtherSideIsNamedWhenItsWaitBegins() throws {
         let plan = try legs(.dailyStretch)[6]
-        #expect(plan.windows.map(bounds) == [[176_500, 179_320], [221_500, 227_200]])
+        #expect(plan.windows.map(bounds) == [[176_500, 180_600], [221_500, 227_200]])
         #expect(cues(plan.windows[1]) == [
             Cue(222_000, .tick), Cue(223_000, .tick), Cue(224_000, .tick),
             Cue(225_000, .phaseChange), Cue(225_500, voice("Pigeon, right side")),
@@ -429,16 +431,16 @@ struct RoutineCueTests {
         run.perform(.play, at: t0 + 20.5)
         let plan = try #require(run.cueSchedule).remaining(after: t0 + 20.5)
         #expect(cues(plan).prefix(3) == [Cue(20_500, .tick), Cue(21_500, .tick), Cue(22_500, .tick)])
-        #expect(!cues(plan).contains { $0.ms == 23_500 }, "the hold begins with no tone")
+        #expect(cues(plan).contains(Cue(23_500, .phaseChange)), "the count-in ends on the tone")
         #expect(!spoken(plan).contains("Cobra"))
     }
 
     @Test func theLastTimedHoldEndsOnTheFinish() throws {
         let run = try session(.dailyStretch, in: "hold Passive Dead Hang 10/10")
         let hold = try #require(run.cueSchedule).remaining(after: t0)
-        #expect(hold.windows.map(bounds) == [[26_500, 32_700]], "the hold begins with no tone")
+        #expect(hold.windows.map(bounds) == [[0, 600], [26_500, 32_700]])
         #expect(cues(hold) == [
-            Cue(27_000, .tick), Cue(28_000, .tick), Cue(29_000, .tick),
+            Cue(0, .phaseChange), Cue(27_000, .tick), Cue(28_000, .tick), Cue(29_000, .tick),
             Cue(30_000, .finish), Cue(31_000, voice("Workout complete")),
         ])
     }
@@ -489,17 +491,17 @@ struct RoutineCueTests {
         try #require(name.count == 40)
         let plans = try legs(try routine([try stretch(name, try hold(10), .each)]), countdown: .five)
         #expect(plans.map { $0.windows.map(bounds) } == [
-            [[0, 4200]], [[0, 2320], [7500, 17_300]], [[12_500, 15_320], [20_500, 28_700]],
+            [[0, 4200]], [[0, 3600], [7500, 17_300]], [[12_500, 16_600], [20_500, 28_700]],
         ])
         #expect(plans.map { cues($0) } == [
             [Cue(500, voice("\(name), left side"))],
             [
-                Cue(0, .tick), Cue(1000, .tick), Cue(2000, .tick),
+                Cue(0, .tick), Cue(1000, .tick), Cue(2000, .tick), Cue(3000, .phaseChange),
                 Cue(8000, .tick), Cue(9000, .tick), Cue(10_000, .tick), Cue(11_000, .tick), Cue(12_000, .tick),
                 Cue(13_000, .phaseChange), Cue(13_500, voice("\(name), right side")),
             ],
             [
-                Cue(13_000, .tick), Cue(14_000, .tick), Cue(15_000, .tick),
+                Cue(13_000, .tick), Cue(14_000, .tick), Cue(15_000, .tick), Cue(16_000, .phaseChange),
                 Cue(21_000, .tick), Cue(22_000, .tick), Cue(23_000, .tick), Cue(24_000, .tick), Cue(25_000, .tick),
                 Cue(26_000, .finish), Cue(27_000, voice("Workout complete")),
             ],

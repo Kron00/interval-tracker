@@ -75,14 +75,13 @@ For a phase that runs out at time T:
 
 All of these numbers are in `CueTiming` in `Cues.swift`.
 
-The tone means a phase ran out. Nothing starts with one. These begin with no tone, and their name, if they have one, still comes half a second after they begin:
+The tone means a phase ran out. A count-in runs out too, so a hold after its count-in starts on the tone. The owner asked for that tone as the go after the count-in's beeps. Nothing else starts with one. These begin with no tone, and their name, if they have one, still comes half a second after they begin:
 
 - The workout's first phase.
-- A hold after its count-in. The count-in's beeps lead into it.
 - A hold that **Start** begins in a routine with no count-in. A wait never runs out: a tap ends it.
 - A skip's landing, back or forward, as the next section describes.
 
-`CueSchedule` plays the tone at the start of a segment only when the segment before it is timed and is not a count-in, and the run did not get there by hand. `Session` keeps the last place a skip landed, because the date cannot tell it from a place reached by time passing. With voice cues off, the start of a workout is silent.
+`CueSchedule` plays the tone at the start of a segment only when the segment before it is timed, and the run did not get there by hand. `Session` keeps the last place a skip landed, because the date cannot tell it from a place reached by time passing. With voice cues off, the start of a workout is silent.
 
 ### What a skip sounds like
 
@@ -172,10 +171,10 @@ Nothing sounds during the wait. You tap **Start** at S.
 | --- | --- |
 | S | Music dips. First count-in beep. The screen shows "Get ready · Left side" and 0:03 |
 | S + 1, S + 2 s | Count-in beeps |
-| S + 2.3 s | Music returns |
-| S + 3 s | The hold starts in silence. The count-in led into it, so it has no tone, and the wait already named it |
+| S + 3 s | Phase tone. The count-in ran out, and the hold starts. The wait already named it, so no name follows |
+| S + 3.6 s | Music returns |
 
-A count-in beeps once for each of its seconds, whatever the Countdown setting is, unless Countdown is off. The rule that keeps the first two seconds of a phase free of beeps does not apply to a count-in, because a count-in has no tone and no voice of its own.
+A count-in beeps once for each of its seconds, whatever the Countdown setting is, unless Countdown is off. With Countdown off the count-in is silent, and its tone still starts the hold. The rule that keeps the first two seconds of a phase free of beeps does not apply to a count-in, because a count-in has no tone and no voice of its own at its start.
 
 The other side of a stretch is one more stretch as far as the sounds go. When the left side runs out, the tone sounds and the voice says "Pigeon, right side".
 

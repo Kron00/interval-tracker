@@ -111,7 +111,7 @@ If the run screen ever shows **No sound**, the app could not start its audio. It
 
 - Tap a workout, then **Start**.
 - The forward button skips to the next phase. The back button goes to the start of the phase before. Tap it several times to go back several phases. In the first phase it starts that phase again.
-- The tone means a phase ran out. Nothing starts with one: not the workout, not a hold after its count-in, and not a skip back or forward.
+- The tone means a phase ran out. The end of a count-in is one, so the tone after its beeps is your go. Nothing else starts with a tone: not the workout, and not a skip back or forward.
 - A skip is quiet. Your music dips at the tap, and a moment later the app says the name of the phase you landed on. With voice cues off, a skip to anything but the finish makes no sound and leaves your music alone. Tap the forward or back button several times in a row and you hear only where you stopped. Skip the last phase and the finish screen shows at once, with the finish tone one second later.
 - **Pause** stops the clock. The screen turns grey and reads PAUSED. With headphone controls off, it also releases your music.
 - **How to** appears for a stretch that has a link while a routine waits and while the workout is paused. It opens the link. No hold counts down in either state, so a video costs you no time.
@@ -122,7 +122,7 @@ If the run screen ever shows **No sound**, the app could not start its audio. It
 
 Nothing in a stretch routine starts by itself.
 
-- A timed hold waits first. The screen shows the stretch, the length of the hold, and a white **Start** button. Tap **Start**. A count-in of 3 seconds follows, with a beep each second, and then the hold counts down.
+- A timed hold waits first. The screen shows the stretch, the length of the hold, and a white **Start** button. Tap **Start**. A count-in of 3 seconds follows, with a beep each second. A tone says go, and the hold counts down.
 - When the hold reaches zero, the app sounds a tone, shows the next stretch, and says its name. That stretch waits for its own **Start**.
 - A stretch on each side waits two times, once for the left side and once for the right side.
 - A stretch counted in reps shows the number of reps and no clock. Do the reps at your own pace, then tap **Next**.

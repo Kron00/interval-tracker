@@ -189,12 +189,9 @@ struct CueScheduleTests {
     @Test func inEveryBuiltInWorkoutTheToneSoundsOnlyWhereAPhaseRanOut() throws {
         for workout in [Workout.norwegian4x4, .hiit2020, .audioCheck, .dailyStretch] {
             let visits = try walk(workout)
-            // A wait or a stretch counted in reps has no length and ends on a tap. A count-in leads
-            // into its own hold. The last phase ends on the finish tone.
-            let ranOut = visits.dropLast().filter { visit in
-                if case .getReady = visit.progress.phase { return false }
-                return visit.progress.phaseDuration > 0
-            }
+            // A wait or a stretch counted in reps has no length and ends on a tap. The last phase ends
+            // on the finish tone.
+            let ranOut = visits.dropLast().filter { $0.progress.phaseDuration > 0 }
             let expected = ranOut.map { Int((($0.progress.elapsed + $0.progress.phaseDuration) * 1000).rounded()) }
             let tones = try legs(workout).flatMap(cues).filter { $0.sound == .phaseChange }.map(\.ms)
             #expect(tones == expected, "\(workout.name)")

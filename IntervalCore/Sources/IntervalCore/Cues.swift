@@ -165,7 +165,7 @@ public struct CueSchedule: Equatable, Sendable {
         var cues: [Cue] = []
         for segment in segments {
             if segment.phase.isCountIn {
-                // A count-in is all countdown: a tick on each of its seconds, and the hold follows.
+                // A count-in is all countdown: a tick on each of its seconds, and the tone that starts the hold.
                 if preferences.countdown != .off {
                     cues += stride(from: segment.start, to: segment.end, by: 1).map { Cue($0, .tick) }
                 }
@@ -175,11 +175,11 @@ public struct CueSchedule: Equatable, Sendable {
             let delay = landed ? CueTiming.settle : 0
             let announced = segment.start + delay
             var quietUntil = announced + CueTiming.quietHead
-            // The tone says a phase ran out. Nothing starts with one: not the workout, not a hold after
-            // its count-in or straight after Start, and not a place the run was moved to by hand. A
-            // gate never runs out: Start or Next ends it.
+            // The tone says a phase ran out, so a count-in ends on it as the go after its beeps. Nothing
+            // else starts with one: not the workout, not a hold straight after Start, and not a place
+            // the run was moved to by hand. A gate never runs out: Start or Next ends it.
             let previous = segment.id.index > 0 ? timeline.segments[segment.id.index - 1] : nil
-            if let previous, !previous.isGate, !previous.phase.isCountIn, !landed {
+            if let previous, !previous.isGate, !landed {
                 cues.append(Cue(segment.start, .phaseChange))
             }
             // A phrase that cannot finish inside its phase would talk over the next tone. A gate holds
